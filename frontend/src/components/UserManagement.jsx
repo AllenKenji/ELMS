@@ -1,18 +1,20 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import api from '../api/api';
+import { useAuth } from '../context/useAuth';
 import '../styles/UserManagement.css';
 
 const ROLES = [
-  { id: '1', name: 'Secretary' },
-  { id: '2', name: 'Councilor' },
-  { id: '3', name: 'Captain' },
-  { id: '4', name: 'DILG' },
+  { id: '1', name: 'Admin' },
+  { id: '2', name: 'Secretary' },
+  { id: '3', name: 'Councilor' },
+  { id: '4', name: 'Captain' },
   { id: '5', name: 'Resident' },
-  { id: '6', name: 'Admin' },
+  { id: '6', name: 'DILG Official' },
 ];
 
 export default function UserManagement({ users, currentUserRole, authContext }) {
-  const [allUsers, setAllUsers] = useState(users || []);
+  const { user: authUser } = useAuth();
+  const [allUsers, setAllUsers] = useState(Array.isArray(users) ? users : []);
   const [form, setForm] = useState({ name: '', email: '', password: '', roleId: '' });
   const [editingId, setEditingId] = useState(null);
   const [editRole, setEditRole] = useState('');
@@ -21,7 +23,6 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   const [success, setSuccess] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [formErrors, setFormErrors] = useState({});
-  const [debugInfo, setDebugInfo] = useState('');
 
   // Try to get role from multiple sources
   const getUserRole = () => {
@@ -32,41 +33,44 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     }
     
     // 2. From context
-    if (authContext?.user?.role_id) {
-      console.log('Role from context:', authContext.user.role_id);
-      return authContext.user.role_id;
+    if (authContext?.user?.role || authContext?.user?.role_id) {
+      console.log('Role from context:', authContext.user.role || authContext.user.role_id);
+      return authContext.user.role || authContext.user.role_id;
+    }
+
+    // 3. From AuthProvider
+    if (authUser?.role || authUser?.role_id) {
+      console.log('Role from AuthProvider:', authUser.role || authUser.role_id);
+      return authUser.role || authUser.role_id;
     }
     
-    // 3. From localStorage
+    // 4. From localStorage
     try {
       const userStr = localStorage.getItem('user');
       if (userStr) {
         const user = JSON.parse(userStr);
-        console.log('Role from localStorage:', user.role_id);
-        return user.role_id;
+        console.log('Role from localStorage:', user.role || user.role_id);
+        return user.role || user.role_id;
       }
     } catch (e) {
       console.error('Error reading from localStorage:', e);
     }
     
-    // 4. Default: not admin
+    // 5. Default: not admin
     console.log('No role found - defaulting to non-admin');
     return null;
   };
 
   const userRole = getUserRole();
-  const isAdmin = userRole === '6' || userRole === 6;
+  const isAdmin = userRole === '6' || userRole === 6 || userRole === 'Admin';
 
   useEffect(() => {
-    // Debug logging
-    const debugMsg = `Role: ${userRole}, IsAdmin: ${isAdmin}`;
-    setDebugInfo(debugMsg);
-    console.log(debugMsg);
+    console.log(`Role: ${userRole}, IsAdmin: ${isAdmin}`);
 
-    if (!users) {
+    if (!users && isAdmin) {
       fetchUsers();
     }
-  }, [users, userRole]);
+  }, [users, userRole, isAdmin]);
 
   const fetchUsers = async () => {
     try {
@@ -131,7 +135,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
 
     try {
       setLoading(true);
-      const res = await api.post('/register', {
+      const res = await api.post('/auth/register', {
         ...form,
         roleId: parseInt(form.roleId),
       });
@@ -143,7 +147,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
       
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      const errorMsg = err.response?.data?.message || 'Error creating user. Please try again.';
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Error creating user. Please try again.';
       setError(errorMsg);
       console.error('Error creating user:', err);
     } finally {
@@ -159,7 +163,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
 
     try {
       setLoading(true);
-      await api.put(`/users/${id}`, { role_id: parseInt(editRole) });
+      await api.patch(`/users/${id}/role`, { role_id: parseInt(editRole) });
       
       setAllUsers(prev =>
         prev.map(u => (u.id === id ? { ...u, role_id: parseInt(editRole) } : u))
@@ -172,7 +176,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
       
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      const errorMsg = err.response?.data?.message || 'Error updating role. Please try again.';
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Error updating role. Please try again.';
       setError(errorMsg);
       console.error('Error updating role:', err);
     } finally {
@@ -196,7 +200,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
       
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      const errorMsg = err.response?.data?.message || 'Error deleting user. Please try again.';
+      const errorMsg = err.response?.data?.error || err.response?.data?.message || 'Error deleting user. Please try again.';
       setError(errorMsg);
       console.error('Error deleting user:', err);
     } finally {
