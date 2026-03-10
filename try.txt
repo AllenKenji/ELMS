@@ -1,0 +1,83 @@
+Elegislative/
+│
+├── backend/                   # Node.js + Express + PostgreSQL
+│   ├── node_modules/
+│   ├── server.js              # Entry point
+│   ├── db.js                  # Database connection
+│   ├── routes/                # API routes
+│   │    ├── auth.js           # Register/Login
+│   |    ├── sessions.js       # Legislative sessionsElegislative/
+│
+├── backend/                   # Node.js + Express + PostgreSQL
+│   ├── server.js              # Entry point
+│   ├── db.js                  # Database connection
+│   ├── routes/                # API routes
+│   │    ├── auth.js           # Register/Login
+│   |    ├── sessions.js       # Legislative sessions
+│   |    ├── ordinances.js     # Ordinances
+│   |    ├── resolutions.js    # Resolutions
+│   |    ├── notifications.js  # Notifications
+│   │    ├── legislation.js
+│   │    └── votes.js
+│   ├── models/                # Database models
+│   │    ├── userModel.js
+│   │    ├── legislationModel.js
+│   │    └── voteModel.js
+│   ├── middleware/         # Auth & role-based middleware
+│   │    └── authMiddleware.js
+│   ├── utils/              # Helpers (logging, validation)
+│   ├── seed.js
+│   └── .env                # Environment variables
+│
+|   frontend/
+|   ├── public/                # Static assets (favicon, index.html)
+|   ├── src/
+|   │   ├── api/               # Axios instance & API helpers
+|   │   │   └── api.js
+|   │   │
+|   │   ├── components/        # Reusable UI components
+|   │   │   ├── Login.jsx
+|   │   │   ├── Dashboard.jsx
+|   │   │   ├── Navbar.jsx
+|   │   │   └── NotificationList.jsx
+|   │   │
+|   │   ├── hooks/             # Custom React hooks
+│   |   │   └── useSocket.js   # Connects to Socket.IO, joins role, listens for events
+│   |   │
+│   |   ├── context/           # Global state/context providers
+│   |   │   └── AuthContext.jsx
+│   |   │
+│   |   ├── pages/             # Page-level components
+│   |   │   ├── Ordinances.jsx
+│   |   │   ├── Resolutions.jsx
+│   |   │   └── Sessions.jsx
+│   |   │
+│   |   ├── styles/            # CSS files
+│   |   │   ├── Login.css
+│   |   │   ├── Dashboard.css
+│   |   │   └── global.css
+│   |   │
+│   |   ├── App.jsx            # Main app component
+│   |   ├── index.js           # React entry point
+│   |   └── routes.js          # Centralized route definitions
+|   │
+|   └── package.json
+│
+└── README.md               # Documentation
+
+│   |    ├── ordinances.js     # Ordinances
+│   |    ├── resolutions.js    # Resolutions
+│   |    └── notifications.js  # Notifications
+│   ├── models/                # Database models
+│   ├── middleware/         # Auth & role-based middleware
+│   │    ├── auth.js
+│   │    └── roles.js
+│   ├── utils/              # Helpers (logging, validation)
+│   |    └── notifications.js
+│   ├── package.json
+│   ├── seed.js
+│   └── .env                # Environment variables
+│
+├── frontend/               # React app
+|
+└── README.md               # Documentation

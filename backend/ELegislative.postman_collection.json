@@ -1,0 +1,114 @@
+{
+  "info": {
+    "name": "ELegislative API",
+    "_postman_id": "elegislative-collection-001",
+    "description": "Postman collection for testing ELegislative backend endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth - Register",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Councilor User\",\n  \"email\": \"councilor@elegislative.local\",\n  \"password\": \"councilor123\",\n  \"roleId\": 2\n}"
+        },
+        "url": { "raw": "http://localhost:5000/auth/register" }
+      }
+    },
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"councilor@elegislative.local\",\n  \"password\": \"councilor123\"\n}"
+        },
+        "url": { "raw": "http://localhost:5000/auth/login" }
+      }
+    },
+    {
+      "name": "Sessions - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Barangay Session\",\n  \"date\": \"2026-03-05\"\n}"
+        },
+        "url": { "raw": "http://localhost:5000/sessions" }
+      }
+    },
+    {
+      "name": "Ordinances - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Noise Regulation Ordinance\",\n  \"description\": \"Regulating loud noise after 10 PM\"\n}"
+        },
+        "url": { "raw": "http://localhost:5000/ordinances" }
+      }
+    },
+    {
+      "name": "Ordinances - Update Status",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"approved\"\n}"
+        },
+        "url": { "raw": "http://localhost:5000/ordinances/1/status" }
+      }
+    },
+    {
+      "name": "Resolutions - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Community Clean-up Resolution\",\n  \"description\": \"Organize monthly clean-ups\"\n}"
+        },
+        "url": { "raw": "http://localhost:5000/resolutions" }
+      }
+    },
+    {
+      "name": "Notifications - Get",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": { "raw": "http://localhost:5000/notifications" }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "token",
+      "value": ""
+    }
+  ]
+}

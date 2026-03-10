@@ -1,0 +1,165 @@
+/* Page wrapper */
+.auth-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;        /* full screen height */
+  background-color: #f0f0f0; /* soft gray background */
+}
+
+/* Dark header background */
+.system-header {
+  width: 100%;
+  background-color: #f0f0f0; /* darker than login box */
+  padding: 25px 0;
+  text-align: center;
+  margin-bottom: 40px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.system-header h1 {
+  margin-top: 5rem;
+  margin-bottom: 0;
+  color: black;
+  line-height: 1.4;
+}
+
+.title-bold {
+  font-weight: 700;
+  font-size: 3rem;
+}
+
+.title-light {
+  font-weight: 400;
+  font-size: 3rem;
+}
+
+/* Login box */
+.login-container {
+  max-width: 400px;
+  width: 100%;
+  padding: 30px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.login-container h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.login-container form {
+  display: flex;
+  flex-direction: column;
+}
+
+.login-container label {
+  text-align: left;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #444;
+}
+
+.login-container input {
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* Remember Me */
+.remember-me {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  text-align: left;
+}
+
+.remember-me input {
+  margin-right: 8px;
+}
+
+.remember-me label {
+  font-size: 0.9rem;
+  color: #444;
+}
+
+/* Button */
+.login-container button {
+  padding: 10px;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.login-container button:disabled {
+  background: #aaa;
+  cursor: not-allowed;
+}
+
+.login-container button:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+/* Error message */
+.error {
+  color: #d9534f;
+  margin-bottom: 10px;
+}
+
+/* Links section */
+.login-links {
+  margin-top: 15px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.login-links a {
+  color: #007bff;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: color 0.3s ease;
+}
+
+.login-links a:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+/* Password field wrapper */
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Input with space for icon */
+.password-field input {
+  width: 100%;
+  padding: 10px;
+  padding-right: 40px; /* reserve space for eye icon */
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+}
+
+/* Eye icon styling */
+.eye-icon {
+  position: absolute;
+  right: 12px;
+  top: 30%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  font-size: 18px;
+  color: #666;
+  transition: color 0.3s ease;
+}
+
+.eye-icon:hover {
+  color: #007bff; /* highlight on hover */
+}
