@@ -4,6 +4,7 @@ import { useAuth } from './context/useAuth';
 import Login from './components/Login';
 import ForgotPassword from './components/ForgotPassword';
 import Register from './components/Register';
+import DashboardLayout from './components/DashboardLayout';
 
 import CouncilorDashboard from './pages/CouncilorDashboard';
 import SecretaryDashboard from './pages/SecretaryDashboard';
@@ -37,18 +38,19 @@ function App() {
   const dashboardComponent = user?.role ? dashboards[user.role] : null;
   const canAccessDashboard = Boolean(accessToken && dashboardComponent);
   const dashboardPathByRole = {
-    Admin: '/admin-dashboard',
-    Secretary: '/secretary-dashboard',
-    Councilor: '/councilor-dashboard',
-    Captain: '/captain-dashboard',
-    Resident: '/resident-dashboard',
-    'DILG Official': '/dilg-dashboard',
+    Admin: '/dashboard',
+    Secretary: '/dashboard',
+    Councilor: '/dashboard',
+    Captain: '/dashboard',
+    Resident: '/dashboard',
+    'DILG Official': '/dashboard',
   };
   const userDashboardPath = user?.role ? dashboardPathByRole[user.role] || '/dashboard' : '/';
 
   return (
     <BrowserRouter>
       <Routes>
+        {/* Auth Routes */}
         <Route
           path="/"
           element={!canAccessDashboard ? <Login onLogin={login} /> : <Navigate to={userDashboardPath} />}
@@ -56,50 +58,28 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
 
+        {/* Protected Dashboard Routes with Layout */}
         <Route
-          path="/admin-dashboard"
-          element={canAccessDashboard && user?.role === 'Admin' ? <AdminDashboard /> : <Navigate to="/dashboard" />}
-        />
-        <Route
-          path="/secretary-dashboard"
-          element={canAccessDashboard && user?.role === 'Secretary' ? <SecretaryDashboard /> : <Navigate to="/dashboard" />}
-        />
-        <Route
-          path="/councilor-dashboard"
-          element={canAccessDashboard && user?.role === 'Councilor' ? <CouncilorDashboard /> : <Navigate to="/dashboard" />}
-        />
-        <Route
-          path="/captain-dashboard"
-          element={canAccessDashboard && user?.role === 'Captain' ? <CaptainDashboard /> : <Navigate to="/dashboard" />}
-        />
-        <Route
-          path="/resident-dashboard"
-          element={canAccessDashboard && user?.role === 'Resident' ? <ResidentDashboard /> : <Navigate to="/dashboard" />}
-        />
-        <Route
-          path="/dilg-dashboard"
-          element={canAccessDashboard && (user?.role === 'DILG' || user?.role === 'DILG Official') ? <DILGDashboard /> : <Navigate to="/dashboard" />}
-        />
-
-        {/* Protected dashboard route */}
-        <Route
-          path="/dashboard"
           element={
-            canAccessDashboard
-              ? React.createElement(dashboardComponent)
-              : <Navigate to="/" />
+            canAccessDashboard ? <DashboardLayout /> : <Navigate to="/" />
           }
         >
-          {/* Nested routes inside dashboard */}
-          <Route path="ordinances" element={<OrdinanceList />} />
-          <Route path="resolutions" element={<ResolutionList />} />
-          <Route path="sessions" element={<SessionList />} />
-          <Route path="notifications" element={<NotificationList />} />
-          <Route path="messages" element={<MessageList />} />
-          <Route path="users" element={<UserManagement />} />
-          <Route path="audit-logs" element={<AuditLogList />} />
-          <Route path="system-settings" element={<SystemSettings />} />
+          {/* Main Dashboard */}
+          <Route path="/dashboard" element={React.createElement(dashboardComponent)} />
+
+          {/* Sub-routes inside dashboard layout */}
+          <Route path="/dashboard/ordinances" element={<OrdinanceList />} />
+          <Route path="/dashboard/resolutions" element={<ResolutionList />} />
+          <Route path="/dashboard/sessions" element={<SessionList />} />
+          <Route path="/dashboard/notifications" element={<NotificationList />} />
+          <Route path="/dashboard/messages" element={<MessageList />} />
+          <Route path="/dashboard/users" element={<UserManagement />} />
+          <Route path="/dashboard/audit-logs" element={<AuditLogList />} />
+          <Route path="/dashboard/system-settings" element={<SystemSettings />} />
         </Route>
+
+        {/* Catch-all route */}
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useAuth } from '../../context/useAuth';
 import StatsWidget from '../../components/Dashboard/StatsWidget';
 import ActivityFeed from '../../components/Dashboard/ActivityFeed';
@@ -10,15 +9,12 @@ import '../../styles/AdminDashboard.css';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
-  const { stats, loading: statsLoading } = useStats();
+  const { stats } = useStats();
   const { activities, loading: activityLoading } = useActivityFeed(10);
   const { items: pendingItems, loading: pendingLoading } = usePendingItems();
   const { data: trendData, loading: trendLoading } = useTrendData(30);
 
-  const [refreshKey, setRefreshKey] = useState(0);
-
   const handleRefresh = () => {
-    setRefreshKey(prev => prev + 1);
     // Refresh all data
     window.location.reload();
   };
@@ -30,7 +26,7 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="admin-dashboard">
+    <div className="dashboard-content">
       {/* Header */}
       <div className="dashboard-header">
         <div className="header-content">
@@ -50,6 +46,7 @@ export default function AdminDashboard() {
             className="btn-refresh"
             onClick={handleRefresh}
             title="Refresh dashboard"
+            aria-label="Refresh dashboard"
           >
             🔄
           </button>
@@ -67,7 +64,7 @@ export default function AdminDashboard() {
 
       {/* Statistics Grid */}
       <div className="dashboard-section">
-        <h2 className="section-title">📊 Statistics</h2>
+        <h2 className="section-title">📊 Statistics Overview</h2>
         <div className="stats-grid">
           <StatsWidget
             label="Total Ordinances"
@@ -98,7 +95,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Detailed Stats */}
+      {/* Main Content Grid */}
       <div className="dashboard-grid">
         {/* Trend Chart */}
         <div className="dashboard-section full-width">
@@ -120,7 +117,7 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* Bottom Stats */}
+      {/* Status Breakdown */}
       <div className="dashboard-section">
         <h2 className="section-title">📋 Ordinance Status Breakdown</h2>
         <div className="status-breakdown">
