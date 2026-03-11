@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import NotificationBell from './NotificationBell';
 import '../styles/DashboardLayout.css'; 
 import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes } from 'react-icons/fa';
 
@@ -10,7 +9,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Close sidebar when navigation occurs
+  // Close sidebar when navigating
   const handleNavClick = () => {
     setSidebarOpen(false);
   };
@@ -33,18 +32,21 @@ export default function DashboardLayout() {
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
+      { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
     Councilor: [
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
+      { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
     Captain: [
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
+      { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
     Resident: [
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
@@ -52,6 +54,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
+      { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
     'DILG Official': [
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
@@ -59,6 +62,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
+      { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
   };
 
@@ -66,21 +70,22 @@ export default function DashboardLayout() {
 
   return (
     <div className="dashboard-container">
-      {/* Hamburger Menu Button - Mobile Only */}
+      {/* Mobile Hamburger Toggle Button */}
       <button
         className="sidebar-toggle"
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label="Toggle sidebar"
+        aria-label="Toggle sidebar menu"
         title="Menu"
       >
         {sidebarOpen ? <FaTimes /> : <FaBars />}
       </button>
 
-      {/* Sidebar Overlay - Mobile Only */}
+      {/* Sidebar Overlay (Mobile Only) */}
       {sidebarOpen && (
         <div
           className="sidebar-overlay"
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         ></div>
       )}
 
@@ -89,47 +94,63 @@ export default function DashboardLayout() {
         {/* Sidebar Header */}
         <div className="sidebar-header">
           <h2>E‑Legislative</h2>
-          <hr />
-          <h3>Main Navigation</h3>
+          <p className="sidebar-subtitle">Management System</p>
         </div>
 
-        {/* Navigation */}
-        <nav>
+        {/* Navigation Menu */}
+        <nav className="sidebar-nav">
           <ul>
             {links.map((link, idx) => (
               <li key={idx}>
                 <Link
                   to={link.path}
-                  className={location.pathname === link.path ? 'active' : ''}
+                  className={`nav-link ${location.pathname === link.path ? 'active' : ''}`}
                   onClick={handleNavClick}
                   title={link.label}
                 >
-                  {link.icon && <span className="nav-icon">{link.icon}</span>}
+                  <span className="nav-icon">{link.icon}</span>
                   <span className="nav-label">{link.label}</span>
                 </Link>
               </li>
             ))}
           </ul>
         </nav>
+
+        {/* Sidebar Footer */}
+        <div className="sidebar-footer">
+          <button
+            className="btn-logout-sidebar"
+            onClick={logout}
+            aria-label="Logout"
+            title="Logout"
+          >
+            🚪 Logout
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="dashboard-main">
         {/* Top Bar */}
         <div className="dashboard-topbar">
-          {/* Left side */}
-          <div></div>
+          <div className="topbar-left">
+            <h1 className="topbar-title">Dashboard</h1>
+          </div>
 
-          {/* Right side - User & Notifications */}
           <div className="topbar-right">
-            <NotificationBell />  {/* ✅ ADD THIS */}
-            
             <div className="topbar-user">
-              <div className="topbar-user-info">
-                <p className="topbar-user-name">{user?.name || 'User'}</p>
-                <p className="topbar-user-role">{user?.role || 'Role'}</p>
+              <div className="user-avatar">
+                {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
-              <button className="btn-logout" onClick={logout}>
+              <div className="user-info">
+                <p className="user-name">{user?.name || 'User'}</p>
+                <p className="user-role">{user?.role || 'Role'}</p>
+              </div>
+              <button
+                className="btn-logout"
+                onClick={logout}
+                aria-label="Logout"
+              >
                 Logout
               </button>
             </div>
