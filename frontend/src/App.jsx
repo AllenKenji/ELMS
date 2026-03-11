@@ -14,7 +14,7 @@ import DILGDashboard from './pages/DILGDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 
 import OrdinanceList from './components/Ordinances/OrdinanceList';
-import ResolutionList from './components/ResolutionList';
+import ResolutionList from './components/Resolutions/ResolutionList';
 import SessionList from './components/Sessions/SessionList';
 import NotificationList from './components/NotificationList';
 import MessageList from './components/MessageList';

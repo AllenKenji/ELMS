@@ -6,14 +6,14 @@ const authorizeRoles = require('../middleware/roles');
 const { createNotification } = require('../utils/notifications');
 const { getIO } = require('../socket');
 
-// CREATE resolution (only Councilors can submit)
-router.post('/', authenticateToken, authorizeRoles('Councilor'), async (req, res) => {
-  const { title, description, sessionId } = req.body;
+// CREATE resolution
+router.post('/', authenticateToken, authorizeRoles('Secretary', 'Admin'), async (req, res) => {
+  const { title, resolution_number, description, content, remarks } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO resolutions (title, description, submitted_by, session_id, created_at)
-       VALUES ($1, $2, $3, $4, NOW()) RETURNING *`,
-      [title, description, req.user.id, sessionId]
+      `INSERT INTO resolutions (title, resolution_number, description, content, remarks, proposer_id, proposer_name, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', NOW()) RETURNING *`,
+      [title, resolution_number, description, content, remarks || null, req.user.id, req.user.name]
     );
 
     const resolution = result.rows[0];
@@ -22,24 +22,12 @@ router.post('/', authenticateToken, authorizeRoles('Councilor'), async (req, res
     await pool.query(
       `INSERT INTO audit_logs (user_id, action, details, timestamp)
        VALUES ($1, $2, $3, NOW())`,
-      [req.user.id, 'RESOLUTION_SUBMIT', `Resolution "${title}" submitted`]
+      [req.user.id, 'RESOLUTION_CREATE', `Resolution "${title}" created`]
     );
 
-    // Notify Councilor (confirmation)
-    await createNotification(req.user.id, `Your resolution "${title}" has been submitted.`);
+    // Real-time notification
     const io = getIO();
-    io.to('Councilor').emit('resolutionSubmitted', resolution);
-
-    // Notify all Secretaries
-    const secretaries = await pool.query(`SELECT id FROM users WHERE role_id=1`);
-    for (const sec of secretaries.rows) {
-      await createNotification(sec.id, `New resolution submitted: "${title}"`);
-    }
-    io.to('Secretary').emit('newResolution', resolution);
-
-    // Also notify Captains + DILG for oversight
-    io.to('Captain').emit('newResolution', resolution);
-    io.to('DILG').emit('newResolution', resolution);
+    io.emit('resolutionCreated', resolution);
 
     res.json(resolution);
   } catch (err) {
@@ -48,115 +36,153 @@ router.post('/', authenticateToken, authorizeRoles('Councilor'), async (req, res
   }
 });
 
-
 // READ all resolutions
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM resolutions ORDER BY created_at DESC');
+    const { status, proposer } = req.query;
+    let query = `
+      SELECT 
+        r.*,
+        u.name as proposer_name
+       FROM resolutions r
+       LEFT JOIN users u ON u.id = r.proposer_id
+       WHERE 1=1
+    `;
+    const params = [];
+
+    if (status) {
+      query += ` AND r.status = $${params.length + 1}`;
+      params.push(status);
+    }
+
+    if (proposer) {
+      query += ` AND r.proposer_id = $${params.length + 1}`;
+      params.push(proposer);
+    }
+
+    query += ` ORDER BY r.created_at DESC`;
+
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error fetching resolutions');
+    console.error('Get resolutions error:', err);
+    res.status(500).json({ error: 'Error fetching resolutions' });
   }
 });
 
 // READ single resolution
 router.get('/:id', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM resolutions WHERE id=$1', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Resolution not found' });
+    const result = await pool.query(
+      `SELECT 
+        r.*,
+        u.name as proposer_name
+       FROM resolutions r
+       LEFT JOIN users u ON u.id = r.proposer_id
+       WHERE r.id=$1`,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Resolution not found' });
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error fetching resolution');
+    console.error('Get resolution error:', err);
+    res.status(500).json({ error: 'Error fetching resolution' });
   }
 });
 
-// UPDATE resolution (Secretary can link to session, Councilor can edit title/description)
-router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Councilor'), async (req, res) => {
-  const { title, description, status, session_id } = req.body;
+// UPDATE resolution
+router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Admin'), async (req, res) => {
+  const { title, resolution_number, description, content, remarks, status } = req.body;
   try {
     const result = await pool.query(
-      `UPDATE resolutions
-       SET title = COALESCE($1, title),
-           description = COALESCE($2, description),
-           status = COALESCE($3, status),
-           session_id = COALESCE($4, session_id)
-       WHERE id=$5 RETURNING *`,
-      [title, description, status, session_id, req.params.id]
+      `UPDATE resolutions 
+       SET title=$1, resolution_number=$2, description=$3, content=$4, remarks=$5, status=$6, updated_at=NOW()
+       WHERE id=$7 RETURNING *`,
+      [title, resolution_number, description, content, remarks || null, status || 'Draft', req.params.id]
     );
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Resolution not found' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Resolution not found' });
+    }
 
     const resolution = result.rows[0];
 
-    // Notify Councilor if Secretary linked resolution to a session
-    if (session_id) {
-      await createNotification(
-        resolution.submitted_by,
-        `Your resolution "${resolution.title}" was added to session ${session_id}.`
-      );
-      const io = getIO();
-      io.to('Councilor').emit('resolutionLinked', resolution);
-    }
+    // Audit log
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, action, details, timestamp)
+       VALUES ($1, $2, $3, NOW())`,
+      [req.user.id, 'RESOLUTION_UPDATE', `Resolution "${title}" updated`]
+    );
+
+    // Real-time notification
+    const io = getIO();
+    io.emit('resolutionUpdated', resolution);
 
     res.json(resolution);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error updating resolution');
+    console.error('Update resolution error:', err);
+    res.status(500).json({ error: 'Error updating resolution' });
   }
 });
 
-// UPDATE resolution status (only Captain or DILG can approve/reject)
-router.put('/:id/status', authenticateToken, authorizeRoles('Captain', 'DILG Official'), async (req, res) => {
+// DELETE resolution
+router.delete('/:id', authenticateToken, authorizeRoles('Admin'), async (req, res) => {
+  try {
+    const resolution = await pool.query('SELECT * FROM resolutions WHERE id=$1', [req.params.id]);
+    
+    if (resolution.rows.length === 0) {
+      return res.status(404).json({ error: 'Resolution not found' });
+    }
+
+    await pool.query('DELETE FROM resolutions WHERE id=$1', [req.params.id]);
+
+    // Audit log
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, action, details, timestamp)
+       VALUES ($1, $2, $3, NOW())`,
+      [req.user.id, 'RESOLUTION_DELETE', `Resolution "${resolution.rows[0].title}" deleted`]
+    );
+
+    res.json({ message: 'Resolution deleted successfully' });
+  } catch (err) {
+    console.error('Delete resolution error:', err);
+    res.status(500).json({ error: 'Error deleting resolution' });
+  }
+});
+
+// CHANGE STATUS
+router.patch('/:id/status', authenticateToken, authorizeRoles('Secretary', 'Admin'), async (req, res) => {
   const { status } = req.body;
+  const validStatuses = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Published', 'Rejected'];
+
+  if (!validStatuses.includes(status)) {
+    return res.status(400).json({ error: 'Invalid status' });
+  }
+
   try {
     const result = await pool.query(
-      `UPDATE resolutions SET status=$1 WHERE id=$2 RETURNING *`,
+      `UPDATE resolutions SET status=$1, updated_at=NOW() WHERE id=$2 RETURNING *`,
       [status, req.params.id]
     );
 
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Resolution not found' });
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Resolution not found' });
+    }
 
     const resolution = result.rows[0];
 
-    // Notify Councilor who submitted
-    await createNotification(
-      resolution.submitted_by,
-      `Your resolution "${resolution.title}" was ${status}.`
-    );
-
-    // Broadcast to Councilors + Secretaries
+    // Real-time notification
     const io = getIO();
-    io.to('Councilor').emit('resolutionStatusChanged', resolution);
-    io.to('Secretary').emit('resolutionStatusChanged', resolution);
+    io.emit('resolutionStatusChanged', resolution);
 
     res.json(resolution);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error updating resolution status');
-  }
-});
-
-// DELETE resolution (only Secretary can delete)
-router.delete('/:id', authenticateToken, authorizeRoles('Secretary'), async (req, res) => {
-  try {
-    const result = await pool.query('DELETE FROM resolutions WHERE id=$1 RETURNING *', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Resolution not found' });
-
-    const resolution = result.rows[0];
-
-    // Notify Councilor who submitted
-    await createNotification(
-      resolution.submitted_by,
-      `Your resolution "${resolution.title}" was deleted by the Secretary.`
-    );
-    const io = getIO();
-    io.to('Councilor').emit('resolutionDeleted', resolution);
-    res.json({ message: 'Resolution deleted successfully' });
-  } catch (err) {
-    console.error(err);
-    res.status(500).send('Error deleting resolution');
+    console.error('Status change error:', err);
+    res.status(500).json({ error: 'Error updating status' });
   }
 });
 
