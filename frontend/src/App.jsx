@@ -12,7 +12,7 @@ import ResidentDashboard from './pages/ResidentDashboard';
 import DILGDashboard from './pages/DILGDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 
-import OrdinanceList from './components/OrdinanceList';
+import OrdinanceList from './components/Ordinances/OrdinanceList';
 import ResolutionList from './components/ResolutionList';
 import SessionList from './components/SessionList';
 import NotificationList from './components/NotificationList';

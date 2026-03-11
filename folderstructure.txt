@@ -1,0 +1,351 @@
+ELMS/
+│
+├── 📁 frontend/
+│   ├── 📁 public/
+│   │   ├── favicon.ico
+│   │   ├── index.html
+│   │   └── vite.svg
+│   │
+│   ├── 📁 src/
+│   │   ├── 📁 api/
+│   │   │   ├── api.js (axios instance with interceptors)
+│   │   │   ├── ordinanceAPI.js (ordinance endpoints)
+│   │   │   ├── sessionAPI.js (session endpoints)
+│   │   │   ├── voteAPI.js (voting endpoints)
+│   │   │   ├── userAPI.js (user endpoints)
+│   │   │   ├── committeeAPI.js (committee endpoints)
+│   │   │   ├── resolutionAPI.js (resolution endpoints)
+│   │   │   ├── reportAPI.js (reporting endpoints)
+│   │   │   └── notificationAPI.js (notification endpoints)
+│   │   │
+│   │   ├── 📁 components/
+│   │   │   │
+│   │   │   ├── 📁 Ordinances/
+│   │   │   │   ├── OrdinanceList.jsx ✅ (exists)
+│   │   │   │   ├── OrdinanceForm.jsx ✅ (exists)
+│   │   │   │   ├── OrdinanceDetails.jsx ✅ (exists)
+│   │   │   │   ├── OrdinanceWorkflow.jsx ✅ (exists)
+│   │   │   │   ├── OrdinanceComments.jsx (new)
+│   │   │   │   ├── OrdinanceTimeline.jsx (new)
+│   │   │   │   └── OrdinanceSearch.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Sessions/
+│   │   │   │   ├── SessionList.jsx ✅ (exists)
+│   │   │   │   ├── SessionForm.jsx (new)
+│   │   │   │   ├── SessionDetails.jsx (new)
+│   │   │   │   ├── SessionScheduler.jsx (new)
+│   │   │   │   └── SessionAgenda.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Resolutions/
+│   │   │   │   ├── ResolutionList.jsx ✅ (exists)
+│   │   │   │   ├── ResolutionForm.jsx (new)
+│   │   │   │   ├── ResolutionDetails.jsx (new)
+│   │   │   │   └── ResolutionWorkflow.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Voting/
+│   │   │   │   ├── VotingDashboard.jsx (new)
+│   │   │   │   ├── VoteTracker.jsx (new)
+│   │   │   │   ├── VotingHistory.jsx (new)
+│   │   │   │   ├── VoteSummary.jsx (new)
+│   │   │   │   └── CouncilorVotes.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Committees/
+│   │   │   │   ├── CommitteeList.jsx (new)
+│   │   │   │   ├── CommitteeForm.jsx (new)
+│   │   │   │   ├── CommitteeDetails.jsx (new)
+│   │   │   │   └── CommitteeMemberManagement.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Users/
+│   │   │   │   ├── UserManagement.jsx ✅ (exists)
+│   │   │   │   ├── UserProfile.jsx (new)
+│   │   │   │   ├── UserActivityLog.jsx (new)
+│   │   │   │   └── CouncilorProfile.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Notifications/
+│   │   │   │   ├── NotificationList.jsx ✅ (exists - basic)
+│   │   │   │   ├── NotificationCenter.jsx (new)
+│   │   │   │   ├── NotificationPreferences.jsx (new)
+│   │   │   │   └── NotificationAlert.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Messages/
+│   │   │   │   ├── MessageList.jsx ✅ (exists)
+│   │   │   │   ├── MessageThread.jsx (new)
+│   │   │   │   ├── MessageComposer.jsx (new)
+│   │   │   │   └── InboxDashboard.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Admin/
+│   │   │   │   ├── AuditLogList.jsx ✅ (exists)
+│   │   │   │   ├── SystemSettings.jsx ✅ (exists)
+│   │   │   │   ├── AdminDashboard.jsx ✅ (exists)
+│   │   │   │   ├── UserRoleManagement.jsx (new)
+│   │   │   │   ├── SystemConfig.jsx (new)
+│   │   │   │   └── DataManagement.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Reports/
+│   │   │   │   ├── ReportingDashboard.jsx (new)
+│   │   │   │   ├── OrdinanceReport.jsx (new)
+│   │   │   │   ├── CouncilorActivityReport.jsx (new)
+│   │   │   │   ├── TimelineReport.jsx (new)
+│   │   │   │   ├── CategoryReport.jsx (new)
+│   │   │   │   └── ReportExporter.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Public/
+│   │   │   │   ├── PublicOrdinanceList.jsx (new)
+│   │   │   │   ├── PublicOrdinanceDetails.jsx (new)
+│   │   │   │   ├── PublicSearch.jsx (new)
+│   │   │   │   └── PublicResolutionList.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Shared/
+│   │   │   │   ├── Navbar.jsx ✅ (exists)
+│   │   │   │   ├── Sidebar.jsx (new)
+│   │   │   │   ├── DashboardLayout.jsx (new)
+│   │   │   │   ├── SearchBar.jsx (new)
+│   │   │   │   ├── BreadcrumbNav.jsx (new)
+│   │   │   │   ├── LoadingSpinner.jsx (new)
+│   │   │   │   ├── Modal.jsx (new)
+│   │   │   │   ├── Table.jsx (new)
+│   │   │   │   ├── Card.jsx (new)
+│   │   │   │   ├── Badge.jsx (new)
+│   │   │   │   ├── Button.jsx (new)
+│   │   │   │   ├── Form.jsx (new)
+│   │   │   │   └── ToastNotification.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Auth/
+│   │   │   │   ├── Login.jsx ✅ (exists)
+│   │   │   │   ├── Register.jsx ✅ (exists)
+│   │   │   │   ├── ForgotPassword.jsx ✅ (exists)
+│   │   │   │   └── ResetPassword.jsx (new)
+│   │   │   │
+│   │   │   └── 📁 Charts/
+│   │   │       ├── LineChart.jsx (new)
+│   │   │       ├── BarChart.jsx (new)
+│   │   │       ├── PieChart.jsx (new)
+│   │   │       └── TimelineChart.jsx (new)
+│   │   │
+│   │   ├── 📁 context/
+│   │   │   ├── auth.js ✅ (exists)
+│   │   │   ├── useAuth.js ✅ (exists)
+│   │   │   ├── NotificationContext.jsx (new)
+│   │   │   └── FilterContext.jsx (new)
+│   │   │
+│   │   ├── 📁 hooks/
+│   │   │   ├── useSocket.js ✅ (exists)
+│   │   │   ├── useFetch.js (new)
+│   │   │   ├── useForm.js (new)
+│   │   │   ├── usePagination.js (new)
+│   │   │   ├── useLocalStorage.js (new)
+│   │   │   └── useNotification.js (new)
+│   │   │
+│   │   ├── 📁 pages/
+│   │   │   ├── 📁 Dashboards/
+│   │   │   │   ├── AdminDashboard.jsx ✅ (exists)
+│   │   │   │   ├── SecretaryDashboard.jsx ✅ (exists)
+│   │   │   │   ├── CouncilorDashboard.jsx ✅ (exists)
+│   │   │   │   ├── CaptainDashboard.jsx ✅ (exists)
+│   │   │   │   ├── ResidentDashboard.jsx ✅ (exists)
+│   │   │   │   └── DILGDashboard.jsx ✅ (exists)
+│   │   │   │
+│   │   │   ├── 📁 Public/
+│   │   │   │   ├── PublicHomepage.jsx (new)
+│   │   │   │   ├── PublicOrdinances.jsx (new)
+│   │   │   │   ├── PublicResolutions.jsx (new)
+│   │   │   │   └─�� PublicSearchPage.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Admin/
+│   │   │   │   ├── UsersManagement.jsx (new)
+│   │   │   │   ├── ReportingPage.jsx (new)
+│   │   │   │   ├── AuditPage.jsx (new)
+│   │   │   │   └── SettingsPage.jsx (new)
+│   │   │   │
+│   │   │   ├── 📁 Legislative/
+│   │   │   │   ├── OrdinancesPage.jsx (new)
+│   │   │   │   ├── ResolutionsPage.jsx (new)
+│   │   │   │   ├── SessionsPage.jsx (new)
+│   │   │   │   ├── CommitteesPage.jsx (new)
+│   │   │   │   ├── VotingPage.jsx (new)
+│   │   │   │   └── CalendarPage.jsx (new)
+│   │   │   │
+│   │   │   ├── AuthPage.jsx (new - combines login/register)
+│   │   │   ├── NotFoundPage.jsx (new)
+│   │   │   └── ErrorPage.jsx (new)
+│   │   │
+│   │   ├── 📁 styles/
+│   │   │   ├── global.css (new)
+│   │   │   ├── variables.css (new)
+│   │   │   ├── UserManagement.css ✅ (exists)
+│   │   │   ├── OrdinanceList.css ✅ (exists)
+│   │   │   ├── OrdinanceForm.css ✅ (exists)
+│   │   │   ├── form.css ✅ (exists)
+│   │   │   ├── Login.css ✅ (exists)
+│   │   │   ├── Dashboard.css (new)
+│   │   │   ├── Table.css (new)
+│   │   │   ├── Cards.css (new)
+│   │   │   ├── Modal.css (new)
+│   │   │   ├── Sidebar.css (new)
+│   │   │   ├── Charts.css (new)
+│   │   │   ├── Responsive.css (new)
+│   │   │   └── Animations.css (new)
+│   │   │
+│   │   ├── 📁 utils/
+│   │   │   ├── dateFormatter.js (new)
+│   │   │   ├── statusColors.js (new)
+│   │   │   ├── rolePermissions.js (new)
+│   │   │   ├── validators.js (new)
+│   │   │   ├── localStorage.js (new)
+│   │   │   └── constants.js (new)
+│   │   │
+│   │   ├── App.jsx ✅ (exists)
+│   │   ├── App.css ✅ (exists)
+│   │   ├── index.css ✅ (exists)
+│   │   ├── main.jsx (new - entry point)
+│   │   └── routes.js (new - centralized routes)
+│   │
+│   ├── .env (new)
+│   ├── .gitignore
+│   ├── eslint.config.js ✅ (exists)
+│   ├── index.html ✅ (exists)
+│   ├── package.json ✅ (needs updates)
+│   ├── vite.config.js ✅ (exists)
+│   └── README.md
+│
+│
+├── 📁 backend/
+│   ├── 📁 config/
+│   │   ├── database.js (new - PostgreSQL connection)
+│   │   ├── env.js (new - environment variables)
+│   │   └── socket.js (new - Socket.IO config)
+│   │
+│   ├── 📁 routes/
+│   │   ├── auth.js ✅ (exists - register/login)
+│   │   ├── users.js (new - GET, UPDATE, DELETE users)
+│   │   ├── ordinances.js (new - CRUD ordinances)
+│   │   ├── resolutions.js (new - CRUD resolutions)
+│   │   ├── sessions.js (new - CRUD sessions)
+│   │   ├── votes.js (new - CRUD votes)
+│   │   ├── committees.js (new - CRUD committees)
+│   │   ├── comments.js (new - CRUD comments)
+│   │   ├── notifications.js (new - GET, UPDATE notifications)
+│   │   ├── messages.js (new - CRUD messages)
+│   │   ├── reports.js (new - generate reports)
+│   │   ├── audit.js (new - GET audit logs)
+│   │   └── admin.js (new - system settings)
+│   │
+│   ├── 📁 models/
+│   │   ├── userModel.js ✅ (exists)
+│   │   ├── ordinanceModel.js (new)
+│   │   ├── resolutionModel.js (new)
+│   │   ├── sessionModel.js (new)
+│   │   ├── voteModel.js ✅ (exists - may need updates)
+│   │   ├── committeeModel.js (new)
+│   │   ├── commentModel.js (new)
+│   │   ├── notificationModel.js (new)
+│   │   ├── messageModel.js (new)
+│   │   ├── auditLogModel.js (new)
+│   │   └── roleModel.js (new)
+│   │
+│   ├── 📁 middleware/
+│   │   ├── authMiddleware.js ✅ (exists)
+│   │   ├── roleMiddleware.js (new - role-based access)
+│   │   ├── errorHandler.js (new)
+│   │   ├── logger.js (new)
+│   │   ├── validation.js (new)
+│   │   └── rateLimit.js (new - prevent spam)
+│   │
+│   ├── 📁 controllers/
+│   │   ├── authController.js (new)
+│   │   ├── userController.js (new)
+│   │   ├── ordinanceController.js (new)
+│   │   ├── resolutionController.js (new)
+│   │   ├── sessionController.js (new)
+│   │   ├── voteController.js (new)
+│   │   ├── committeeController.js (new)
+│   │   ├── commentController.js (new)
+│   │   ├── notificationController.js (new)
+│   │   ├── messageController.js (new)
+│   │   ├── reportController.js (new)
+│   │   ├── auditController.js (new)
+│   │   └── adminController.js (new)
+│   │
+│   ├── 📁 services/
+│   │   ├── emailService.js (new - send emails)
+│   │   ├── notificationService.js (new - handle notifications)
+│   │   ├── reportService.js (new - generate reports)
+│   │   ├── workflowService.js (new - manage ordinance workflow)
+│   │   ├── votingService.js (new - voting logic)
+│   │   └── importService.js (new - bulk imports)
+│   │
+│   ├── 📁 utils/
+│   │   ├── dateUtils.js (new)
+│   │   ├── validators.js (new)
+│   │   ├── responseFormatter.js (new)
+│   │   ├── constants.js (new)
+│   │   └── helpers.js (new)
+│   │
+│   ├── 📁 migrations/
+│   │   ├── 001_create_users_table.sql (new)
+│   │   ├── 002_create_roles_table.sql (new)
+│   │   ├── 003_create_ordinances_table.sql (new)
+│   │   ├── 004_create_sessions_table.sql (new)
+│   │   ├── 005_create_votes_table.sql (new)
+│   │   ├── 006_create_committees_table.sql (new)
+│   │   ├── 007_create_comments_table.sql (new)
+│   │   ├── 008_create_notifications_table.sql (new)
+│   │   ├── 009_create_messages_table.sql (new)
+│   │   ├── 010_create_audit_logs_table.sql (new)
+│   │   └── 011_create_resolutions_table.sql (new)
+│   │
+│   ├── 📁 seeders/
+│   │   ├── seedRoles.js (new)
+│   │   ├── seedUsers.js (new)
+│   │   ├── seedOrdinances.js (new)
+│   │   ├── seedSessions.js (new)
+│   │   └── seedAll.js (new)
+│   │
+│   ├── 📁 tests/
+│   │   ├── 📁 unit/
+│   │   │   ├── auth.test.js (new)
+│   │   │   ├── ordinance.test.js (new)
+│   │   │   └── vote.test.js (new)
+│   │   │
+│   │   ├── 📁 integration/
+│   │   │   ├── ordinanceWorkflow.test.js (new)
+│   │   │   └── voting.test.js (new)
+│   │   │
+│   │   └── setup.js (new)
+│   │
+│   ├── .env.example (new)
+│   ├── .gitignore
+│   ├── db.js ✅ (exists - may need updates)
+│   ├── server.js ✅ (exists - may need updates)
+│   ├── package.json ✅ (exists - needs updates)
+│   ├── README.md
+│   └── docker-compose.yml (new - optional)
+│
+│
+├── 📁 database/
+│   ├── 📁 schemas/
+│   │   ├── users.sql (new)
+│   │   ├── ordinances.sql (new)
+│   │   ├── sessions.sql (new)
+│   │   ├── votes.sql (new)
+│   │   ├── committees.sql (new)
+│   │   ├── comments.sql (new)
+│   │   ├── notifications.sql (new)
+│   │   └── audit_logs.sql (new)
+│   │
+│   └── init.sql (new - initialize database)
+│
+│
+├── 📁 docs/
+│   ├── API_DOCUMENTATION.md (new)
+│   ├── DATABASE_SCHEMA.md (new)
+│   ├── SETUP_GUIDE.md (new)
+│   ├── USER_ROLES.md (new)
+│   ├── WORKFLOW_DIAGRAM.md (new)
+│   └── DEPLOYMENT.md (new)
+│
+│
+├── .gitignore (root)
+├── docker-compose.yml (root - optional)
+├── README.md (root)
+└── LICENSE

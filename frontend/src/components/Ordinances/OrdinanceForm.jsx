@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useAuth } from '../context/useAuth';
-import api from '../api/api';
-import "../styles/OrdinanceForm.css";
+import { useAuth } from '../../context/useAuth';
+import api from '../../api/api';
+import "../../styles/OrdinanceForm.css";
 
 export default function OrdinanceForm({ onSuccess, onCancel }) {
   const { user } = useAuth();

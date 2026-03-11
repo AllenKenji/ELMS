@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../context/useAuth';
-import api from '../api/api';
+import { useAuth } from '../../context/useAuth';
+import api from '../../api/api';
 import OrdinanceForm from './OrdinanceForm';
-import '../styles/OrdinanceList.css';
+import OrdinanceDetails from './OrdinanceDetails';
+import '../../styles/OrdinanceList.css';
 
 const STATUS_COLORS = {
   'Draft': '#95a5a6',
@@ -32,9 +33,9 @@ export default function OrdinanceList({ onRefresh }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedOrdinance, setSelectedOrdinance] = useState(null);
-  const [showDetails, setShowDetails] = useState(false);
   const [sortBy, setSortBy] = useState('date');
   const [showForm, setShowForm] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Memoize fetchOrdinances to prevent dependency issues
   const fetchOrdinances = useCallback(async () => {
@@ -62,12 +63,7 @@ export default function OrdinanceList({ onRefresh }) {
 
   const handleViewDetails = (ordinance) => {
     setSelectedOrdinance(ordinance);
-    setShowDetails(true);
-  };
-
-  const handleCloseDetails = () => {
-    setShowDetails(false);
-    setSelectedOrdinance(null);
+    setShowDetailsModal(true);
   };
 
   const handleNewOrdinance = () => {
@@ -341,113 +337,17 @@ export default function OrdinanceList({ onRefresh }) {
           </div>
 
           {/* Details Modal */}
-          {showDetails && selectedOrdinance && (
-            <div className="modal-overlay" onClick={handleCloseDetails}>
-              <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="modal-header">
-                  <h4>{selectedOrdinance.title}</h4>
-                  <button
-                    onClick={handleCloseDetails}
-                    className="btn-close"
-                    aria-label="Close modal"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="modal-body">
-                  <div className="detail-row">
-                    <label>Status:</label>
-                    <span
-                      className={`badge ${getStatusBadgeClass(selectedOrdinance.status)}`}
-                      style={{ backgroundColor: getStatusColor(selectedOrdinance.status) }}
-                    >
-                      {selectedOrdinance.status}
-                    </span>
-                  </div>
-
-                  <div className="detail-row">
-                    <label>Ordinance Number:</label>
-                    <code>{selectedOrdinance.ordinance_number || 'Pending Assignment'}</code>
-                  </div>
-
-                  <div className="detail-row">
-                    <label>Proposer:</label>
-                    <span>{selectedOrdinance.proposer_name || user?.name || 'System'}</span>
-                  </div>
-
-                  <div className="detail-row">
-                    <label>Date Submitted:</label>
-                    <span>
-                      {selectedOrdinance.created_at
-                        ? new Date(selectedOrdinance.created_at).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric',
-                          })
-                        : 'N/A'}
-                    </span>
-                  </div>
-
-                  {selectedOrdinance.approved_date && (
-                    <div className="detail-row">
-                      <label>Date Approved:</label>
-                      <span>
-                        {new Date(selectedOrdinance.approved_date).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                  )}
-
-                  {selectedOrdinance.published_date && (
-                    <div className="detail-row">
-                      <label>Date Published:</label>
-                      <span>
-                        {new Date(selectedOrdinance.published_date).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="detail-section">
-                    <label>Description:</label>
-                    <p className="description-text">
-                      {selectedOrdinance.description || 'No description provided'}
-                    </p>
-                  </div>
-
-                  {selectedOrdinance.content && (
-                    <div className="detail-section">
-                      <label>Full Content:</label>
-                      <div className="content-text">
-                        {selectedOrdinance.content}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedOrdinance.remarks && (
-                    <div className="detail-section">
-                      <label>Remarks/Notes:</label>
-                      <p className="remarks-text">
-                        {selectedOrdinance.remarks}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="modal-footer">
-                  <button onClick={handleCloseDetails} className="btn-secondary">
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
+          {showDetailsModal && selectedOrdinance && (
+            <OrdinanceDetails
+              ordinanceId={selectedOrdinance.id}
+              onClose={() => {
+                setShowDetailsModal(false);
+                setSelectedOrdinance(null);
+              }}
+              onStatusChange={() => {
+                fetchOrdinances();
+              }}
+            />
           )}
         </>
       )}
