@@ -1,11 +1,19 @@
+import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import NotificationBell from './NotificationBell';
 import '../styles/DashboardLayout.css'; 
-import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope } from 'react-icons/fa';
+import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes } from 'react-icons/fa';
 
 export default function DashboardLayout() {
   const { logout, user } = useAuth();
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Close sidebar when navigation occurs
+  const handleNavClick = () => {
+    setSidebarOpen(false);
+  };
 
   const sidebarLinksByRole = {
     Admin: [
@@ -23,6 +31,7 @@ export default function DashboardLayout() {
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
+      { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
     ],
     Councilor: [
@@ -57,8 +66,26 @@ export default function DashboardLayout() {
 
   return (
     <div className="dashboard-container">
+      {/* Hamburger Menu Button - Mobile Only */}
+      <button
+        className="sidebar-toggle"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle sidebar"
+        title="Menu"
+      >
+        {sidebarOpen ? <FaTimes /> : <FaBars />}
+      </button>
+
+      {/* Sidebar Overlay - Mobile Only */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+      )}
+
       {/* Sidebar */}
-      <aside className="dashboard-sidebar">
+      <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
         {/* Sidebar Header */}
         <div className="sidebar-header">
           <h2>E‑Legislative</h2>
@@ -74,6 +101,7 @@ export default function DashboardLayout() {
                 <Link
                   to={link.path}
                   className={location.pathname === link.path ? 'active' : ''}
+                  onClick={handleNavClick}
                   title={link.label}
                 >
                   {link.icon && <span className="nav-icon">{link.icon}</span>}
@@ -89,15 +117,22 @@ export default function DashboardLayout() {
       <div className="dashboard-main">
         {/* Top Bar */}
         <div className="dashboard-topbar">
+          {/* Left side */}
           <div></div>
-          <div className="topbar-user">
-            <div className="topbar-user-info">
-              <p className="topbar-user-name">{user?.name || 'User'}</p>
-              <p className="topbar-user-role">{user?.role || 'Role'}</p>
+
+          {/* Right side - User & Notifications */}
+          <div className="topbar-right">
+            <NotificationBell />  {/* ✅ ADD THIS */}
+            
+            <div className="topbar-user">
+              <div className="topbar-user-info">
+                <p className="topbar-user-name">{user?.name || 'User'}</p>
+                <p className="topbar-user-role">{user?.role || 'Role'}</p>
+              </div>
+              <button className="btn-logout" onClick={logout}>
+                Logout
+              </button>
             </div>
-            <button className="btn-logout" onClick={logout}>
-              Logout
-            </button>
           </div>
         </div>
 

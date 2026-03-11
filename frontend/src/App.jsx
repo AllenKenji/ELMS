@@ -17,7 +17,7 @@ import OrdinanceList from './components/Ordinances/OrdinanceList';
 import ResolutionList from './components/Resolutions/ResolutionList';
 import SessionList from './components/Sessions/SessionList';
 import NotificationList from './components/NotificationList';
-import MessageList from './components/MessageList';
+import MessageList from './components/Messages/MessageList';
 import UserManagement from './components/UserManagement';
 import AuditLogList from './components/AuditLogList';
 import SystemSettings from './components/SystemSettings';
