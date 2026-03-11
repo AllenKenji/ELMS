@@ -3,7 +3,7 @@ import { useAuth } from '../context/useAuth';
 import api from '../api/api';
 import "../styles/OrdinanceForm.css";
 
-export default function OrdinanceForm({ onSubmit, onSuccess }) {
+export default function OrdinanceForm({ onSuccess, onCancel }) {
   const { user } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -85,14 +85,7 @@ export default function OrdinanceForm({ onSubmit, onSuccess }) {
         status: 'Draft',
       };
 
-      let res;
-      if (typeof onSubmit === 'function') {
-        // Local callback
-        res = await onSubmit(payload);
-      } else {
-        // API call
-        res = await api.post('/ordinances', payload);
-      }
+      const res = await api.post('/ordinances', payload);
 
       setSuccess(res.data?.message || 'Ordinance submitted successfully!');
 
@@ -105,13 +98,8 @@ export default function OrdinanceForm({ onSubmit, onSuccess }) {
         remarks: '',
       });
 
-      // Call success callback if provided
-      if (onSuccess) {
-        setTimeout(() => onSuccess(), 1500);
-      }
-
-      // Clear success message
-      setTimeout(() => setSuccess(''), 3000);
+      // Call success callback after 1.5 seconds
+      setTimeout(() => onSuccess?.(), 1500);
     } catch (err) {
       const msg =
         err.response?.data?.message ||
@@ -124,6 +112,19 @@ export default function OrdinanceForm({ onSubmit, onSuccess }) {
     }
   };
 
+  const handleReset = () => {
+    setFormData({
+      title: '',
+      ordinance_number: '',
+      description: '',
+      content: '',
+      remarks: '',
+    });
+    setFormErrors({});
+    setError('');
+    setSuccess('');
+  };
+
   const characterCount = {
     title: formData.title.length,
     description: formData.description.length,
@@ -134,10 +135,22 @@ export default function OrdinanceForm({ onSubmit, onSuccess }) {
     <div className="ordinance-form-wrapper">
       <form onSubmit={handleSubmit} className="ordinance-form-container">
         <div className="form-header">
-          <h3>📋 Submit New Ordinance</h3>
-          <p className="form-subtitle">
-            Proposed by: <strong>{user?.name || 'Unknown'}</strong>
-          </p>
+          <div className="form-title-section">
+            <h3>📋 Submit New Ordinance</h3>
+            <p className="form-subtitle">
+              Proposed by: <strong>{user?.name || 'Unknown'}</strong>
+            </p>
+          </div>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="btn-close-form"
+              aria-label="Close form"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         {/* Alert Messages */}
@@ -284,24 +297,24 @@ export default function OrdinanceForm({ onSubmit, onSuccess }) {
           </button>
 
           <button
-            type="reset"
-            onClick={() => {
-              setFormData({
-                title: '',
-                ordinance_number: '',
-                description: '',
-                content: '',
-                remarks: '',
-              });
-              setFormErrors({});
-              setError('');
-              setSuccess('');
-            }}
+            type="button"
+            onClick={handleReset}
             disabled={loading}
             className="btn-reset"
           >
             Clear Form
           </button>
+
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={loading}
+              className="btn-cancel"
+            >
+              Back to List
+            </button>
+          )}
         </div>
 
         {/* Helper Text */}

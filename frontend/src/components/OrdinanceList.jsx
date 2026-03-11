@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/useAuth';
 import api from '../api/api';
+import OrdinanceForm from './OrdinanceForm';
 import '../styles/OrdinanceList.css';
 
 const STATUS_COLORS = {
@@ -23,7 +24,7 @@ const STATUS_BADGES = {
   'Archived': 'badge-secondary',
 };
 
-export default function OrdinanceList({ onShowForm }) {
+export default function OrdinanceList({ onRefresh }) {
   const { user } = useAuth();
   const [ordinances, setOrdinances] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +33,8 @@ export default function OrdinanceList({ onShowForm }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedOrdinance, setSelectedOrdinance] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [sortBy, setSortBy] = useState('date'); // 'date', 'title', 'status'
+  const [sortBy, setSortBy] = useState('date');
+  const [showForm, setShowForm] = useState(false);
 
   // Memoize fetchOrdinances to prevent dependency issues
   const fetchOrdinances = useCallback(async () => {
@@ -69,7 +71,17 @@ export default function OrdinanceList({ onShowForm }) {
   };
 
   const handleNewOrdinance = () => {
-    onShowForm?.(true);
+    setShowForm(true);
+  };
+
+  const handleFormSuccess = () => {
+    setShowForm(false);
+    fetchOrdinances();
+    onRefresh?.();
+  };
+
+  const handleFormCancel = () => {
+    setShowForm(false);
   };
 
   // Filter ordinances based on search and status
@@ -111,6 +123,16 @@ export default function OrdinanceList({ onShowForm }) {
     approved: ordinances.filter(o => o.status === 'Approved').length,
     published: ordinances.filter(o => o.status === 'Published').length,
   };
+
+  // Show OrdinanceForm if showForm is true
+  if (showForm) {
+    return (
+      <OrdinanceForm 
+        onSuccess={handleFormSuccess}
+        onCancel={handleFormCancel}
+      />
+    );
+  }
 
   if (loading) {
     return (
