@@ -20,13 +20,32 @@ export function AuthProvider({ children }) {
     }
   });
   const [refreshToken, setRefreshToken] = useState(localStorage.getItem('refreshToken'));
-  const user = accessToken ? jwtDecode(accessToken) : null;
+  const [user, setUser] = useState(() => {
+    const storedAccessToken = localStorage.getItem('accessToken');
+    if (!storedAccessToken) return null;
+
+    try {
+      return jwtDecode(storedAccessToken);
+    } catch {
+      return null;
+    }
+  });
 
   const login = (tokens) => {
     localStorage.setItem('accessToken', tokens.accessToken);
     localStorage.setItem('refreshToken', tokens.refreshToken);
     setAccessToken(tokens.accessToken);
     setRefreshToken(tokens.refreshToken);
+    if (tokens.user) {
+      setUser(tokens.user);
+      return;
+    }
+
+    try {
+      setUser(jwtDecode(tokens.accessToken));
+    } catch {
+      setUser(null);
+    }
   };
 
   const logout = () => {
@@ -34,6 +53,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('refreshToken');
     setAccessToken(null);
     setRefreshToken(null);
+    setUser(null);
   };
 
   // 🔄 Refresh access token automatically
@@ -50,6 +70,11 @@ export function AuthProvider({ children }) {
         if (newAccessToken) {
           localStorage.setItem('accessToken', newAccessToken);
           setAccessToken(newAccessToken);
+          try {
+            setUser(jwtDecode(newAccessToken));
+          } catch {
+            setUser(null);
+          }
         }
       } catch (err) {
         console.error("Failed to refresh token:", err);

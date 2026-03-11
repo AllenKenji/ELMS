@@ -1,10 +1,11 @@
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import '../styles/DashboardLayout.css'; 
 import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope } from 'react-icons/fa';
 
 export default function DashboardLayout({ summary }) {
   const { logout, user } = useAuth();
+  const location = useLocation();
 
   const sidebarLinksByRole = {
     Admin: [
@@ -52,6 +53,8 @@ export default function DashboardLayout({ summary }) {
   };
 
   const links = sidebarLinksByRole[user?.role] || [];
+  const dashboardHomePaths = ['/dashboard', '/admin-dashboard', '/secretary-dashboard', '/councilor-dashboard', '/captain-dashboard', '/resident-dashboard', '/dilg-dashboard'];
+  const showSummaryCards = dashboardHomePaths.includes(location.pathname);
 
   return (
     <div className="dashboard-container">
@@ -91,14 +94,16 @@ export default function DashboardLayout({ summary }) {
         </div>
 
         {/* Summary cards */}
-        <div className="summary-cards">
-          {summary.map((card, idx) => (
-            <div key={idx} className="summary-card">
-              <h3>{card.title}</h3>
-              <p>{card.value}</p>
-            </div>
-          ))}
-        </div>
+        {showSummaryCards && (
+          <div className="summary-cards">
+            {summary.map((card, idx) => (
+              <div key={idx} className="summary-card">
+                <h3>{card.title}</h3>
+                <p>{card.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Nested route content */}
         <Outlet />

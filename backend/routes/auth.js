@@ -42,7 +42,7 @@ router.post('/refresh', (req, res) => {
     const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
     pool.query(
-      `SELECT u.id, u.email, r.role_name
+      `SELECT u.id, u.name, u.email, r.role_name
        FROM users u
        LEFT JOIN roles r ON r.id = u.role_id
        WHERE u.id = $1`,
@@ -59,7 +59,7 @@ router.post('/refresh', (req, res) => {
         }
 
         const newAccessToken = jwt.sign(
-          { id: user.id, email: user.email, role: user.role_name || 'Unknown' },
+          { id: user.id, name: user.name, email: user.email, role: user.role_name || 'Unknown' },
           process.env.JWT_SECRET,
           { expiresIn: '15m' }
         );
@@ -91,7 +91,7 @@ router.post('/login', async (req, res) => {
 
     // Access token (short-lived)
     const accessToken = jwt.sign(
-      { id: user.id, email: user.email, role: roleName },
+      { id: user.id, name: user.name, email: user.email, role: roleName },
       process.env.JWT_SECRET,
       { expiresIn: '15m' } // shorter lifespan
     );
@@ -113,7 +113,17 @@ router.post('/login', async (req, res) => {
     const io = getIO();
     io.to(roleName).emit('userLogin', { id: user.id, name: user.name, role: roleName });
 
-    res.json({ accessToken, refreshToken });
+    // 🔑 Return user details along with tokens
+    res.json({
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: roleName,
+      }
+    });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });

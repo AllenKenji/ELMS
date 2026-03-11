@@ -16,20 +16,36 @@ router.get('/', async (req, res) => {
 
 // DELETE user by ID
 router.delete('/:id', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM users WHERE id = $1', [id]);
+    await client.query('BEGIN');
 
-    await pool.query(
+    const userResult = await client.query('SELECT id, email FROM users WHERE id = $1', [id]);
+    if (userResult.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    await client.query(
       `INSERT INTO audit_logs (user_id, action, details, timestamp)
        VALUES ($1, $2, $3, NOW())`,
-      [id, 'DELETE_USER', `User with ID ${id} deleted by Admin`]
+      [id, 'DELETE_USER', `User ${userResult.rows[0].email} (ID ${id}) deleted by Admin`]
     );
+
+    await client.query('DELETE FROM users WHERE id = $1', [id]);
+    await client.query('COMMIT');
 
     res.json({ message: 'User deleted successfully' });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Delete user error:', err);
+    if (err.code === '23503') {
+      return res.status(409).json({ error: 'Cannot delete user because related records exist' });
+    }
     res.status(500).json({ error: 'Failed to delete user' });
+  } finally {
+    client.release();
   }
 });
 

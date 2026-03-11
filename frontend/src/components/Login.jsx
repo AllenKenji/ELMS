@@ -31,7 +31,7 @@ export default function Login({ onLogin }) {
         password,
       });
 
-      const { accessToken, refreshToken } = res.data;
+      const { accessToken, refreshToken, user } = res.data;
 
       if (!accessToken || !refreshToken) {
         throw new Error("Invalid login response");
@@ -46,7 +46,7 @@ export default function Login({ onLogin }) {
         localStorage.removeItem('rememberedEmail');
       }
 
-      onLogin({ accessToken, refreshToken });
+      onLogin({ accessToken, refreshToken, user });
     } catch (err) {
       const message =
         err.response?.data?.error ||
