@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../context/useAuth';
 import api from '../api/api';
 import '../styles/OrdinanceList.css';
 
@@ -22,7 +23,8 @@ const STATUS_BADGES = {
   'Archived': 'badge-secondary',
 };
 
-export default function OrdinanceList() {
+export default function OrdinanceList({ onShowForm }) {
+  const { user } = useAuth();
   const [ordinances, setOrdinances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,17 +32,19 @@ export default function OrdinanceList() {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedOrdinance, setSelectedOrdinance] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [sortBy, setSortBy] = useState('date'); // 'date', 'title', 'status'
 
-  useEffect(() => {
-    fetchOrdinances();
-  }, []);
+  // Memoize fetchOrdinances to prevent dependency issues
+  const fetchOrdinances = useCallback(async () => {
+    if (!user?.id) return;
 
-  const fetchOrdinances = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/ordinances');
-      setOrdinances(res.data || []);
       setError('');
+      
+      // Fetch ordinances for current user only
+      const res = await api.get(`/ordinances?proposer_id=${user.id}`);
+      setOrdinances(res.data || []);
     } catch (err) {
       setError('Failed to load ordinances. Please try again.');
       console.error('Error fetching ordinances:', err);
@@ -48,7 +52,11 @@ export default function OrdinanceList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
+
+  useEffect(() => {
+    fetchOrdinances();
+  }, [fetchOrdinances]);
 
   const handleViewDetails = (ordinance) => {
     setSelectedOrdinance(ordinance);
@@ -60,12 +68,29 @@ export default function OrdinanceList() {
     setSelectedOrdinance(null);
   };
 
+  const handleNewOrdinance = () => {
+    onShowForm?.(true);
+  };
+
   // Filter ordinances based on search and status
-  const filteredOrdinances = ordinances.filter(o => {
+  let filteredOrdinances = ordinances.filter(o => {
     const matchSearch = o.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         o.description?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchStatus = !filterStatus || o.status === filterStatus;
     return matchSearch && matchStatus;
+  });
+
+  // Sort ordinances
+  filteredOrdinances = filteredOrdinances.sort((a, b) => {
+    switch (sortBy) {
+      case 'title':
+        return a.title.localeCompare(b.title);
+      case 'status':
+        return (a.status || '').localeCompare(b.status || '');
+      case 'date':
+      default:
+        return new Date(b.created_at) - new Date(a.created_at);
+    }
   });
 
   const getStatusColor = (status) => {
@@ -76,13 +101,23 @@ export default function OrdinanceList() {
     return STATUS_BADGES[status] || 'badge-secondary';
   };
 
-  const uniqueStatuses = [...new Set(ordinances.map(o => o.status))];
+  const uniqueStatuses = [...new Set(ordinances.map(o => o.status))].sort();
+
+  // Statistics
+  const stats = {
+    total: ordinances.length,
+    draft: ordinances.filter(o => o.status === 'Draft').length,
+    submitted: ordinances.filter(o => o.status === 'Submitted').length,
+    approved: ordinances.filter(o => o.status === 'Approved').length,
+    published: ordinances.filter(o => o.status === 'Published').length,
+  };
 
   if (loading) {
     return (
       <div className="ordinance-list-container">
-        <h3>Ordinances</h3>
+        <h3>My Ordinances</h3>
         <div className="loading-spinner">
+          <div className="spinner-icon"></div>
           <p>Loading ordinances...</p>
         </div>
       </div>
@@ -91,55 +126,145 @@ export default function OrdinanceList() {
 
   return (
     <div className="ordinance-list-container">
+      {/* Header with Stats */}
       <div className="ordinance-header">
-        <h3>Ordinances</h3>
-        <p className="ordinance-count">Total: {ordinances.length}</p>
+        <div className="header-content">
+          <h3>📜 My Ordinances</h3>
+          <p className="header-subtitle">Submitted by: <strong>{user?.name}</strong></p>
+        </div>
+        <button
+          onClick={handleNewOrdinance}
+          className="btn-new-ordinance"
+          aria-label="Create new ordinance"
+        >
+          ➕ New Ordinance
+        </button>
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {/* Statistics Cards */}
+      {ordinances.length > 0 && (
+        <div className="stats-container">
+          <div className="stat-card">
+            <div className="stat-icon">📋</div>
+            <div className="stat-info">
+              <span className="stat-label">Total</span>
+              <span className="stat-value">{stats.total}</span>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">✏️</div>
+            <div className="stat-info">
+              <span className="stat-label">Draft</span>
+              <span className="stat-value">{stats.draft}</span>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">📤</div>
+            <div className="stat-info">
+              <span className="stat-label">Submitted</span>
+              <span className="stat-value">{stats.submitted}</span>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">✅</div>
+            <div className="stat-info">
+              <span className="stat-label">Approved</span>
+              <span className="stat-value">{stats.approved}</span>
+            </div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-icon">📖</div>
+            <div className="stat-info">
+              <span className="stat-label">Published</span>
+              <span className="stat-value">{stats.published}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="alert alert-error" role="alert">
+          <span className="alert-icon">⚠️</span>
+          <div>
+            <strong>Error</strong>
+            <p>{error}</p>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="ordinance-filters">
         <div className="search-box">
           <input
             type="text"
-            placeholder="Search ordinances by title or description..."
+            placeholder="🔍 Search ordinances by title or description..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
         </div>
 
-        <div className="status-filter">
-          <label htmlFor="statusFilter">Filter by Status:</label>
-          <select
-            id="statusFilter"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="filter-select"
-          >
-            <option value="">All Statuses</option>
-            {uniqueStatuses.map(status => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
+        <div className="filter-group">
+          <div className="status-filter">
+            <label htmlFor="statusFilter">Status:</label>
+            <select
+              id="statusFilter"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="filter-select"
+            >
+              <option value="">All Statuses</option>
+              {uniqueStatuses.map(status => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="sort-filter">
+            <label htmlFor="sortBy">Sort by:</label>
+            <select
+              id="sortBy"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="filter-select"
+            >
+              <option value="date">Date (Newest)</option>
+              <option value="title">Title (A-Z)</option>
+              <option value="status">Status</option>
+            </select>
+          </div>
         </div>
 
-        <button onClick={fetchOrdinances} className="btn-refresh">
-          🔄 Refresh
+        <button onClick={fetchOrdinances} className="btn-refresh" title="Refresh list">
+          🔄
         </button>
       </div>
 
       {/* Empty State */}
       {filteredOrdinances.length === 0 ? (
         <div className="empty-state">
-          <p>📋 No ordinances found</p>
-          {searchTerm && <p className="text-muted">Try adjusting your search terms</p>}
+          <div className="empty-icon">📋</div>
+          <h4>No ordinances found</h4>
+          {searchTerm ? (
+            <p className="text-muted">Try adjusting your search terms</p>
+          ) : (
+            <>
+              <p className="text-muted">You haven't submitted any ordinances yet</p>
+              <button onClick={handleNewOrdinance} className="btn-empty-action">
+                ➕ Create Your First Ordinance
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <>
+          {/* Results Info */}
+          <div className="results-info">
+            <p>Showing <strong>{filteredOrdinances.length}</strong> of <strong>{ordinances.length}</strong> ordinances</p>
+          </div>
+
           {/* Ordinances Table */}
           <div className="ordinance-table-wrapper">
             <table className="ordinance-table">
@@ -148,8 +273,7 @@ export default function OrdinanceList() {
                   <th>Title</th>
                   <th>Number</th>
                   <th>Status</th>
-                  <th>Proposer</th>
-                  <th>Date</th>
+                  <th>Date Submitted</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -160,7 +284,7 @@ export default function OrdinanceList() {
                       <strong>{ordinance.title}</strong>
                     </td>
                     <td className="number-cell">
-                      {ordinance.ordinance_number || 'N/A'}
+                      <code>{ordinance.ordinance_number || 'Pending'}</code>
                     </td>
                     <td className="status-cell">
                       <span
@@ -170,11 +294,14 @@ export default function OrdinanceList() {
                         {ordinance.status}
                       </span>
                     </td>
-                    <td className="proposer-cell">
-                      {ordinance.proposer_name || 'System'}
-                    </td>
                     <td className="date-cell">
-                      {ordinance.created_at ? new Date(ordinance.created_at).toLocaleDateString() : 'N/A'}
+                      {ordinance.created_at
+                        ? new Date(ordinance.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : 'N/A'}
                     </td>
                     <td className="actions-cell">
                       <button
@@ -182,7 +309,7 @@ export default function OrdinanceList() {
                         className="btn-small btn-info"
                         aria-label={`View details for ${ordinance.title}`}
                       >
-                        View
+                        👁️ View
                       </button>
                     </td>
                   </tr>
@@ -219,19 +346,23 @@ export default function OrdinanceList() {
 
                   <div className="detail-row">
                     <label>Ordinance Number:</label>
-                    <span>{selectedOrdinance.ordinance_number || 'Pending'}</span>
+                    <code>{selectedOrdinance.ordinance_number || 'Pending Assignment'}</code>
                   </div>
 
                   <div className="detail-row">
                     <label>Proposer:</label>
-                    <span>{selectedOrdinance.proposer_name || 'System'}</span>
+                    <span>{selectedOrdinance.proposer_name || user?.name || 'System'}</span>
                   </div>
 
                   <div className="detail-row">
                     <label>Date Submitted:</label>
                     <span>
                       {selectedOrdinance.created_at
-                        ? new Date(selectedOrdinance.created_at).toLocaleDateString()
+                        ? new Date(selectedOrdinance.created_at).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                          })
                         : 'N/A'}
                     </span>
                   </div>
@@ -240,7 +371,24 @@ export default function OrdinanceList() {
                     <div className="detail-row">
                       <label>Date Approved:</label>
                       <span>
-                        {new Date(selectedOrdinance.approved_date).toLocaleDateString()}
+                        {new Date(selectedOrdinance.approved_date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedOrdinance.published_date && (
+                    <div className="detail-row">
+                      <label>Date Published:</label>
+                      <span>
+                        {new Date(selectedOrdinance.published_date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })}
                       </span>
                     </div>
                   )}
@@ -263,7 +411,7 @@ export default function OrdinanceList() {
 
                   {selectedOrdinance.remarks && (
                     <div className="detail-section">
-                      <label>Remarks:</label>
+                      <label>Remarks/Notes:</label>
                       <p className="remarks-text">
                         {selectedOrdinance.remarks}
                       </p>
