@@ -8,6 +8,7 @@
   margin: 0 0 1rem 0;
   color: #333;
   font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .activity-list {
@@ -21,6 +22,11 @@
   gap: 1rem;
   padding: 1rem 0;
   position: relative;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.activity-item:last-child {
+  border-bottom: none;
 }
 
 .activity-marker {
@@ -99,12 +105,6 @@
   color: #0a6938;
 }
 
-.activity-divider {
-  height: 1px;
-  background-color: #f0f0f0;
-  margin: 0.5rem 0;
-}
-
 .empty-activity {
   text-align: center;
   padding: 2rem;
@@ -134,7 +134,8 @@
   }
 }
 
-@media (max-width: 768px) {
+/* Tablet */
+@media (max-width: 1024px) {
   .activity-item {
     padding: 0.75rem 0;
   }
@@ -144,13 +145,102 @@
     height: 35px;
     font-size: 1rem;
   }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .activity-feed h3 {
+    font-size: 1rem;
+  }
+
+  .activity-item {
+    padding: 0.6rem 0;
+    gap: 0.75rem;
+  }
+
+  .activity-marker {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
 
   .activity-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .activity-description {
+    font-size: 0.9rem;
   }
 
   .activity-time {
-    align-self: flex-start;
+    font-size: 0.75rem;
+  }
+
+  .activity-meta {
+    font-size: 0.8rem;
+  }
+
+  .activity-status {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
+  }
+}
+
+/* Small Mobile */
+@media (max-width: 480px) {
+  .activity-feed h3 {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .activity-item {
+    padding: 0.5rem 0;
+    gap: 0.6rem;
+  }
+
+  .activity-marker {
+    width: 30px;
+    height: 30px;
+    font-size: 0.85rem;
+  }
+
+  .activity-description {
+    font-size: 0.85rem;
+  }
+
+  .activity-time {
+    font-size: 0.7rem;
+  }
+
+  .activity-meta {
+    font-size: 0.75rem;
+  }
+
+  .empty-activity {
+    padding: 1.5rem;
+    font-size: 0.9rem;
+  }
+
+  .skeleton-item {
+    height: 50px;
+  }
+}
+
+/* Extra Small */
+@media (max-width: 360px) {
+  .activity-item {
+    padding: 0.4rem 0;
+  }
+
+  .activity-marker {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+  }
+
+  .activity-description {
+    font-size: 0.8rem;
   }
 }

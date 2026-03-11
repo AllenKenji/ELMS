@@ -1,12 +1,11 @@
-/* Dashboard Content - Works inside DashboardLayout */
+/* Dashboard Content Area */
 .dashboard-content {
   padding: 2rem;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  min-height: 100vh;
   width: 100%;
 }
 
-/* Header */
+/* ========== HEADER ========== */
 .dashboard-header {
   display: flex;
   justify-content: space-between;
@@ -24,6 +23,7 @@
   margin: 0 0 0.5rem 0;
   color: #333;
   font-size: 2rem;
+  font-weight: 700;
 }
 
 .header-subtitle {
@@ -60,7 +60,7 @@
   transform: scale(0.98);
 }
 
-/* Sections */
+/* ========== SECTIONS ========== */
 .dashboard-section {
   background: white;
   padding: 2rem;
@@ -80,7 +80,7 @@
   font-weight: 700;
 }
 
-/* Grid Layout */
+/* ========== GRIDS ========== */
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
@@ -88,14 +88,13 @@
   margin-bottom: 2rem;
 }
 
-/* Stats Grid */
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1.5rem;
 }
 
-/* Status Breakdown */
+/* ========== STATUS BREAKDOWN ========== */
 .status-breakdown {
   display: flex;
   flex-direction: column;
@@ -155,8 +154,10 @@
   min-width: 40px;
 }
 
-/* Responsive */
-@media (max-width: 1200px) {
+/* ========== RESPONSIVE DESIGN ========== */
+
+/* Tablet: 1024px and below */
+@media (max-width: 1024px) {
   .dashboard-content {
     padding: 1.5rem;
   }
@@ -172,8 +173,13 @@
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .dashboard-grid {
+    gap: 1.5rem;
+  }
 }
 
+/* Tablet: 768px and below */
 @media (max-width: 768px) {
   .dashboard-content {
     padding: 1rem;
@@ -186,28 +192,63 @@
     gap: 1rem;
   }
 
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+
+  .header-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .btn-refresh {
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+  }
+
   .dashboard-section {
     padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-title {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
   }
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
   }
 
   .dashboard-grid {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
   }
 
   .breakdown-item {
-    grid-template-columns: 80px 1fr 50px;
+    grid-template-columns: 80px 1fr 45px;
     gap: 0.75rem;
   }
 
-  .header-content h1 {
-    font-size: 1.5rem;
+  .breakdown-label {
+    font-size: 0.85rem;
+  }
+
+  .breakdown-count {
+    font-size: 0.9rem;
+  }
+
+  .breakdown-bar {
+    height: 25px;
   }
 }
 
+/* Mobile: 480px and below */
 @media (max-width: 480px) {
   .dashboard-content {
     padding: 0.75rem;
@@ -215,14 +256,7 @@
 
   .dashboard-header {
     padding: 1rem;
-  }
-
-  .dashboard-section {
-    padding: 1rem;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
+    margin-bottom: 1rem;
   }
 
   .header-content h1 {
@@ -230,23 +264,88 @@
   }
 
   .header-subtitle {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+  }
+
+  .btn-refresh {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+  }
+
+  .dashboard-section {
+    padding: 1rem;
+    margin-bottom: 1rem;
   }
 
   .section-title {
-    font-size: 1.1rem;
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .dashboard-grid {
+    gap: 1rem;
   }
 
   .breakdown-item {
-    grid-template-columns: 70px 1fr 45px;
+    grid-template-columns: 70px 1fr 40px;
     gap: 0.5rem;
   }
 
   .breakdown-label {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
   }
 
   .breakdown-count {
     font-size: 0.85rem;
+    min-width: 35px;
+  }
+
+  .breakdown-bar {
+    height: 22px;
+  }
+}
+
+/* Extra Small: 360px and below */
+@media (max-width: 360px) {
+  .dashboard-content {
+    padding: 0.5rem;
+  }
+
+  .dashboard-header {
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .header-content h1 {
+    font-size: 1.1rem;
+    margin-bottom: 0.25rem;
+  }
+
+  .header-subtitle {
+    font-size: 0.75rem;
+  }
+
+  .dashboard-section {
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .section-title {
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .breakdown-item {
+    grid-template-columns: 65px 1fr 35px;
+    gap: 0.35rem;
+  }
+
+  .breakdown-label {
+    font-size: 0.7rem;
   }
 }
