@@ -10,7 +10,7 @@ import SecretaryDashboard from './pages/SecretaryDashboard';
 import CaptainDashboard from './pages/CaptainDashboard';
 import ResidentDashboard from './pages/ResidentDashboard';
 import DILGDashboard from './pages/DILGDashboard';
-import AdminDashboard from './pages/AdminDashboard';
+import AdminDashboard from './pages/Dashboards/AdminDashboard';
 
 import OrdinanceList from './components/Ordinances/OrdinanceList';
 import ResolutionList from './components/ResolutionList';
