@@ -1,0 +1,78 @@
+/* Resident Dashboard Styling */
+.resident-dashboard {
+  --primary-color: #27ae60;
+  --accent-color: #1e894b;
+}
+
+.resident-dashboard .dashboard-header {
+  background: linear-gradient(135deg, rgba(39, 174, 96, 0.05) 0%, rgba(30, 137, 75, 0.05) 100%);
+  border-left: 4px solid #27ae60;
+}
+
+.resident-dashboard .stats-widget {
+  border-left-color: #27ae60;
+}
+
+.resident-dashboard .btn-refresh {
+  background-color: #27ae60;
+}
+
+.resident-dashboard .btn-refresh:hover {
+  background-color: #1e894b;
+}
+
+.info-title {
+  margin: 0 0 1rem 0;
+  color: #333;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.info-content {
+  color: #666;
+  line-height: 1.6;
+}
+
+.info-content ul {
+  margin: 0.5rem 0 0 1.5rem;
+  padding: 0;
+  color: #666;
+}
+
+.info-content li {
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .resident-dashboard .dashboard-header {
+    padding: 1.5rem;
+  }
+
+  .info-title {
+    font-size: 1rem;
+  }
+
+  .info-content li {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .resident-dashboard .dashboard-header {
+    padding: 1rem;
+  }
+
+  .info-title {
+    font-size: 0.95rem;
+  }
+
+  .info-content ul {
+    margin-left: 1.2rem;
+  }
+
+  .info-content li {
+    font-size: 0.85rem;
+  }
+}

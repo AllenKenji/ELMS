@@ -1,0 +1,35 @@
+/* Councilor Dashboard Styling */
+.councilor-dashboard {
+  --primary-color: #4a90e2;
+  --accent-color: #357abd;
+}
+
+.councilor-dashboard .dashboard-header {
+  background: linear-gradient(135deg, rgba(74, 144, 226, 0.05) 0%, rgba(53, 122, 189, 0.05) 100%);
+  border-left: 4px solid #4a90e2;
+}
+
+.councilor-dashboard .stats-widget {
+  border-left-color: #4a90e2;
+}
+
+.councilor-dashboard .btn-refresh {
+  background-color: #4a90e2;
+}
+
+.councilor-dashboard .btn-refresh:hover {
+  background-color: #357abd;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .councilor-dashboard .dashboard-header {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .councilor-dashboard .dashboard-header {
+    padding: 1rem;
+  }
+}

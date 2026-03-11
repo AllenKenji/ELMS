@@ -11,7 +11,7 @@ import SecretaryDashboard from './pages/SecretaryDashboard';
 import CaptainDashboard from './pages/CaptainDashboard';
 import ResidentDashboard from './pages/ResidentDashboard';
 import DILGDashboard from './pages/DILGDashboard';
-import AdminDashboard from './pages/Dashboards/AdminDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 
 import OrdinanceList from './components/Ordinances/OrdinanceList';
 import ResolutionList from './components/ResolutionList';
@@ -25,7 +25,6 @@ import SystemSettings from './components/SystemSettings';
 function App() {
   const { accessToken, login, user } = useAuth();
 
-  // Store component references, not JSX
   const dashboards = {
     Councilor: CouncilorDashboard,
     Secretary: SecretaryDashboard,
@@ -37,15 +36,6 @@ function App() {
 
   const dashboardComponent = user?.role ? dashboards[user.role] : null;
   const canAccessDashboard = Boolean(accessToken && dashboardComponent);
-  const dashboardPathByRole = {
-    Admin: '/dashboard',
-    Secretary: '/dashboard',
-    Councilor: '/dashboard',
-    Captain: '/dashboard',
-    Resident: '/dashboard',
-    'DILG Official': '/dashboard',
-  };
-  const userDashboardPath = user?.role ? dashboardPathByRole[user.role] || '/dashboard' : '/';
 
   return (
     <BrowserRouter>
@@ -53,21 +43,19 @@ function App() {
         {/* Auth Routes */}
         <Route
           path="/"
-          element={!canAccessDashboard ? <Login onLogin={login} /> : <Navigate to={userDashboardPath} />}
+          element={!canAccessDashboard ? <Login onLogin={login} /> : <Navigate to="/dashboard" />}
         />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Protected Dashboard Routes with Layout */}
+        {/* Protected Dashboard Routes */}
         <Route
-          element={
-            canAccessDashboard ? <DashboardLayout /> : <Navigate to="/" />
-          }
+          element={canAccessDashboard ? <DashboardLayout /> : <Navigate to="/" />}
         >
           {/* Main Dashboard */}
           <Route path="/dashboard" element={React.createElement(dashboardComponent)} />
 
-          {/* Sub-routes inside dashboard layout */}
+          {/* Sub-routes */}
           <Route path="/dashboard/ordinances" element={<OrdinanceList />} />
           <Route path="/dashboard/resolutions" element={<ResolutionList />} />
           <Route path="/dashboard/sessions" element={<SessionList />} />
@@ -78,7 +66,7 @@ function App() {
           <Route path="/dashboard/system-settings" element={<SystemSettings />} />
         </Route>
 
-        {/* Catch-all route */}
+        {/* Catch-all */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </BrowserRouter>

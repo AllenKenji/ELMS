@@ -1,0 +1,35 @@
+/* Captain Dashboard Styling */
+.captain-dashboard {
+  --primary-color: #3498db;
+  --accent-color: #2980b9;
+}
+
+.captain-dashboard .dashboard-header {
+  background: linear-gradient(135deg, rgba(52, 152, 219, 0.05) 0%, rgba(41, 128, 185, 0.05) 100%);
+  border-left: 4px solid #3498db;
+}
+
+.captain-dashboard .stats-widget {
+  border-left-color: #3498db;
+}
+
+.captain-dashboard .btn-refresh {
+  background-color: #3498db;
+}
+
+.captain-dashboard .btn-refresh:hover {
+  background-color: #2980b9;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .captain-dashboard .dashboard-header {
+    padding: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .captain-dashboard .dashboard-header {
+    padding: 1rem;
+  }
+}

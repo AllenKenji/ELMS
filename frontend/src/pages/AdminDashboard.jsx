@@ -1,11 +1,11 @@
-import { useAuth } from '../../context/useAuth';
-import StatsWidget from '../../components/Dashboard/StatsWidget';
-import ActivityFeed from '../../components/Dashboard/ActivityFeed';
-import PendingApprovalWidget from '../../components/Dashboard/PendingApprovalWidget';
-import TrendChart from '../../components/Dashboard/TrendChart';
-import QuickActionPanel from '../../components/Dashboard/QuickActionPanel';
-import { useStats, useActivityFeed, usePendingItems, useTrendData } from '../../hooks/useDashboard';
-import '../../styles/AdminDashboard.css';
+import { useAuth } from '../context/useAuth';
+import StatsWidget from '../components/Dashboard/StatsWidget';
+import ActivityFeed from '../components/Dashboard/ActivityFeed';
+import PendingApprovalWidget from '../components/Dashboard/PendingApprovalWidget';
+import TrendChart from '../components/Dashboard/TrendChart';
+import QuickActionPanel from '../components/Dashboard/QuickActionPanel';
+import { useStats, useActivityFeed, usePendingItems, useTrendData } from '../hooks/useDashboard';
+import '../styles/AdminDashboard.css';
 
 export default function AdminDashboard() {
   const { user } = useAuth();
