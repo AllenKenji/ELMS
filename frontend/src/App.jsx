@@ -14,7 +14,7 @@ import AdminDashboard from './pages/AdminDashboard';
 
 import OrdinanceList from './components/Ordinances/OrdinanceList';
 import ResolutionList from './components/ResolutionList';
-import SessionList from './components/SessionList';
+import SessionList from './components/Sessions/SessionList';
 import NotificationList from './components/NotificationList';
 import MessageList from './components/MessageList';
 import UserManagement from './components/UserManagement';
