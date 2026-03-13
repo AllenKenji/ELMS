@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import NotificationBell from './NotificationBell';
 import '../styles/DashboardLayout.css'; 
-import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaVoteYea, FaLayerGroup } from 'react-icons/fa';
+import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaVoteYea, FaLayerGroup, FaChartBar } from 'react-icons/fa';
 
 export default function DashboardLayout() {
   const { logout, user } = useAuth();
@@ -23,6 +23,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
       { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
+      { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
       { path: '/dashboard/users', label: 'User Management', icon: <FaUsers /> },
@@ -36,6 +37,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
       { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
+      { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
@@ -45,6 +47,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
       { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
+      { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
@@ -68,6 +71,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
+      { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
