@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import NotificationBell from './NotificationBell';
 import '../styles/DashboardLayout.css'; 
 import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes } from 'react-icons/fa';
 
@@ -139,6 +140,7 @@ export default function DashboardLayout() {
 
           <div className="topbar-right">
             <div className="topbar-user">
+              <NotificationBell />
               <div className="user-avatar">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>
