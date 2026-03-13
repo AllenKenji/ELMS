@@ -124,7 +124,7 @@ export default function OrdinanceList({ onRefresh }) {
           <h3>📜 Ordinances</h3>
           <p className="header-subtitle">Enacted ordinances from approved proposed measures</p>
         </div>
-        <button onClick={fetchOrdinances} className="btn-refresh" title="Refresh list">
+        <button onClick={fetchOrdinances} className="btn-refresh" title="Refresh list" aria-label="Refresh ordinances list">
           🔄
         </button>
       </div>
@@ -225,7 +225,7 @@ export default function OrdinanceList({ onRefresh }) {
           </div>
         </div>
 
-        <button onClick={fetchOrdinances} className="btn-refresh" title="Refresh list">
+        <button onClick={fetchOrdinances} className="btn-refresh" title="Refresh list" aria-label="Refresh ordinances list">
           🔄
         </button>
       </div>

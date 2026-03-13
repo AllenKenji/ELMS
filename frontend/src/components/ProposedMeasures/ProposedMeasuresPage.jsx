@@ -40,7 +40,7 @@ export default function ProposedMeasuresPage() {
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [selectedFormType, setSelectedFormType] = useState(null);
 
-  const canCreate = ['Admin', 'Secretary', 'Councilor', 'Captain'].includes(user?.role || '');
+  const canCreate = ['Admin', 'Secretary', 'Councilor', 'Captain'].includes(user?.role ?? '');
 
   const fetchMeasures = useCallback(async () => {
     try {
