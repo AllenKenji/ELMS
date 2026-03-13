@@ -110,21 +110,43 @@ export default function DraftsPage() {
   };
 
   if (editingDraft) {
-    return (
-      <OrdinanceForm
-        ordinanceId={editingDraft.itemType === 'Ordinance' ? editingDraft.id : undefined}
-        initialData={
-          editingDraft.itemType === 'Ordinance'
-            ? { title: editingDraft.title, description: editingDraft.description }
-            : undefined
-        }
-        onSuccess={() => {
-          setEditingDraft(null);
-          fetchDrafts();
-        }}
-        onCancel={() => setEditingDraft(null)}
-      />
-    );
+    if (editingDraft.itemType === 'Ordinance') {
+      return (
+        <OrdinanceForm
+          ordinanceId={editingDraft.id}
+          initialData={{
+            title: editingDraft.title || '',
+            ordinance_number: editingDraft.ordinance_number || '',
+            description: editingDraft.description || '',
+            content: editingDraft.content || '',
+            remarks: editingDraft.remarks || '',
+          }}
+          onSuccess={() => {
+            setEditingDraft(null);
+            fetchDrafts();
+          }}
+          onCancel={() => setEditingDraft(null)}
+        />
+      );
+    } else {
+      return (
+        <ResolutionForm
+          resolutionId={editingDraft.id}
+          initialData={{
+            title: editingDraft.title || '',
+            resolution_number: editingDraft.resolution_number || '',
+            description: editingDraft.description || '',
+            content: editingDraft.content || '',
+            remarks: editingDraft.remarks || '',
+          }}
+          onSuccess={() => {
+            setEditingDraft(null);
+            fetchDrafts();
+          }}
+          onCancel={() => setEditingDraft(null)}
+        />
+      );
+    }
   }
 
   if (viewingDraft) {
@@ -398,7 +420,7 @@ export default function DraftsPage() {
                         👁️ View
                       </button>
                     )}
-                    {canEdit && draft.itemType === 'Ordinance' && (
+                    {canEdit && (
                       <button
                         onClick={() => setEditingDraft(draft)}
                         className="btn-action btn-edit"

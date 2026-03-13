@@ -59,9 +59,22 @@ export default function OrdinanceList({ onRefresh }) {
     fetchOrdinances();
   }, [fetchOrdinances]);
 
+  const canDelete = ['Admin', 'Secretary'].includes(user?.role);
+
   const handleViewDetails = (ordinance) => {
     setSelectedOrdinance(ordinance);
     setShowDetailsModal(true);
+  };
+
+  const handleDelete = async (ordinance) => {
+    if (!window.confirm(`Are you sure you want to delete "${ordinance.title}"?`)) return;
+    try {
+      await api.delete(`/ordinances/${ordinance.id}`);
+      fetchOrdinances();
+    } catch (err) {
+      setError('Failed to delete ordinance. Please try again.');
+      console.error('Error deleting ordinance:', err);
+    }
   };
 
   // Filter ordinances based on search and status
@@ -294,6 +307,15 @@ export default function OrdinanceList({ onRefresh }) {
                       >
                         👁️ View
                       </button>
+                      {canDelete && (
+                        <button
+                          onClick={() => handleDelete(ordinance)}
+                          className="btn-small btn-danger"
+                          aria-label={`Delete ${ordinance.title}`}
+                        >
+                          🗑️ Delete
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}
