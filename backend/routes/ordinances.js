@@ -3,11 +3,13 @@ const router = express.Router();
 const authenticateToken = require('../middleware/auth');
 const authorizeRoles = require('../middleware/roles');
 const ordinanceController = require('../controllers/ordinanceController');
+const { validateBody } = require('../middleware/validation');
+const { createOrdinanceSchema, updateOrdinanceSchema } = require('../validators/schemas');
 
-router.post('/', authenticateToken, authorizeRoles('Secretary', 'Councilor'), ordinanceController.create);
+router.post('/', authenticateToken, authorizeRoles('Secretary', 'Councilor'), validateBody(createOrdinanceSchema), ordinanceController.create);
 router.get('/', authenticateToken, ordinanceController.getAll);
 router.get('/:id', authenticateToken, ordinanceController.getById);
-router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Councilor', 'Admin'), ordinanceController.update);
+router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Councilor', 'Admin'), validateBody(updateOrdinanceSchema), ordinanceController.update);
 router.delete('/:id', authenticateToken, authorizeRoles('Admin', 'Secretary'), ordinanceController.remove);
 router.get('/:id/workflow', authenticateToken, ordinanceController.getWorkflow);
 router.get('/:id/history', authenticateToken, ordinanceController.getHistory);
