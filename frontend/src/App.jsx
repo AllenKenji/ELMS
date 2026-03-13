@@ -22,6 +22,7 @@ import UserManagement from './components/UserManagement';
 import AuditLogList from './components/AuditLogList';
 import SystemSettings from './components/SystemSettings';
 import VotingDashboard from './components/Voting/VotingDashboard';
+import CommitteeList from './components/Committees/CommitteeList';
 
 function App() {
   const { accessToken, login, user } = useAuth();
@@ -66,6 +67,7 @@ function App() {
           <Route path="/dashboard/audit-logs" element={<AuditLogList />} />
           <Route path="/dashboard/system-settings" element={<SystemSettings />} />
           <Route path="/dashboard/voting" element={<VotingDashboard />} />
+          <Route path="/dashboard/committees" element={<CommitteeList />} />
         </Route>
 
         {/* Catch-all */}

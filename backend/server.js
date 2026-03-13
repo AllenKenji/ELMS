@@ -25,6 +25,7 @@ app.use('/audit-logs', require('./routes/auditLogs'));
 app.use('/settings', require('./routes/settings'));
 app.use('/messages', require('./routes/messages'));
 app.use('/votes', require('./routes/votes'));
+app.use('/committees', require('./routes/committees'));
 
 // --- Socket.IO setup ---
 const http = require('http');
