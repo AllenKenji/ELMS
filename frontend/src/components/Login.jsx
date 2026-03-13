@@ -25,10 +25,13 @@ export default function Login({ onLogin }) {
     setError('');
     setLoading(true);
 
+    const normalizedEmail = email.trim();
+    const normalizedPassword = password;
+
     try {
       const res = await axios.post('http://localhost:5000/auth/login', {
-        email,
-        password,
+        email: normalizedEmail,
+        password: normalizedPassword,
       });
 
       const { accessToken, refreshToken, user } = res.data;
@@ -48,8 +51,15 @@ export default function Login({ onLogin }) {
 
       onLogin({ accessToken, refreshToken, user });
     } catch (err) {
+      const validationDetails = err.response?.data?.details;
+      if (Array.isArray(validationDetails) && validationDetails.length > 0) {
+        setError(validationDetails.map((d) => d.message).join(' '));
+        return;
+      }
+
       const message =
         err.response?.data?.error ||
+        err.response?.data?.message ||
         (err.request ? 'Server unreachable' : 'Unexpected error');
       setError(message);
     } finally {

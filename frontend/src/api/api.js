@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { jwtDecode } from 'jwt-decode';
 
 const api = axios.create({
   baseURL: 'http://localhost:5000',
@@ -8,6 +9,21 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('accessToken');
   if (token) {
+    try {
+      const decoded = jwtDecode(token);
+      const now = Math.floor(Date.now() / 1000);
+
+      // Skip attaching expired tokens so the client can refresh or log in again.
+      if (decoded?.exp && decoded.exp <= now) {
+        localStorage.removeItem('accessToken');
+        return config;
+      }
+    } catch {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      return config;
+    }
+
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;

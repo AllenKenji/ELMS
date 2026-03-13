@@ -7,6 +7,8 @@
 
 const Joi = require('joi');
 
+const emailSchema = Joi.string().trim().email({ tlds: { allow: false } });
+
 // ---------------------------------------------------------------------------
 // Auth schemas
 // ---------------------------------------------------------------------------
@@ -20,7 +22,7 @@ const registerSchema = Joi.object({
     'string.max': 'Name must be at most 100 characters.',
     'any.required': 'Name is required.',
   }),
-  email: Joi.string().trim().email().required().messages({
+  email: emailSchema.required().messages({
     'string.email': 'A valid email address is required.',
     'any.required': 'Email is required.',
   }),
@@ -40,7 +42,7 @@ const registerSchema = Joi.object({
  * Schema for POST /auth/login
  */
 const loginSchema = Joi.object({
-  email: Joi.string().trim().email().required().messages({
+  email: emailSchema.required().messages({
     'string.email': 'A valid email address is required.',
     'any.required': 'Email is required.',
   }),

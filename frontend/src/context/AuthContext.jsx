@@ -10,7 +10,14 @@ export function AuthProvider({ children }) {
     if (!storedAccessToken) return null;
 
     try {
-      jwtDecode(storedAccessToken);
+      const decoded = jwtDecode(storedAccessToken);
+      const now = Math.floor(Date.now() / 1000);
+
+      if (decoded?.exp && decoded.exp <= now) {
+        localStorage.removeItem('accessToken');
+        return null;
+      }
+
       return storedAccessToken;
     } catch (error) {
       console.warn('Invalid access token found in storage. Clearing auth state.', error);
@@ -25,7 +32,12 @@ export function AuthProvider({ children }) {
     if (!storedAccessToken) return null;
 
     try {
-      return jwtDecode(storedAccessToken);
+      const decoded = jwtDecode(storedAccessToken);
+      const now = Math.floor(Date.now() / 1000);
+      if (decoded?.exp && decoded.exp <= now) {
+        return null;
+      }
+      return decoded;
     } catch {
       return null;
     }
@@ -60,7 +72,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!refreshToken) return;
 
-    const interval = setInterval(async () => {
+    const refreshAccessToken = async () => {
       try {
         const res = await axios.post('http://localhost:5000/auth/refresh', {
           refreshToken,
@@ -77,9 +89,28 @@ export function AuthProvider({ children }) {
           }
         }
       } catch (err) {
-        console.error("Failed to refresh token:", err);
-        logout(); // fallback: force logout if refresh fails
+        console.error('Failed to refresh token:', err);
+        logout();
       }
+    };
+
+    const currentToken = localStorage.getItem('accessToken');
+    if (!currentToken) {
+      refreshAccessToken();
+    } else {
+      try {
+        const decoded = jwtDecode(currentToken);
+        const now = Math.floor(Date.now() / 1000);
+        if (decoded?.exp && decoded.exp <= now) {
+          refreshAccessToken();
+        }
+      } catch {
+        refreshAccessToken();
+      }
+    }
+
+    const interval = setInterval(async () => {
+      await refreshAccessToken();
     }, 14 * 60 * 1000); // refresh every 14 minutes (before 15m expiry)
 
     return () => clearInterval(interval);
