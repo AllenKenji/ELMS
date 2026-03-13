@@ -28,6 +28,9 @@ app.use('/votes', require('./routes/votes'));
 app.use('/committees', require('./routes/committees'));
 app.use('/reports', require('./routes/reports'));
 
+// Global error handler — must be registered after all routes
+app.use(require('./middleware/errorHandler'));
+
 // --- Socket.IO setup ---
 const http = require('http');
 const server = http.createServer(app);
