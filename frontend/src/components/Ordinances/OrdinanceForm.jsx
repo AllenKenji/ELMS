@@ -3,16 +3,18 @@ import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import "../../styles/OrdinanceForm.css";
 
-export default function OrdinanceForm({ onSuccess, onCancel }) {
+export default function OrdinanceForm({ onSuccess, onCancel, ordinanceId, initialData }) {
   const { user } = useAuth();
 
-  const [formData, setFormData] = useState({
-    title: '',
-    ordinance_number: '',
-    description: '',
-    content: '',
-    remarks: '',
-  });
+  const [formData, setFormData] = useState(
+    initialData || {
+      title: '',
+      ordinance_number: '',
+      description: '',
+      content: '',
+      remarks: '',
+    }
+  );
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -85,18 +87,27 @@ export default function OrdinanceForm({ onSuccess, onCancel }) {
         status: 'Draft',
       };
 
-      const res = await api.post('/ordinances', payload);
+      let successMsg;
+      if (ordinanceId) {
+        await api.put(`/ordinances/${ordinanceId}`, payload);
+        successMsg = 'Ordinance updated successfully!';
+      } else {
+        const res = await api.post('/ordinances', payload);
+        successMsg = res.data?.message || 'Ordinance submitted successfully!';
+      }
 
-      setSuccess(res.data?.message || 'Ordinance submitted successfully!');
+      setSuccess(successMsg);
 
-      // Reset form
-      setFormData({
-        title: '',
-        ordinance_number: '',
-        description: '',
-        content: '',
-        remarks: '',
-      });
+      // Only reset form when creating a new ordinance
+      if (!ordinanceId) {
+        setFormData({
+          title: '',
+          ordinance_number: '',
+          description: '',
+          content: '',
+          remarks: '',
+        });
+      }
 
       // Call success callback after 1.5 seconds
       setTimeout(() => onSuccess?.(), 1500);
@@ -136,7 +147,7 @@ export default function OrdinanceForm({ onSuccess, onCancel }) {
       <form onSubmit={handleSubmit} className="ordinance-form-container">
         <div className="form-header">
           <div className="form-title-section">
-            <h3>📋 Submit New Ordinance</h3>
+            <h3>📋 {ordinanceId ? 'Edit Ordinance' : 'Submit New Ordinance'}</h3>
             <p className="form-subtitle">
               Proposed by: <strong>{user?.name || 'Unknown'}</strong>
             </p>
@@ -291,7 +302,7 @@ export default function OrdinanceForm({ onSuccess, onCancel }) {
               </>
             ) : (
               <>
-                📤 Submit Ordinance
+                📤 {ordinanceId ? 'Update Ordinance' : 'Submit Ordinance'}
               </>
             )}
           </button>
