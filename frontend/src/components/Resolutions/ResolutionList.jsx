@@ -104,7 +104,6 @@ export default function ResolutionList() {
   // Can perform actions
   const canEdit = ['Admin', 'Secretary'].includes(user?.role);
   const canDelete = ['Admin'].includes(user?.role);
-  const canCreate = ['Admin', 'Secretary'].includes(user?.role);
 
   return (
     <div className="resolution-list-container">
@@ -112,20 +111,8 @@ export default function ResolutionList() {
       <div className="list-header">
         <div className="header-content">
           <h3>Resolutions</h3>
-          <p className="header-subtitle">View and manage community resolutions</p>
+          <p className="header-subtitle">Enacted resolutions from approved proposed measures</p>
         </div>
-
-        {canCreate && (
-          <button
-            className="btn-new-resolution"
-            onClick={() => {
-              setEditingResolution(null);
-              setShowForm(true);
-            }}
-          >
-            + New Resolution
-          </button>
-        )}
       </div>
 
       {/* Error Alert */}
@@ -201,19 +188,8 @@ export default function ResolutionList() {
           <p className="text-muted">
             {searchTerm || statusFilter
               ? 'Try adjusting your search or filters'
-              : 'No resolutions have been created yet'}
+              : 'No resolutions have been enacted yet. Submit a proposed measure to get started.'}
           </p>
-          {canCreate && (
-            <button
-              className="btn-empty-action"
-              onClick={() => {
-                setEditingResolution(null);
-                setShowForm(true);
-              }}
-            >
-              Create First Resolution
-            </button>
-          )}
         </div>
       ) : (
         /* Resolutions Grid */

@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
-import OrdinanceForm from './OrdinanceForm';
 import OrdinanceDetails from './OrdinanceDetails';
 import '../../styles/OrdinanceList.css';
 
@@ -34,7 +33,6 @@ export default function OrdinanceList({ onRefresh }) {
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedOrdinance, setSelectedOrdinance] = useState(null);
   const [sortBy, setSortBy] = useState('date');
-  const [showForm, setShowForm] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   // Memoize fetchOrdinances to prevent dependency issues
@@ -64,20 +62,6 @@ export default function OrdinanceList({ onRefresh }) {
   const handleViewDetails = (ordinance) => {
     setSelectedOrdinance(ordinance);
     setShowDetailsModal(true);
-  };
-
-  const handleNewOrdinance = () => {
-    setShowForm(true);
-  };
-
-  const handleFormSuccess = () => {
-    setShowForm(false);
-    fetchOrdinances();
-    onRefresh?.();
-  };
-
-  const handleFormCancel = () => {
-    setShowForm(false);
   };
 
   // Filter ordinances based on search and status
@@ -120,16 +104,6 @@ export default function OrdinanceList({ onRefresh }) {
     published: ordinances.filter(o => o.status === 'Published').length,
   };
 
-  // Show OrdinanceForm if showForm is true
-  if (showForm) {
-    return (
-      <OrdinanceForm 
-        onSuccess={handleFormSuccess}
-        onCancel={handleFormCancel}
-      />
-    );
-  }
-
   if (loading) {
     return (
       <div className="ordinance-list-container">
@@ -147,15 +121,11 @@ export default function OrdinanceList({ onRefresh }) {
       {/* Header with Stats */}
       <div className="ordinance-header">
         <div className="header-content">
-          <h3>📜 My Ordinances</h3>
-          <p className="header-subtitle">Submitted by: <strong>{user?.name}</strong></p>
+          <h3>📜 Ordinances</h3>
+          <p className="header-subtitle">Enacted ordinances from approved proposed measures</p>
         </div>
-        <button
-          onClick={handleNewOrdinance}
-          className="btn-new-ordinance"
-          aria-label="Create new ordinance"
-        >
-          ➕ New Ordinance
+        <button onClick={fetchOrdinances} className="btn-refresh" title="Refresh list">
+          🔄
         </button>
       </div>
 
@@ -268,12 +238,7 @@ export default function OrdinanceList({ onRefresh }) {
           {searchTerm ? (
             <p className="text-muted">Try adjusting your search terms</p>
           ) : (
-            <>
-              <p className="text-muted">You haven't submitted any ordinances yet</p>
-              <button onClick={handleNewOrdinance} className="btn-empty-action">
-                ➕ Create Your First Ordinance
-              </button>
-            </>
+            <p className="text-muted">No ordinances have been enacted yet. Submit a proposed measure to get started.</p>
           )}
         </div>
       ) : (
