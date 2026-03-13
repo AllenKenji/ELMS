@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import NotificationBell from './NotificationBell';
 import '../styles/DashboardLayout.css'; 
-import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaVoteYea, FaLayerGroup, FaChartBar } from 'react-icons/fa';
+import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaVoteYea, FaLayerGroup, FaChartBar, FaCalendarAlt, FaEdit, FaInbox } from 'react-icons/fa';
 
 export default function DashboardLayout() {
   const { logout, user } = useAuth();
@@ -21,6 +21,9 @@ export default function DashboardLayout() {
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
+      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
+      { path: '/dashboard/drafts', label: 'Drafts', icon: <FaEdit /> },
+      { path: '/dashboard/proposed-measures', label: 'Proposed Measures', icon: <FaInbox /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
       { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
       { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
@@ -33,8 +36,11 @@ export default function DashboardLayout() {
     Secretary: [
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
+      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
+      { path: '/dashboard/drafts', label: 'Drafts', icon: <FaEdit /> },
+      { path: '/dashboard/proposed-measures', label: 'Proposed Measures', icon: <FaInbox /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
       { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
       { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
@@ -45,6 +51,9 @@ export default function DashboardLayout() {
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
+      { path: '/dashboard/drafts', label: 'Drafts', icon: <FaEdit /> },
+      { path: '/dashboard/proposed-measures', label: 'Proposed Measures', icon: <FaInbox /> },
+      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
       { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
       { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
@@ -55,6 +64,8 @@ export default function DashboardLayout() {
       { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
+      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
+      { path: '/dashboard/proposed-measures', label: 'Proposed Measures', icon: <FaInbox /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
@@ -63,6 +74,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
+      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
     ],
@@ -71,6 +83,8 @@ export default function DashboardLayout() {
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
+      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
+      { path: '/dashboard/proposed-measures', label: 'Proposed Measures', icon: <FaInbox /> },
       { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
