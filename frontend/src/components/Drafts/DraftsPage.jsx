@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import OrdinanceForm from '../Ordinances/OrdinanceForm';
+import ResolutionForm from '../Resolutions/ResolutionForm';
 import OrdinanceDetails from '../Ordinances/OrdinanceDetails';
 import '../../styles/DraftsPage.css';
 
@@ -16,6 +17,10 @@ export default function DraftsPage() {
   const [editingDraft, setEditingDraft] = useState(null);
   const [viewingDraft, setViewingDraft] = useState(null);
   const [actionMsg, setActionMsg] = useState('');
+  const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [selectedFormType, setSelectedFormType] = useState(null);
+
+  const canCreate = ['Admin', 'Secretary', 'Councilor', 'Captain'].includes(user?.role ?? '');
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -135,6 +140,30 @@ export default function DraftsPage() {
     );
   }
 
+  if (selectedFormType === 'Ordinance') {
+    return (
+      <OrdinanceForm
+        onSuccess={() => {
+          setSelectedFormType(null);
+          fetchDrafts();
+        }}
+        onCancel={() => setSelectedFormType(null)}
+      />
+    );
+  }
+
+  if (selectedFormType === 'Resolution') {
+    return (
+      <ResolutionForm
+        onSuccess={() => {
+          setSelectedFormType(null);
+          fetchDrafts();
+        }}
+        onCancel={() => setSelectedFormType(null)}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div className="drafts-container">
@@ -155,10 +184,64 @@ export default function DraftsPage() {
           <h3>✏️ Drafts</h3>
           <p className="header-subtitle">Ordinances and resolutions in progress</p>
         </div>
-        <button onClick={fetchDrafts} className="btn-refresh" title="Refresh">
-          🔄
-        </button>
+        <div className="header-actions">
+          {canCreate && (
+            <button
+              onClick={() => setShowTypeSelector(true)}
+              className="btn-new-draft"
+              aria-label="Create new draft"
+            >
+              ➕ Create Draft
+            </button>
+          )}
+          <button onClick={fetchDrafts} className="btn-refresh" title="Refresh">
+            🔄
+          </button>
+        </div>
       </div>
+
+      {/* Type Selector Modal */}
+      {showTypeSelector && (
+        <div className="type-selector-overlay">
+          <div className="type-selector-modal">
+            <div className="type-selector-header">
+              <h4>✏️ New Draft</h4>
+              <button
+                className="btn-close-selector"
+                onClick={() => setShowTypeSelector(false)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="type-selector-subtitle">Select the type of draft you want to create:</p>
+            <div className="type-selector-options">
+              <button
+                className="type-option-btn ordinance-option"
+                onClick={() => {
+                  setShowTypeSelector(false);
+                  setSelectedFormType('Ordinance');
+                }}
+              >
+                <span className="type-option-icon">⚖️</span>
+                <strong>Ordinance</strong>
+                <span className="type-option-desc">Legally binding local law</span>
+              </button>
+              <button
+                className="type-option-btn resolution-option"
+                onClick={() => {
+                  setShowTypeSelector(false);
+                  setSelectedFormType('Resolution');
+                }}
+              >
+                <span className="type-option-icon">📣</span>
+                <strong>Resolution</strong>
+                <span className="type-option-desc">Non-binding expression or declaration</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats */}
       <div className="drafts-stats">
