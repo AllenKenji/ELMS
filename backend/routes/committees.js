@@ -247,8 +247,7 @@ router.post(
         'SELECT id FROM committee_members WHERE committee_id = $1 AND user_id = $2',
         [committeeId, user_id]
       );
-      const alreadyMember = existingMember.rows.length > 0;
-      if (alreadyMember) {
+      if (existingMember.rows.length > 0) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'User is already a member of this committee' });
       }
