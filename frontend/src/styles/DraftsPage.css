@@ -188,6 +188,147 @@
   border-color: #4a90e2;
 }
 
+/* Header Actions */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-new-draft {
+  background: #2ecc71;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-new-draft:hover {
+  background: #27ae60;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(46, 204, 113, 0.35);
+}
+
+.btn-new-draft:active {
+  transform: scale(0.97);
+}
+
+/* Type Selector Modal */
+.type-selector-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.type-selector-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 1.75rem;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  animation: modalFadeIn 0.2s ease-out;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-10px); }
+  to   { opacity: 1; transform: scale(1)   translateY(0); }
+}
+
+.type-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.type-selector-header h4 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: #333;
+}
+
+.btn-close-selector {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: #888;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.btn-close-selector:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.type-selector-subtitle {
+  margin: 0 0 1.25rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.type-selector-options {
+  display: flex;
+  gap: 1rem;
+}
+
+.type-option-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1.25rem 0.75rem;
+  border: 2px solid #e8e8e8;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.type-option-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.ordinance-option:hover {
+  border-color: #3498db;
+  background: #ebf5fb;
+}
+
+.resolution-option:hover {
+  border-color: #9b59b6;
+  background: #f5eef8;
+}
+
+.type-option-icon {
+  font-size: 1.75rem;
+}
+
+.type-option-btn strong {
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.type-option-desc {
+  font-size: 0.78rem;
+  color: #888;
+}
+
 /* Results Info */
 .results-info {
   margin-bottom: 1rem;
