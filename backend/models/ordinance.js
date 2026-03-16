@@ -41,8 +41,7 @@ exports.update = async (id, title, ordinanceNumber, description, content, remark
          ordinance_number = COALESCE($2, ordinance_number),
          description = COALESCE($3, description),
          content = COALESCE($4, content),
-         remarks = COALESCE($5, remarks),
-         updated_at = NOW()
+         remarks = COALESCE($5, remarks)
      WHERE id = $6 RETURNING *`,
     [title, ordinanceNumber, description, content, remarks, id]
   );
@@ -56,7 +55,7 @@ exports.deleteById = async (client, id) => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.updateStatus = async (client, id, status) => {
   return client.query(
-    'UPDATE ordinances SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+    'UPDATE ordinances SET status = $1 WHERE id = $2 RETURNING *',
     [status, id]
   );
 };
