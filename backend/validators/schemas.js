@@ -126,6 +126,27 @@ const updateOrdinanceSchema = Joi.object({
   .options({ allowUnknown: false });
 
 // ---------------------------------------------------------------------------
+// Minutes schemas
+// ---------------------------------------------------------------------------
+
+/**
+ * Schema for POST /minutes
+ */
+const createMinutesSchema = Joi.object({
+  title: Joi.string().trim().min(3).max(255).required().messages({
+    'string.min': 'Title must be at least 3 characters.',
+    'string.max': 'Title must be at most 255 characters.',
+    'any.required': 'Title is required.',
+  }),
+  meeting_date: Joi.string().isoDate().optional().allow(null, ''),
+  participants: Joi.string().trim().max(500).optional().allow(null, ''),
+  transcript: Joi.string().trim().required().messages({
+    'any.required': 'Transcript is required.',
+  }),
+  session_id: Joi.number().integer().positive().optional().allow(null),
+}).options({ allowUnknown: false });
+
+// ---------------------------------------------------------------------------
 // Message schemas
 // ---------------------------------------------------------------------------
 
@@ -166,6 +187,8 @@ module.exports = {
   // Ordinances
   createOrdinanceSchema,
   updateOrdinanceSchema,
+  // Minutes
+  createMinutesSchema,
   // Messages
   sendMessageSchema,
   messageSearchSchema,

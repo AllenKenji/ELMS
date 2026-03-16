@@ -4,13 +4,13 @@
 const pool = require('../db');
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.create = async (title, meetingDate, participants, transcript, createdBy) => {
+exports.create = async (title, meetingDate, participants, transcript, createdBy, sessionId) => {
   return pool.query(
     `INSERT INTO meeting_minutes
-       (title, meeting_date, participants, transcript, status, created_by, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, 'Draft', $5, NOW(), NOW())
+       (title, meeting_date, participants, transcript, status, created_by, session_id, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 'Draft', $5, $6, NOW(), NOW())
      RETURNING *`,
-    [title, meetingDate || null, participants || null, transcript, createdBy]
+    [title, meetingDate || null, participants || null, transcript, createdBy, sessionId || null]
   );
 };
 
@@ -84,4 +84,16 @@ exports.updateGeneratedMinutes = async (id, generatedMinutes, attendees, keyDeci
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.deleteById = async (id) => {
   return pool.query('DELETE FROM meeting_minutes WHERE id = $1', [id]);
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
+exports.findBySessionId = async (sessionId) => {
+  return pool.query(
+    `SELECT m.*, u.name AS created_by_name
+     FROM meeting_minutes m
+     LEFT JOIN users u ON u.id = m.created_by
+     WHERE m.session_id = $1
+     ORDER BY m.created_at DESC`,
+    [sessionId]
+  );
 };

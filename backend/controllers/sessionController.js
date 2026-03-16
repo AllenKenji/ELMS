@@ -137,3 +137,17 @@ exports.updateParticipant = async (req, res) => {
     res.status(500).json({ error: 'Error updating participant' });
   }
 };
+
+/**
+ * Get meeting minutes for a session.
+ * GET /sessions/:id/minutes
+ */
+exports.getMinutes = async (req, res) => {
+  try {
+    const minutes = await sessionService.getSessionMinutes(req.params.id);
+    res.json(minutes);
+  } catch (err) {
+    console.error('Get session minutes error:', err);
+    res.status(500).json({ error: 'Error fetching meeting minutes for session' });
+  }
+};

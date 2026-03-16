@@ -171,3 +171,13 @@ exports.updateParticipantAttendance = async (sessionId, userId, attendanceStatus
   }
   return result.rows[0];
 };
+
+/**
+ * Get all meeting minutes for a session.
+ * @param {string|number} sessionId
+ * @returns {Promise<Array>}
+ */
+exports.getSessionMinutes = async (sessionId) => {
+  const result = await Session.findMinutesBySessionId(sessionId);
+  return result.rows;
+};
