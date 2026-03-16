@@ -105,9 +105,9 @@ async function seed() {
         `INSERT INTO ordinances (title, ordinance_number, description, content, remarks, proposer_id, proposer_name, status, created_at)
          SELECT $1, $2, $3, $4, $5, $6, $7, 'Draft', NOW()
          WHERE NOT EXISTS (
-           SELECT 1 FROM ordinances WHERE title = $1 AND status = 'Draft'
+           SELECT 1 FROM ordinances WHERE title = $8 AND status = 'Draft'
          )`,
-        [ord.title, ord.ordinance_number, ord.description, ord.content, ord.remarks, ord.proposer_id, ord.proposer_name]
+        [ord.title, ord.ordinance_number, ord.description, ord.content, ord.remarks, ord.proposer_id, ord.proposer_name, ord.title]
       );
     }
 
@@ -117,9 +117,9 @@ async function seed() {
         `INSERT INTO resolutions (title, resolution_number, description, content, remarks, proposer_id, proposer_name, status, created_at)
          SELECT $1, $2, $3, $4, $5, $6, $7, 'Draft', NOW()
          WHERE NOT EXISTS (
-           SELECT 1 FROM resolutions WHERE title = $1 AND status = 'Draft'
+           SELECT 1 FROM resolutions WHERE title = $8 AND status = 'Draft'
          )`,
-        [res.title, res.resolution_number, res.description, res.content, res.remarks, res.proposer_id, res.proposer_name]
+        [res.title, res.resolution_number, res.description, res.content, res.remarks, res.proposer_id, res.proposer_name, res.title]
       );
     }
 
