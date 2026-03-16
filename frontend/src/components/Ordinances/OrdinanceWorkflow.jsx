@@ -240,7 +240,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
             <div className="lw-cr-header">
               <strong>Recommendation: </strong>
               <span className={["lw-rec-badge", workflowStatus.committeeReport.recommendation?.toLowerCase()].filter(Boolean).join(" ")}>
-                {workflowStatus.committeeReport.recommendation}
+                {workflowStatus.committeeReport.recommendation || "N/A"}
               </span>
             </div>
             <p><strong>Committee:</strong> {workflowStatus.committeeReport.committee_name || "N/A"}</p>

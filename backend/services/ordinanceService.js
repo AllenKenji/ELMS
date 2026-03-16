@@ -453,7 +453,7 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
  * Stage 5: Secretary records Second Reading.
  * Transitions: COMMITTEE_REPORT_SUBMITTED → SECOND_READING
  */
-exports.conductSecondReading = async (id, sessionId, discussionNotes, amendments, presidingOfficer, userId) => {
+exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingOfficer, userId) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');

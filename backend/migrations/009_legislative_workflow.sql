@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS reading_sessions (
   reading_number        INTEGER NOT NULL CHECK (reading_number IN (1, 2, 3)),
   conducted_at          TIMESTAMP DEFAULT NOW(),
   discussion_notes      TEXT,
+  -- Reserved for future amendments tracking feature
   amendments_introduced JSONB,
   presiding_officer     INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
