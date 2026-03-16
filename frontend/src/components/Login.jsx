@@ -40,8 +40,8 @@ export default function Login({ onLogin }) {
         throw new Error("Invalid login response");
       }
 
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
+      sessionStorage.setItem('accessToken', accessToken);
+      sessionStorage.setItem('refreshToken', refreshToken);
 
       if (rememberMe) {
         localStorage.setItem('rememberedEmail', email);

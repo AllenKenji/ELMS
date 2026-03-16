@@ -4,48 +4,46 @@ import { jwtDecode } from 'jwt-decode';
 import axios from 'axios';
 import { Auth } from './auth';
 
+function decodeValidUser(token) {
+  if (!token) return null;
+
+  try {
+    const decoded = jwtDecode(token);
+    const now = Math.floor(Date.now() / 1000);
+    if (decoded?.exp && decoded.exp <= now) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(() => {
-    const storedAccessToken = localStorage.getItem('accessToken');
+    const storedAccessToken = sessionStorage.getItem('accessToken');
     if (!storedAccessToken) return null;
 
-    try {
-      const decoded = jwtDecode(storedAccessToken);
-      const now = Math.floor(Date.now() / 1000);
-
-      if (decoded?.exp && decoded.exp <= now) {
-        localStorage.removeItem('accessToken');
-        return null;
-      }
-
+    const userFromToken = decodeValidUser(storedAccessToken);
+    if (userFromToken) {
       return storedAccessToken;
-    } catch (error) {
-      console.warn('Invalid access token found in storage. Clearing auth state.', error);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      return null;
     }
-  });
-  const [refreshToken, setRefreshToken] = useState(localStorage.getItem('refreshToken'));
-  const [user, setUser] = useState(() => {
-    const storedAccessToken = localStorage.getItem('accessToken');
-    if (!storedAccessToken) return null;
 
-    try {
-      const decoded = jwtDecode(storedAccessToken);
-      const now = Math.floor(Date.now() / 1000);
-      if (decoded?.exp && decoded.exp <= now) {
-        return null;
-      }
-      return decoded;
-    } catch {
-      return null;
-    }
+    console.warn('Invalid or expired access token found in storage. Clearing auth state.');
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
+
+    return null;
+  });
+  const [refreshToken, setRefreshToken] = useState(sessionStorage.getItem('refreshToken'));
+  const [user, setUser] = useState(() => {
+    const storedAccessToken = sessionStorage.getItem('accessToken');
+    return decodeValidUser(storedAccessToken);
   });
 
   const login = (tokens) => {
-    localStorage.setItem('accessToken', tokens.accessToken);
-    localStorage.setItem('refreshToken', tokens.refreshToken);
+    sessionStorage.setItem('accessToken', tokens.accessToken);
+    sessionStorage.setItem('refreshToken', tokens.refreshToken);
     setAccessToken(tokens.accessToken);
     setRefreshToken(tokens.refreshToken);
     if (tokens.user) {
@@ -61,8 +59,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('accessToken');
+    sessionStorage.removeItem('refreshToken');
     setAccessToken(null);
     setRefreshToken(null);
     setUser(null);
@@ -80,7 +78,7 @@ export function AuthProvider({ children }) {
         const { accessToken: newAccessToken } = res.data;
 
         if (newAccessToken) {
-          localStorage.setItem('accessToken', newAccessToken);
+          sessionStorage.setItem('accessToken', newAccessToken);
           setAccessToken(newAccessToken);
           try {
             setUser(jwtDecode(newAccessToken));
@@ -94,7 +92,7 @@ export function AuthProvider({ children }) {
       }
     };
 
-    const currentToken = localStorage.getItem('accessToken');
+    const currentToken = sessionStorage.getItem('accessToken');
     if (!currentToken) {
       refreshAccessToken();
     } else {

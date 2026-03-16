@@ -85,8 +85,14 @@ const createOrdinanceSchema = Joi.object({
   description: Joi.string().trim().max(5000).optional().allow('').messages({
     'string.max': 'Description must be at most 5000 characters.',
   }),
+  ordinance_number: Joi.string().trim().max(100).optional().allow(null, '').messages({
+    'string.max': 'Ordinance number must be at most 100 characters.',
+  }),
   content: Joi.string().trim().required().messages({
     'any.required': 'Content is required.',
+  }),
+  remarks: Joi.string().trim().max(5000).optional().allow(null, '').messages({
+    'string.max': 'Remarks must be at most 5000 characters.',
   }),
   status: Joi.string()
     .valid(...ORDINANCE_STATUSES)
@@ -109,7 +115,13 @@ const updateOrdinanceSchema = Joi.object({
   description: Joi.string().trim().max(5000).optional().allow('').messages({
     'string.max': 'Description must be at most 5000 characters.',
   }),
+  ordinance_number: Joi.string().trim().max(100).optional().allow(null, '').messages({
+    'string.max': 'Ordinance number must be at most 100 characters.',
+  }),
   content: Joi.string().trim().optional(),
+  remarks: Joi.string().trim().max(5000).optional().allow(null, '').messages({
+    'string.max': 'Remarks must be at most 5000 characters.',
+  }),
   status: Joi.string()
     .valid(...ORDINANCE_STATUSES)
     .optional()

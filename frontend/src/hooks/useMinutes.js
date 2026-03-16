@@ -77,7 +77,7 @@ export default function useMinutes() {
   };
 
   const exportText = (id) => {
-    const token = localStorage.getItem('accessToken');
+    const token = sessionStorage.getItem('accessToken');
     const baseURL = api.defaults.baseURL || 'http://localhost:5000';
     const url = `${baseURL}/minutes/${id}/export/text`;
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })

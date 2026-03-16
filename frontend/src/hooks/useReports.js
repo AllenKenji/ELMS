@@ -73,7 +73,7 @@ export default function useReports() {
   };
 
   const exportCsv = (id) => {
-    const token = localStorage.getItem('accessToken');
+    const token = sessionStorage.getItem('accessToken');
     const baseURL = api.defaults.baseURL || 'http://localhost:5000';
     const url = `${baseURL}/reports/${id}/export/csv`;
     // Create a temporary anchor for download with auth header via fetch

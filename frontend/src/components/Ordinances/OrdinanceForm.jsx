@@ -3,7 +3,13 @@ import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import "../../styles/OrdinanceForm.css";
 
-export default function OrdinanceForm({ onSuccess, onCancel, ordinanceId, initialData }) {
+export default function OrdinanceForm({
+  onSuccess,
+  onCancel,
+  ordinanceId,
+  initialData,
+  autoSubmitAfterCreate = false,
+}) {
   const { user } = useAuth();
 
   const [formData, setFormData] = useState(
@@ -76,24 +82,32 @@ export default function OrdinanceForm({ onSuccess, onCancel, ordinanceId, initia
     setLoading(true);
 
     try {
-      const payload = {
+      const basePayload = {
         title: formData.title.trim(),
         ordinance_number: formData.ordinance_number.trim() || null,
         description: formData.description.trim(),
         content: formData.content.trim(),
         remarks: formData.remarks.trim() || null,
-        proposer_id: user?.id,
-        proposer_name: user?.name,
-        status: 'Draft',
       };
 
       let successMsg;
       if (ordinanceId) {
+        const payload = { ...basePayload };
         await api.put(`/ordinances/${ordinanceId}`, payload);
         successMsg = 'Ordinance updated successfully!';
       } else {
+        const payload = { ...basePayload };
         const res = await api.post('/ordinances', payload);
-        successMsg = res.data?.message || 'Ordinance submitted successfully!';
+
+        if (autoSubmitAfterCreate && res?.data?.id) {
+          await api.post(`/ordinances/${res.data.id}/workflow-action`, {
+            action: 'submit',
+            comment: 'Submitted from Proposed Measures page',
+          });
+          successMsg = 'Ordinance submitted successfully!';
+        } else {
+          successMsg = res.data?.message || 'Ordinance saved as draft successfully!';
+        }
       }
 
       setSuccess(successMsg);
@@ -112,7 +126,12 @@ export default function OrdinanceForm({ onSuccess, onCancel, ordinanceId, initia
       // Call success callback after 1.5 seconds
       setTimeout(() => onSuccess?.(), 1500);
     } catch (err) {
+      const detailMessage = Array.isArray(err?.details) && err.details.length > 0
+        ? err.details.map((d) => d?.message).filter(Boolean).join(' ')
+        : '';
       const msg =
+        detailMessage ||
+        err?.message ||
         err.response?.data?.message ||
         err.response?.data?.error ||
         'Error submitting ordinance. Please try again.';
@@ -330,15 +349,19 @@ export default function OrdinanceForm({ onSuccess, onCancel, ordinanceId, initia
 
         {/* Helper Text */}
         <div className="form-helper">
-          <p>
+          <div>
             <strong>📝 Tips:</strong>
             <ul>
               <li>Be clear and concise in your title</li>
               <li>Provide sufficient detail in the content</li>
               <li>All fields with * are required</li>
-              <li>Your submission will be saved as Draft initially</li>
+              <li>
+                {autoSubmitAfterCreate
+                  ? 'Your submission will be sent to Proposed Measures right away'
+                  : 'Your submission will be saved as Draft initially'}
+              </li>
             </ul>
-          </p>
+          </div>
         </div>
       </form>
     </div>

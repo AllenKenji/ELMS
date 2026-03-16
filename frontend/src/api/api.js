@@ -7,7 +7,7 @@ const api = axios.create({
 
 // Attach the access token to every request automatically
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = sessionStorage.getItem('accessToken');
   if (token) {
     try {
       const decoded = jwtDecode(token);
@@ -15,12 +15,12 @@ api.interceptors.request.use((config) => {
 
       // Skip attaching expired tokens so the client can refresh or log in again.
       if (decoded?.exp && decoded.exp <= now) {
-        localStorage.removeItem('accessToken');
+        sessionStorage.removeItem('accessToken');
         return config;
       }
     } catch {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+      sessionStorage.removeItem('accessToken');
+      sessionStorage.removeItem('refreshToken');
       return config;
     }
 

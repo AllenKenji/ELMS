@@ -119,6 +119,7 @@ export default function ProposedMeasuresPage() {
   if (selectedFormType === 'Ordinance') {
     return (
       <OrdinanceForm
+        autoSubmitAfterCreate
         onSuccess={() => {
           setSelectedFormType(null);
           fetchMeasures();
