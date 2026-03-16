@@ -56,6 +56,25 @@ export default function ResolutionDetails({ resolutionId, onClose, onEdit, onDel
   const canEdit = ['Admin', 'Secretary'].includes(user?.role);
   const canDelete = ['Admin'].includes(user?.role);
 
+  const handleDownloadPdf = async () => {
+    try {
+      const response = await api.get(`/resolutions/${resolutionId}/generate-pdf`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `resolution-${resolution.resolution_number || resolutionId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to generate PDF.');
+      console.error('PDF download error:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="resolution-details-modal">
@@ -197,6 +216,13 @@ export default function ResolutionDetails({ resolutionId, onClose, onEdit, onDel
             onClick={onClose}
           >
             Close
+          </button>
+
+          <button
+            className="btn btn-secondary"
+            onClick={handleDownloadPdf}
+          >
+            📄 Download PDF
           </button>
 
           {canEdit && (

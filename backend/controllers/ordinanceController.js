@@ -2,6 +2,7 @@
  * Ordinance Controller - Handles ordinance HTTP requests.
  */
 const ordinanceService = require('../services/ordinanceService');
+const { generateOrdinancePdf } = require('../services/pdfService');
 
 /**
  * Create a new ordinance.
@@ -190,5 +191,25 @@ exports.updateApproval = async (req, res) => {
     console.error('Update approval error:', err);
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Error updating approval' });
+  }
+};
+
+/**
+ * Generate and download a PDF for an ordinance.
+ * GET /ordinances/:id/generate-pdf
+ */
+exports.generatePdf = async (req, res) => {
+  try {
+    const ordinance = await ordinanceService.getOrdinanceById(req.params.id);
+    const filename = `ordinance-${ordinance.ordinance_number || ordinance.id}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    generateOrdinancePdf(ordinance, res);
+  } catch (err) {
+    console.error('Generate ordinance PDF error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error generating PDF' });
   }
 };
