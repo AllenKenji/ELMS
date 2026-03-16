@@ -45,7 +45,7 @@ async function callOpenAIWithRetry(client, transcript) {
   const systemPrompt = `You are an expert legislative secretary. Your task is to generate structured, professional meeting minutes from the provided transcript. 
   
 Return a valid JSON object with exactly these keys:
-- "summary": A concise paragraph summarising the meeting.
+- "summary": A concise paragraph summarizing the meeting.
 - "attendees": A list of names/titles of attendees found in the transcript (comma-separated string).
 - "key_decisions": A numbered list of key decisions made (newline-separated string).
 - "action_items": A numbered list of action items with responsible parties and due dates where available (newline-separated string).
