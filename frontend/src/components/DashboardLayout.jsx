@@ -82,17 +82,6 @@ export default function DashboardLayout() {
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
     ],
-    'DILG Official': [
-      { path: '/dashboard', label: 'Dashboard', icon: <FaUser /> },
-      { path: '/dashboard/proposed-measures', label: 'Proposed Measures', icon: <FaInbox /> },
-      { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
-      { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
-      { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
-      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
-      { path: '/dashboard/reports', label: 'Reports', icon: <FaChartBar /> },
-      { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
-      { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },
-    ],
   };
 
   const links = sidebarLinksByRole[user?.role] || [];

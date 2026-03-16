@@ -25,7 +25,6 @@ exports.createSession = async ({ title, date, location, agenda, notes }, userId)
   io.to('Admin').emit('sessionCreated', session);
   io.to('Councilor').emit('newSession', session);
   io.to('Captain').emit('newSession', session);
-  io.to('DILG').emit('newSession', session);
   io.to('Resident').emit('newSession', session);
 
   return session;
@@ -79,8 +78,6 @@ exports.updateSession = async (id, { title, date, location, agenda, notes }, use
   io.to('Admin').emit('sessionUpdated', session);
   io.to('Councilor').emit('sessionUpdated', session);
   io.to('Captain').emit('sessionUpdated', session);
-  io.to('DILG').emit('sessionUpdated', session);
-
   return session;
 };
 

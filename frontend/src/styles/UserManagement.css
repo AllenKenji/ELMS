@@ -249,9 +249,8 @@
 .role-1 { background-color: #e3f2fd; color: #1976d2; } /* Secretary */
 .role-2 { background-color: #f3e5f5; color: #7b1fa2; } /* Councilor */
 .role-3 { background-color: #e8f5e9; color: #388e3c; } /* Captain */
-.role-4 { background-color: #fff3e0; color: #f57c00; } /* DILG */
-.role-5 { background-color: #fce4ec; color: #c2185b; } /* Resident */
-.role-6 { background-color: #ffe0b2; color: #d84315; } /* Admin */
+.role-4 { background-color: #fce4ec; color: #c2185b; } /* Resident */
+.role-5 { background-color: #ffe0b2; color: #d84315; } /* Admin */
 
 .actions-cell {
   display: flex;
