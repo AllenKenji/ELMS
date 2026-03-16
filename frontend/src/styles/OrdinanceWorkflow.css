@@ -688,3 +688,325 @@
     width: 100%;
   }
 }
+/* ─── Three-Readings Legislative Workflow Styles ─── */
+
+/* Timeline */
+.lw-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+}
+
+.lw-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  position: relative;
+  padding-bottom: 0.5rem;
+}
+
+.lw-circle {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: #e0e0e0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  border: 2px solid #ccc;
+  z-index: 1;
+}
+
+.lw-step.done .lw-circle {
+  background: #27ae60;
+  border-color: #219a52;
+  color: white;
+  font-size: 0.9rem;
+  font-weight: bold;
+}
+
+.lw-step.current .lw-circle {
+  background: #3498db;
+  border-color: #2980b9;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3);
+  animation: pulse 2s infinite;
+}
+
+.lw-step.rejected .lw-circle {
+  background: #e74c3c;
+  border-color: #c0392b;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.3); }
+  50%       { box-shadow: 0 0 0 6px rgba(52, 152, 219, 0.15); }
+}
+
+.lw-label {
+  display: flex;
+  flex-direction: column;
+  padding-top: 0.3rem;
+  min-width: 0;
+}
+
+.lw-stage-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #2c3e50;
+}
+
+.lw-step.done .lw-stage-name { color: #27ae60; }
+.lw-step.current .lw-stage-name { color: #2980b9; }
+.lw-step.rejected .lw-stage-name { color: #e74c3c; }
+
+.lw-stage-desc {
+  font-size: 0.78rem;
+  color: #7f8c8d;
+  margin-top: 0.1rem;
+}
+
+.lw-connector {
+  position: absolute;
+  left: 1.15rem;
+  top: 2.6rem;
+  width: 2px;
+  height: calc(100% - 1.5rem);
+  background: #e0e0e0;
+}
+
+.lw-connector.done { background: #27ae60; }
+
+/* Current Stage Card */
+.lw-stage-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: #f0f7ff;
+  border: 1px solid #bde0fb;
+  border-radius: 8px;
+}
+
+.lw-stage-card.rejected {
+  background: #fff0f0;
+  border-color: #f5c6c6;
+}
+
+.lw-stage-card-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.lw-stage-card strong {
+  display: block;
+  font-size: 1.05rem;
+  margin-bottom: 0.25rem;
+}
+
+.lw-stage-card p {
+  margin: 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+/* Reading Sessions List */
+.lw-readings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lw-reading-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background: #f9f9f9;
+  border-radius: 6px;
+  border-left: 3px solid #9b59b6;
+  flex-wrap: wrap;
+}
+
+.lw-reading-num {
+  font-weight: 700;
+  color: #9b59b6;
+  min-width: 5rem;
+}
+
+.lw-reading-session {
+  font-size: 0.9rem;
+  color: #2c3e50;
+}
+
+.lw-reading-date {
+  font-size: 0.8rem;
+  color: #7f8c8d;
+  margin-left: auto;
+}
+
+.lw-reading-notes {
+  width: 100%;
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: #555;
+  font-style: italic;
+}
+
+/* Committee Report */
+.lw-committee-report {
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  background: #f9f9f9;
+  border: 1px solid #ddd;
+}
+
+.lw-committee-report.rec-approve { background: #f0faf0; border-color: #a3d9a3; }
+.lw-committee-report.rec-rejection { background: #fff0f0; border-color: #f5c6c6; }
+.lw-committee-report.rec-revision { background: #fff8e1; border-color: #ffe082; }
+
+.lw-cr-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lw-rec-badge {
+  display: inline-block;
+  padding: 0.2rem 0.7rem;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.lw-rec-badge.approve { background: #27ae60; color: white; }
+.lw-rec-badge.rejection { background: #e74c3c; color: white; }
+.lw-rec-badge.revision { background: #f39c12; color: white; }
+
+.lw-cr-content {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eee;
+}
+
+.lw-cr-content p {
+  margin: 0.4rem 0 0;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+}
+
+/* Voting Results */
+.lw-vote-results {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.lw-vote-results.passed { background: #f0faf0; border: 1px solid #a3d9a3; }
+.lw-vote-results.failed { background: #fff0f0; border: 1px solid #f5c6c6; }
+
+.lw-vote-result-label {
+  font-weight: 700;
+  font-size: 1.1rem;
+  min-width: 8rem;
+}
+
+.lw-vote-counts {
+  display: flex;
+  gap: 2rem;
+}
+
+.lw-vote-yes { color: #27ae60; }
+.lw-vote-no  { color: #e74c3c; }
+.lw-vote-abs { color: #7f8c8d; }
+
+/* Posting Record */
+.lw-posting-record {
+  padding: 1rem 1.5rem;
+  background: #f0fdf8;
+  border: 1px solid #b2f0e0;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.lw-posting-record p { margin: 0.2rem 0; }
+
+/* Actions Grid */
+.lw-actions-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.lw-action-btn {
+  padding: 0.65rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  background: #3498db;
+  color: white;
+}
+
+.lw-action-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+.lw-action-btn:active { transform: translateY(0); }
+
+.lw-action-btn.lw-submit-to-secretary   { background: #3498db; }
+.lw-action-btn.lw-first-reading         { background: #9b59b6; }
+.lw-action-btn.lw-assign-committee      { background: #e67e22; }
+.lw-action-btn.lw-committee-report      { background: #f39c12; }
+.lw-action-btn.lw-second-reading        { background: #8e44ad; }
+.lw-action-btn.lw-third-reading-vote    { background: #2980b9; }
+.lw-action-btn.lw-executive-approval    { background: #27ae60; }
+.lw-action-btn.lw-executive-rejection   { background: #e74c3c; }
+.lw-action-btn.lw-post-publicly         { background: #16a085; }
+.lw-action-btn.lw-mark-effective        { background: #1abc9c; }
+
+/* Vote inputs row */
+.lw-vote-inputs {
+  display: flex;
+  gap: 1rem;
+}
+
+.lw-vote-inputs .form-group {
+  flex: 1;
+}
+
+/* Form group */
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+  color: #2c3e50;
+  font-size: 0.9rem;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group input[type="date"],
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.form-group textarea { resize: vertical; }
+
+.required { color: #e74c3c; margin-left: 2px; }

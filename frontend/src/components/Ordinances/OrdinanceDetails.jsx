@@ -14,6 +14,32 @@ const STATUS_COLORS = {
   'Archived': '#7f8c8d',
 };
 
+const READING_STAGE_COLORS = {
+  'SUBMITTED':                  '#3498db',
+  'FIRST_READING':              '#9b59b6',
+  'COMMITTEE_REVIEW':           '#e67e22',
+  'COMMITTEE_REPORT_SUBMITTED': '#f39c12',
+  'SECOND_READING':             '#8e44ad',
+  'THIRD_READING_VOTED':        '#2980b9',
+  'APPROVED':                   '#27ae60',
+  'REJECTED':                   '#e74c3c',
+  'POSTED':                     '#16a085',
+  'EFFECTIVE':                  '#1abc9c',
+};
+
+const READING_STAGE_LABELS = {
+  'SUBMITTED':                  'Submitted',
+  'FIRST_READING':              '1st Reading',
+  'COMMITTEE_REVIEW':           'Committee Review',
+  'COMMITTEE_REPORT_SUBMITTED': 'Committee Report',
+  'SECOND_READING':             '2nd Reading',
+  'THIRD_READING_VOTED':        '3rd Reading / Voted',
+  'APPROVED':                   'Executive Approved',
+  'REJECTED':                   'Rejected',
+  'POSTED':                     'Posted Publicly',
+  'EFFECTIVE':                  'In Effect',
+};
+
 const STATUS_SEQUENCE = [
   'Draft',
   'Submitted',
@@ -145,12 +171,21 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
         <div className="details-header">
           <div className="header-title">
             <h2>{ordinance.title}</h2>
-            <span
-              className="status-badge"
-              style={{ backgroundColor: STATUS_COLORS[ordinance.status] }}
-            >
-              {ordinance.status}
-            </span>
+            {ordinance.reading_stage ? (
+              <span
+                className="status-badge"
+                style={{ backgroundColor: READING_STAGE_COLORS[ordinance.reading_stage] || '#7f8c8d' }}
+              >
+                {READING_STAGE_LABELS[ordinance.reading_stage] || ordinance.reading_stage}
+              </span>
+            ) : (
+              <span
+                className="status-badge"
+                style={{ backgroundColor: STATUS_COLORS[ordinance.status] }}
+              >
+                {ordinance.status}
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="btn-close">
             ✕
@@ -210,12 +245,21 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                   </div>
                   <div className="detail-item">
                     <label>Status:</label>
-                    <span
-                      className="status-badge"
-                      style={{ backgroundColor: STATUS_COLORS[ordinance.status] }}
-                    >
-                      {ordinance.status}
-                    </span>
+                    {ordinance.reading_stage ? (
+                      <span
+                        className="status-badge"
+                        style={{ backgroundColor: READING_STAGE_COLORS[ordinance.reading_stage] || '#7f8c8d' }}
+                      >
+                        {READING_STAGE_LABELS[ordinance.reading_stage] || ordinance.reading_stage}
+                      </span>
+                    ) : (
+                      <span
+                        className="status-badge"
+                        style={{ backgroundColor: STATUS_COLORS[ordinance.status] }}
+                      >
+                        {ordinance.status}
+                      </span>
+                    )}
                   </div>
                   <div className="detail-item">
                     <label>Proposer:</label>

@@ -9,7 +9,6 @@ const ROLES = [
   { id: '3', name: 'Councilor' },
   { id: '4', name: 'Captain' },
   { id: '5', name: 'Resident' },
-  { id: '6', name: 'DILG Official' },
 ];
 
 export default function UserManagement({ users, currentUserRole, authContext }) {

@@ -309,3 +309,405 @@ exports.updateApproval = async (approvalId, ordinanceId, status, notes) => {
   }
   return result.rows[0];
 };
+
+// ─── Three-Readings Legislative Workflow ─────────────────────────────────────
+
+/**
+ * Stage 1: Councilor submits proposed measure to Secretary.
+ * Transitions: Draft → SUBMITTED
+ */
+exports.submitToSecretary = async (id, comment, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage && ordinance.reading_stage !== 'SUBMITTED') {
+      await client.query('ROLLBACK');
+      const e = new Error('Ordinance has already been submitted'); e.status = 400; throw e;
+    }
+
+    const updated = await Ordinance.setReadingStage(client, id, 'SUBMITTED', 'Submitted');
+    await Ordinance.insertWorkflowAction(client, id, 'SUBMIT_TO_SECRETARY', 'SUBMITTED', userId, comment || '');
+    await AuditLog.create(client, userId, 'LEGISLATIVE_SUBMIT', `Ordinance "${ordinance.title}" submitted to Secretary`);
+    await createNotification(userId, `Ordinance "${ordinance.title}" submitted to Secretary.`);
+    const io = getIO();
+    io.to('Secretary').emit('ordinanceSubmitted', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 2: Secretary marks First Reading during a session.
+ * Transitions: SUBMITTED → FIRST_READING
+ */
+exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOfficer, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'SUBMITTED') {
+      await client.query('ROLLBACK');
+      const e = new Error('First Reading requires ordinance to be in SUBMITTED stage'); e.status = 400; throw e;
+    }
+
+    await client.query(
+      `UPDATE ordinances SET session_id_first_reading=$1, reading_stage='FIRST_READING', status='Under Review', updated_at=NOW() WHERE id=$2`,
+      [sessionId || null, id]
+    );
+    const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
+    await Ordinance.insertReadingSession(client, id, sessionId, 1, discussionNotes, presidingOfficer);
+    await Ordinance.insertWorkflowAction(client, id, 'FIRST_READING', 'FIRST_READING', userId, discussionNotes || '');
+    await AuditLog.create(client, userId, 'FIRST_READING', `First reading conducted for "${ordinance.title}"`);
+    await createNotification(ordinance.proposer_id, `First reading conducted for your ordinance "${ordinance.title}".`);
+    const io = getIO();
+    io.emit('ordinanceFirstReading', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 3: Secretary assigns ordinance to a committee.
+ * Transitions: FIRST_READING → COMMITTEE_REVIEW
+ */
+exports.assignCommittee = async (id, committeeId, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'FIRST_READING') {
+      await client.query('ROLLBACK');
+      const e = new Error('Committee assignment requires ordinance to be in FIRST_READING stage'); e.status = 400; throw e;
+    }
+
+    const updated = await Ordinance.assignCommittee(client, id, committeeId, userId);
+    await Ordinance.insertWorkflowAction(client, id, 'ASSIGN_COMMITTEE', 'COMMITTEE_REVIEW', userId, `Assigned to committee ${committeeId}`);
+    await AuditLog.create(client, userId, 'COMMITTEE_ASSIGNED', `Committee ${committeeId} assigned to "${ordinance.title}"`);
+    await createNotification(ordinance.proposer_id, `Your ordinance "${ordinance.title}" has been assigned to a committee.`);
+    const io = getIO();
+    io.emit('ordinanceCommitteeAssigned', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 4: Committee submits its report.
+ * Transitions: COMMITTEE_REVIEW → COMMITTEE_REPORT_SUBMITTED
+ */
+exports.submitCommitteeReport = async (id, reportData, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'COMMITTEE_REVIEW') {
+      await client.query('ROLLBACK');
+      const e = new Error('Committee report requires ordinance to be in COMMITTEE_REVIEW stage'); e.status = 400; throw e;
+    }
+
+    const report = await Ordinance.insertCommitteeReport(client, {
+      ordinanceId: id,
+      committeeId: reportData.committee_id || ordinance.committee_id,
+      submittedBy: userId,
+      recommendation: reportData.recommendation,
+      reportContent: reportData.report_content,
+      meetingDate: reportData.meeting_date,
+      meetingMinutes: reportData.meeting_minutes,
+      attendees: reportData.attendees,
+    });
+
+    await client.query(
+      `UPDATE ordinances SET committee_report_id=$1, reading_stage='COMMITTEE_REPORT_SUBMITTED', updated_at=NOW() WHERE id=$2`,
+      [report.rows[0].id, id]
+    );
+    const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
+    await Ordinance.insertWorkflowAction(client, id, 'COMMITTEE_REPORT', 'COMMITTEE_REPORT_SUBMITTED', userId, `Recommendation: ${reportData.recommendation}`);
+    await AuditLog.create(client, userId, 'COMMITTEE_REPORT_SUBMITTED', `Committee report submitted for "${ordinance.title}"`);
+    await createNotification(ordinance.proposer_id, `Committee report submitted for your ordinance "${ordinance.title}". Recommendation: ${reportData.recommendation}`);
+    const io = getIO();
+    io.to('Secretary').emit('committeeReportSubmitted', { ordinance: updated.rows[0], report: report.rows[0] });
+
+    await client.query('COMMIT');
+    return { ordinance: updated.rows[0], report: report.rows[0] };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 5: Secretary records Second Reading.
+ * Transitions: COMMITTEE_REPORT_SUBMITTED → SECOND_READING
+ */
+exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingOfficer, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'COMMITTEE_REPORT_SUBMITTED') {
+      await client.query('ROLLBACK');
+      const e = new Error('Second Reading requires ordinance to be in COMMITTEE_REPORT_SUBMITTED stage'); e.status = 400; throw e;
+    }
+
+    await client.query(
+      `UPDATE ordinances SET session_id_second_reading=$1, reading_stage='SECOND_READING', updated_at=NOW() WHERE id=$2`,
+      [sessionId || null, id]
+    );
+    const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
+    await Ordinance.insertReadingSession(client, id, sessionId, 2, discussionNotes, presidingOfficer);
+    await Ordinance.insertWorkflowAction(client, id, 'SECOND_READING', 'SECOND_READING', userId, discussionNotes || '');
+    await AuditLog.create(client, userId, 'SECOND_READING', `Second reading conducted for "${ordinance.title}"`);
+    await createNotification(ordinance.proposer_id, `Second reading conducted for your ordinance "${ordinance.title}".`);
+    const io = getIO();
+    io.emit('ordinanceSecondReading', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 6: Third Reading — final voting.
+ * Transitions: SECOND_READING → THIRD_READING_VOTED (or REJECTED if failed)
+ */
+exports.conductThirdReadingVote = async (id, sessionId, yesCount, noCount, abstainCount, presidingOfficer, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'SECOND_READING') {
+      await client.query('ROLLBACK');
+      const e = new Error('Third Reading requires ordinance to be in SECOND_READING stage'); e.status = 400; throw e;
+    }
+
+    const passed = yesCount > noCount;
+    const votingResults = { yes_count: yesCount, no_count: noCount, abstain_count: abstainCount, passed, passed_at: new Date() };
+
+    if (passed) {
+      await Ordinance.recordVote(client, id, votingResults, sessionId);
+    } else {
+      await client.query(
+        `UPDATE ordinances SET voting_results=$1, voted_at=NOW(), session_id_third_reading=$2,
+         reading_stage='REJECTED', status='Rejected', updated_at=NOW() WHERE id=$3`,
+        [JSON.stringify(votingResults), sessionId || null, id]
+      );
+    }
+    const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
+    await Ordinance.insertReadingSession(client, id, sessionId, 3, `Yes:${yesCount} No:${noCount} Abstain:${abstainCount}`, presidingOfficer);
+    await Ordinance.insertWorkflowAction(client, id, 'THIRD_READING_VOTE', passed ? 'THIRD_READING_VOTED' : 'REJECTED', userId,
+      `Yes:${yesCount} No:${noCount} Abstain:${abstainCount} — ${passed ? 'PASSED' : 'FAILED'}`);
+    await AuditLog.create(client, userId, 'THIRD_READING_VOTE', `Third reading vote for "${ordinance.title}": ${passed ? 'Passed' : 'Failed'}`);
+    await createNotification(ordinance.proposer_id,
+      `Third reading vote for your ordinance "${ordinance.title}" ${passed ? 'PASSED' : 'FAILED'} (Yes:${yesCount} No:${noCount} Abstain:${abstainCount}).`);
+    const io = getIO();
+    io.emit('ordinanceThirdReadingVoted', { ordinance: updated.rows[0], passed, votingResults });
+
+    await client.query('COMMIT');
+    return { ordinance: updated.rows[0], passed, votingResults };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 7a: Captain/Mayor approves ordinance.
+ * Transitions: THIRD_READING_VOTED → APPROVED
+ */
+exports.executiveApproval = async (id, approvedBy, remarks, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'THIRD_READING_VOTED') {
+      await client.query('ROLLBACK');
+      const e = new Error('Executive approval requires ordinance to be in THIRD_READING_VOTED stage'); e.status = 400; throw e;
+    }
+
+    const updated = await Ordinance.recordApproval(client, id, approvedBy || userId, remarks);
+    await Ordinance.insertWorkflowAction(client, id, 'EXECUTIVE_APPROVAL', 'APPROVED', userId, remarks || '');
+    await AuditLog.create(client, userId, 'EXECUTIVE_APPROVAL', `Ordinance "${ordinance.title}" approved by executive`);
+    await createNotification(ordinance.proposer_id, `Your ordinance "${ordinance.title}" has been approved by the executive!`);
+    const io = getIO();
+    io.emit('ordinanceExecutiveApproval', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 7b: Captain/Mayor rejects ordinance.
+ * Transitions: THIRD_READING_VOTED → REJECTED
+ */
+exports.executiveRejection = async (id, rejectedBy, reason, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'THIRD_READING_VOTED') {
+      await client.query('ROLLBACK');
+      const e = new Error('Executive rejection requires ordinance to be in THIRD_READING_VOTED stage'); e.status = 400; throw e;
+    }
+
+    const updated = await Ordinance.recordRejection(client, id, rejectedBy || userId, reason);
+    await Ordinance.insertWorkflowAction(client, id, 'EXECUTIVE_REJECTION', 'REJECTED', userId, reason || '');
+    await AuditLog.create(client, userId, 'EXECUTIVE_REJECTION', `Ordinance "${ordinance.title}" rejected by executive`);
+    await createNotification(ordinance.proposer_id, `Your ordinance "${ordinance.title}" has been rejected by the executive. Reason: ${reason}`);
+    const io = getIO();
+    io.emit('ordinanceExecutiveRejection', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 8a: Secretary posts ordinance publicly.
+ * Transitions: APPROVED → POSTED
+ */
+exports.postPublicly = async (id, postingDurationDays, postingLocation, notes, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'APPROVED') {
+      await client.query('ROLLBACK');
+      const e = new Error('Public posting requires ordinance to be in APPROVED stage'); e.status = 400; throw e;
+    }
+
+    const days = postingDurationDays || 3;
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + days);
+    const postingEndDate = endDate.toISOString().split('T')[0];
+
+    const updated = await Ordinance.recordPosting(client, id, postingEndDate);
+    await Ordinance.insertPostingRecord(client, {
+      ordinanceId: id, postedBy: userId,
+      postingDurationDays: days, postingLocation,
+      effectiveDate: postingEndDate, notes,
+    });
+    await Ordinance.insertWorkflowAction(client, id, 'POST_PUBLICLY', 'POSTED', userId, `Posted for ${days} days at: ${postingLocation || 'N/A'}`);
+    await AuditLog.create(client, userId, 'ORDINANCE_POSTED', `Ordinance "${ordinance.title}" posted publicly`);
+    const io = getIO();
+    io.emit('ordinancePosted', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 8b: Mark ordinance as effective after posting period.
+ * Transitions: POSTED → EFFECTIVE
+ */
+exports.markEffective = async (id, effectiveDate, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'POSTED') {
+      await client.query('ROLLBACK');
+      const e = new Error('Mark effective requires ordinance to be in POSTED stage'); e.status = 400; throw e;
+    }
+
+    const effDate = effectiveDate || new Date().toISOString().split('T')[0];
+    const updated = await Ordinance.recordEffective(client, id, effDate);
+    await Ordinance.insertWorkflowAction(client, id, 'MARK_EFFECTIVE', 'EFFECTIVE', userId, `Effective date: ${effDate}`);
+    await AuditLog.create(client, userId, 'ORDINANCE_EFFECTIVE', `Ordinance "${ordinance.title}" is now effective`);
+    await createNotification(ordinance.proposer_id, `Your ordinance "${ordinance.title}" is now in effect!`);
+    const io = getIO();
+    io.emit('ordinanceEffective', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Get complete workflow status including readings, committee report, posting.
+ */
+exports.getWorkflowStatus = async (id) => {
+  const [ordinance, readings, history] = await Promise.all([
+    Ordinance.findById(id),
+    Ordinance.findReadingSessions(id),
+    Ordinance.findHistory(id),
+  ]);
+
+  if (!ordinance.rows.length) {
+    const e = new Error('Ordinance not found'); e.status = 404; throw e;
+  }
+
+  const ord = ordinance.rows[0];
+  let committeeReport = null;
+  let postingRecords = [];
+
+  if (ord.committee_report_id) {
+    const rpt = await Ordinance.findCommitteeReport(id);
+    committeeReport = rpt.rows[0] || null;
+  }
+
+  const posting = await Ordinance.findPostingRecords(id);
+  postingRecords = posting.rows;
+
+  return {
+    ordinance: ord,
+    readings: readings.rows,
+    committeeReport,
+    postingRecords,
+    history: history.rows,
+  };
+};
+
+/**
+ * Get committee report for an ordinance.
+ */
+exports.getCommitteeReport = async (id) => {
+  const result = await Ordinance.findCommitteeReport(id);
+  return result.rows[0] || null;
+};
+
+/**
+ * Add an ordinance to a session agenda.
+ */
+exports.addAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNumber) => {
+  const result = await Ordinance.upsertAgendaItem(sessionId, ordinanceId, agendaOrder, readingNumber);
+  return result.rows[0];
+};
+
+/**
+ * Get all agenda items for a session.
+ */
+exports.getSessionAgenda = async (sessionId) => {
+  const result = await Ordinance.findAgendaBySession(sessionId);
+  return result.rows;
+};

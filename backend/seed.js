@@ -11,7 +11,6 @@ async function seed() {
       { id: 3, role_name: 'Councilor' },
       { id: 4, role_name: 'Captain' },
       { id: 5, role_name: 'Resident' },
-      { id: 6, role_name: 'DILG Official' },
     ];
 
     const users = [
@@ -20,7 +19,6 @@ async function seed() {
       { name: 'Councilor User', email: 'councilor@elegislative.local', password: 'councilor123', role_id: 3 },
       { name: 'Captain User', email: 'captain@elegislative.local', password: 'captain123', role_id: 4 },
       { name: 'Resident User', email: 'resident@elegislative.local', password: 'resident123', role_id: 5 },
-      { name: 'DILG User', email: 'dilg@elegislative.local', password: 'dilg123', role_id: 6 },
     ];
 
     // Seed roles

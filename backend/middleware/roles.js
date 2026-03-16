@@ -6,7 +6,6 @@ const roleNameToId = {
   Councilor: 3,
   Captain: 4,
   Resident: 5,
-  'DILG Official': 6,
 };
 
 const roleIdToName = Object.fromEntries(

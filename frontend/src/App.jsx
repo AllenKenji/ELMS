@@ -10,7 +10,7 @@ import CouncilorDashboard from './pages/CouncilorDashboard';
 import SecretaryDashboard from './pages/SecretaryDashboard';
 import CaptainDashboard from './pages/CaptainDashboard';
 import ResidentDashboard from './pages/ResidentDashboard';
-import DILGDashboard from './pages/DILGDashboard';
+
 import AdminDashboard from './pages/AdminDashboard';
 
 import OrdinanceList from './components/Ordinances/OrdinanceList';
@@ -37,7 +37,6 @@ function App() {
     Secretary: SecretaryDashboard,
     Captain: CaptainDashboard,
     Resident: ResidentDashboard,
-    'DILG Official': DILGDashboard,
     Admin: AdminDashboard,
   };
 
