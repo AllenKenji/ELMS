@@ -24,4 +24,9 @@ router.post('/:id/participants', authenticateToken, authorizeRoles('Secretary', 
 router.put('/:id/participants/:userId', authenticateToken, sessionController.updateParticipant);
 router.get('/:id/minutes', sessionLimiter, authenticateToken, sessionController.getMinutes);
 
+// Session agenda items (for legislative workflow)
+const ordinanceController = require('../controllers/ordinanceController');
+router.get('/:id/agenda', authenticateToken, ordinanceController.getSessionAgenda);
+router.post('/:id/add-agenda-item', authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.addAgendaItem);
+
 module.exports = router;
