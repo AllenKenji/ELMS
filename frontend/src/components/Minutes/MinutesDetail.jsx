@@ -26,6 +26,11 @@ export default function MinutesDetail({ record, onClose, onExportText, onGenerat
             {new Date(record.meeting_date).toLocaleDateString()}
           </p>
         )}
+        {record.session_id && (
+          <p>
+            <strong>Session ID:</strong> {record.session_id}
+          </p>
+        )}
         {record.participants && (
           <p>
             <strong>Participants:</strong> {record.participants}

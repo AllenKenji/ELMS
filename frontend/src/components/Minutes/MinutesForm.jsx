@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../../api/api';
 import '../../styles/Minutes.css';
 
 export default function MinutesForm({ onSubmit, onCancel }) {
@@ -7,10 +8,20 @@ export default function MinutesForm({ onSubmit, onCancel }) {
     meeting_date: '',
     participants: '',
     transcript: '',
+    session_id: '',
   });
   const [formErrors, setFormErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [sessions, setSessions] = useState([]);
+
+  useEffect(() => {
+    api.get('/sessions').then((res) => {
+      setSessions(Array.isArray(res.data) ? res.data : []);
+    }).catch(() => {
+      setSessions([]);
+    });
+  }, []);
 
   const validate = () => {
     const errors = {};
@@ -61,6 +72,7 @@ export default function MinutesForm({ onSubmit, onCancel }) {
         meeting_date: formData.meeting_date || undefined,
         participants: formData.participants.trim() || undefined,
         transcript: formData.transcript.trim(),
+        session_id: formData.session_id ? parseInt(formData.session_id, 10) : undefined,
       };
       await onSubmit(payload);
     } catch (err) {
@@ -114,6 +126,25 @@ export default function MinutesForm({ onSubmit, onCancel }) {
           onChange={handleChange}
           disabled={loading}
         />
+      </div>
+
+      {/* Session */}
+      <div className="form-group">
+        <label htmlFor="minutes-session">Session</label>
+        <select
+          id="minutes-session"
+          name="session_id"
+          value={formData.session_id}
+          onChange={handleChange}
+          disabled={loading}
+        >
+          <option value="">— No session —</option>
+          {sessions.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.title} {s.date ? `(${new Date(s.date).toLocaleDateString()})` : ''}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Participants */}

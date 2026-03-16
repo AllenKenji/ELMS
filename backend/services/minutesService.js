@@ -101,7 +101,7 @@ Return ONLY valid JSON, no markdown fences.`;
  * @param {number} userId
  * @returns {Promise<object>}
  */
-exports.createMinutes = async ({ title, meeting_date, participants, transcript }, userId) => {
+exports.createMinutes = async ({ title, meeting_date, participants, transcript, session_id }, userId) => {
   if (!title || !title.trim()) {
     const err = new Error('Title is required');
     err.status = 400;
@@ -118,7 +118,8 @@ exports.createMinutes = async ({ title, meeting_date, participants, transcript }
     meeting_date || null,
     participants ? participants.trim() : null,
     transcript.trim(),
-    userId
+    userId,
+    session_id || null
   );
   const minutes = result.rows[0];
 
@@ -346,4 +347,14 @@ exports.exportText = async (id) => {
   const textContent = lines.join('\n');
   const filename = `minutes_${record.id}_${Date.now()}.txt`;
   return { textContent, filename };
+};
+
+/**
+ * Retrieve all meeting minutes for a specific session.
+ * @param {string|number} sessionId
+ * @returns {Promise<Array>}
+ */
+exports.getMinutesBySessionId = async (sessionId) => {
+  const result = await MeetingMinutes.findBySessionId(sessionId);
+  return result.rows;
 };

@@ -2,6 +2,7 @@
  * Session Model - Data access layer for legislative session operations.
  */
 const pool = require('../db');
+const MeetingMinutes = require('./MeetingMinutes');
 
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findAll = async () => {
@@ -98,4 +99,9 @@ exports.updateParticipantAttendance = async (sessionId, userId, attendanceStatus
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.deleteParticipants = async (client, sessionId) => {
   return client.query('DELETE FROM session_participants WHERE session_id = $1', [sessionId]);
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
+exports.findMinutesBySessionId = async (sessionId) => {
+  return MeetingMinutes.findBySessionId(sessionId);
 };
