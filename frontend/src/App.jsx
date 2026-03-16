@@ -27,6 +27,7 @@ import ReportsList from './components/Reports/ReportsList';
 import EventsCalendar from './components/Calendar/EventsCalendar';
 import DraftsPage from './components/Drafts/DraftsPage';
 import ProposedMeasuresPage from './components/ProposedMeasures/ProposedMeasuresPage';
+import MinutesList from './components/Minutes/MinutesList';
 
 function App() {
   const { accessToken, login, user } = useAuth();
@@ -76,6 +77,7 @@ function App() {
           <Route path="/dashboard/calendar" element={<EventsCalendar />} />
           <Route path="/dashboard/drafts" element={<DraftsPage />} />
           <Route path="/dashboard/proposed-measures" element={<ProposedMeasuresPage />} />
+          <Route path="/dashboard/minutes" element={<MinutesList />} />
         </Route>
 
         {/* Catch-all */}

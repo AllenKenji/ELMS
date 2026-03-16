@@ -27,6 +27,7 @@ app.use('/messages', require('./routes/messages'));
 app.use('/votes', require('./routes/votes'));
 app.use('/committees', require('./routes/committees'));
 app.use('/reports', require('./routes/reports'));
+app.use('/minutes', require('./routes/minutes'));
 
 // Global error handler — must be registered after all routes
 app.use(require('./middleware/errorHandler'));
