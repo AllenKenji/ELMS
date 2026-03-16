@@ -18,5 +18,6 @@ router.put('/:id/status', authenticateToken, authorizeRoles('Admin', 'Secretary'
 router.post('/:id/workflow-action', authenticateToken, ordinanceController.workflowAction);
 router.post('/:id/approvals', authenticateToken, authorizeRoles('Admin', 'Secretary'), ordinanceController.createApproval);
 router.put('/:id/approvals/:approvalId', authenticateToken, ordinanceController.updateApproval);
+router.get('/:id/generate-pdf', authenticateToken, ordinanceController.generatePdf);
 
 module.exports = router;

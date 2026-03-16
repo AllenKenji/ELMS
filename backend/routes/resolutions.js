@@ -10,5 +10,6 @@ router.get('/:id', authenticateToken, resolutionController.getById);
 router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.update);
 router.delete('/:id', authenticateToken, authorizeRoles('Admin'), resolutionController.remove);
 router.patch('/:id/status', authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.changeStatus);
+router.get('/:id/generate-pdf', authenticateToken, resolutionController.generatePdf);
 
 module.exports = router;

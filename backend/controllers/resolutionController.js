@@ -2,6 +2,7 @@
  * Resolution Controller - Handles resolution HTTP requests.
  */
 const resolutionService = require('../services/resolutionService');
+const { generateResolutionPdf } = require('../services/pdfService');
 
 /**
  * Create a new resolution.
@@ -89,5 +90,25 @@ exports.changeStatus = async (req, res) => {
     if (err.status === 400) return res.status(400).json({ error: err.message });
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Error updating status' });
+  }
+};
+
+/**
+ * Generate and download a PDF for a resolution.
+ * GET /resolutions/:id/generate-pdf
+ */
+exports.generatePdf = async (req, res) => {
+  try {
+    const resolution = await resolutionService.getResolutionById(req.params.id);
+    const filename = `resolution-${resolution.resolution_number || resolution.id}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    generateResolutionPdf(resolution, res);
+  } catch (err) {
+    console.error('Generate resolution PDF error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error generating PDF' });
   }
 };

@@ -86,6 +86,25 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
     return ['Admin', 'Secretary'].includes(user?.role);
   };
 
+  const handleDownloadPdf = async () => {
+    try {
+      const response = await api.get(`/ordinances/${ordinanceId}/generate-pdf`, {
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `ordinance-${ordinance.ordinance_number || ordinanceId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Failed to generate PDF.');
+      console.error('PDF download error:', err);
+    }
+  };
+
   const getNextStatuses = () => {
     const currentIndex = STATUS_SEQUENCE.indexOf(ordinance?.status);
     if (currentIndex === -1) return [];
@@ -272,17 +291,25 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                 )}
 
                 {/* Action Buttons */}
-                {canChangeStatus() && (
-                  <section className="detail-section full-width">
-                    <h3>⚙️ Actions</h3>
+                <section className="detail-section full-width">
+                  <h3>⚙️ Actions</h3>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {canChangeStatus() && (
+                      <button
+                        onClick={() => setShowStatusModal(true)}
+                        className="btn-action btn-primary"
+                      >
+                        🔄 Change Status
+                      </button>
+                    )}
                     <button
-                      onClick={() => setShowStatusModal(true)}
-                      className="btn-action btn-primary"
+                      onClick={handleDownloadPdf}
+                      className="btn-action btn-secondary"
                     >
-                      🔄 Change Status
+                      📄 Download PDF
                     </button>
-                  </section>
-                )}
+                  </div>
+                </section>
               </div>
             </div>
           )}
