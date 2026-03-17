@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import SessionAgendaPanel from './SessionAgendaPanel';
+import OrderOfBusinessPanel from './OrderOfBusinessPanel';
 import '../../styles/SessionDetails.css';
 
 const SESSION_STATUS = {
@@ -219,6 +220,12 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
             📋 Details
           </button>
           <button
+            className={`tab-button ${activeTab === 'order-of-business' ? 'active' : ''}`}
+            onClick={() => setActiveTab('order-of-business')}
+          >
+            📋 Order of Business
+          </button>
+          <button
             className={`tab-button ${activeTab === 'agenda' ? 'active' : ''}`}
             onClick={() => setActiveTab('agenda')}
           >
@@ -303,6 +310,14 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                   </section>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Agenda Tab */}
+          {activeTab === 'order-of-business' && (
+            <div className="tab-pane order-of-business-pane">
+              <h3>📋 Order of Business</h3>
+              <OrderOfBusinessPanel sessionId={sessionId} />
             </div>
           )}
 
