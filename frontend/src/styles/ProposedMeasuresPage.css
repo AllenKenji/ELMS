@@ -538,6 +538,17 @@
   overflow: hidden;
 }
 
+.measure-description p,
+.measure-description ul,
+.measure-description ol {
+  margin: 0.2rem 0;
+}
+
+.measure-description ul,
+.measure-description ol {
+  padding-left: 1.1rem;
+}
+
 .measure-meta {
   display: flex;
   gap: 1rem;
@@ -675,6 +686,20 @@
 
 .btn-submit:hover {
   background: #d4e6f1;
+}
+
+.btn-delete {
+  background: #fdecec;
+  color: #b42318;
+}
+
+.btn-delete:hover:not(:disabled) {
+  background: #fbd5d5;
+}
+
+.btn-action:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 /* Loading */

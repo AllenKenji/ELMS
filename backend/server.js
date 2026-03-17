@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const { bootstrapSchema } = require('./bootstrapSchema');
 
 const app = express();
 const corsOptions = {
@@ -41,6 +42,17 @@ const { init } = require('./socket');
 init(server); // initialize socket.io here
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+async function startServer() {
+  try {
+    await bootstrapSchema();
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (err) {
+    console.error('Failed to bootstrap database schema:', err);
+    process.exit(1);
+  }
+}
+
+startServer();

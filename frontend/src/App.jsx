@@ -16,6 +16,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import OrdinanceList from './components/Ordinances/OrdinanceList';
 import ResolutionList from './components/Resolutions/ResolutionList';
 import SessionList from './components/Sessions/SessionList';
+import OrderOfBusinessPage from './components/Sessions/OrderOfBusinessPage';
 import NotificationList from './components/NotificationList';
 import MessageList from './components/Messages/MessageList';
 import UserManagement from './components/UserManagement';
@@ -65,6 +66,7 @@ function App() {
           <Route path="/dashboard/ordinances" element={<OrdinanceList />} />
           <Route path="/dashboard/resolutions" element={<ResolutionList />} />
           <Route path="/dashboard/sessions" element={<SessionList />} />
+          <Route path="/dashboard/order-of-business" element={<OrderOfBusinessPage />} />
           <Route path="/dashboard/notifications" element={<NotificationList />} />
           <Route path="/dashboard/messages" element={<MessageList />} />
           <Route path="/dashboard/users" element={<UserManagement />} />

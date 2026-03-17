@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import RichTextEditor from '../common/RichTextEditor';
+import { richTextToPlainText, hasMeaningfulRichText, sanitizeRichText } from '../../utils/richText';
 import "../../styles/OrdinanceForm.css";
 
 export default function OrdinanceForm({
@@ -30,6 +32,8 @@ export default function OrdinanceForm({
 
   const validateForm = () => {
     const newErrors = {};
+    const descriptionText = richTextToPlainText(formData.description || '');
+    const contentText = richTextToPlainText(formData.content || '');
 
     if (!formData.title?.trim()) {
       newErrors.title = 'Title is required';
@@ -39,15 +43,15 @@ export default function OrdinanceForm({
       newErrors.title = 'Title cannot exceed 200 characters';
     }
 
-    if (!formData.description?.trim()) {
+    if (!hasMeaningfulRichText(formData.description)) {
       newErrors.description = 'Description is required';
-    } else if (formData.description.trim().length < 10) {
+    } else if (descriptionText.length < 10) {
       newErrors.description = 'Description must be at least 10 characters';
     }
 
-    if (!formData.content?.trim()) {
+    if (!hasMeaningfulRichText(formData.content)) {
       newErrors.content = 'Content is required';
-    } else if (formData.content.trim().length < 20) {
+    } else if (contentText.length < 20) {
       newErrors.content = 'Content must be at least 20 characters';
     }
 
@@ -71,6 +75,20 @@ export default function OrdinanceForm({
     }
   };
 
+  const handleRichTextChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    if (formErrors[name]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [name]: '',
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -86,8 +104,8 @@ export default function OrdinanceForm({
       const basePayload = {
         title: formData.title.trim(),
         ordinance_number: formData.ordinance_number.trim() || null,
-        description: formData.description.trim(),
-        content: formData.content.trim(),
+        description: sanitizeRichText(formData.description || ''),
+        content: sanitizeRichText(formData.content || ''),
         remarks: formData.remarks.trim() || null,
       };
 
@@ -157,8 +175,8 @@ export default function OrdinanceForm({
 
   const characterCount = {
     title: formData.title.length,
-    description: formData.description.length,
-    content: formData.content.length,
+    description: richTextToPlainText(formData.description || '').length,
+    content: richTextToPlainText(formData.content || '').length,
   };
 
   return (
@@ -247,17 +265,14 @@ export default function OrdinanceForm({
         {/* Description Field */}
         <div className="form-group">
           <label htmlFor="description">Description *</label>
-          <textarea
+          <RichTextEditor
             id="description"
-            name="description"
             placeholder="Provide a brief description of the ordinance..."
             value={formData.description}
-            onChange={handleChange}
+            onChange={(value) => handleRichTextChange('description', value)}
             disabled={loading}
-            rows="4"
-            maxLength="1000"
-            aria-invalid={!!formErrors.description}
-            aria-describedby={formErrors.description ? 'description-error' : 'description-hint'}
+            ariaInvalid={!!formErrors.description}
+            ariaDescribedBy={formErrors.description ? 'description-error' : 'description-hint'}
           />
           <div className="form-hint" id="description-hint">
             {characterCount.description}/1000 characters
@@ -270,16 +285,14 @@ export default function OrdinanceForm({
         {/* Content Field */}
         <div className="form-group">
           <label htmlFor="content">Full Content *</label>
-          <textarea
+          <RichTextEditor
             id="content"
-            name="content"
             placeholder="Enter the complete text of the ordinance. Include sections, subsections, and all relevant details..."
             value={formData.content}
-            onChange={handleChange}
+            onChange={(value) => handleRichTextChange('content', value)}
             disabled={loading}
-            rows="10"
-            aria-invalid={!!formErrors.content}
-            aria-describedby={formErrors.content ? 'content-error' : 'content-hint'}
+            ariaInvalid={!!formErrors.content}
+            ariaDescribedBy={formErrors.content ? 'content-error' : 'content-hint'}
           />
           <div className="form-hint" id="content-hint">
             {characterCount.content} characters

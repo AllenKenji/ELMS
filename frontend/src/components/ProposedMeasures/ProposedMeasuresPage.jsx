@@ -4,6 +4,7 @@ import api from '../../api/api';
 import OrdinanceForm from '../Ordinances/OrdinanceForm';
 import ResolutionForm from '../Resolutions/ResolutionForm';
 import OrdinanceDetails from '../Ordinances/OrdinanceDetails';
+import RichTextContent from '../common/RichTextContent';
 import '../../styles/ProposedMeasuresPage.css';
 
 const STATUS_COLORS = {
@@ -45,8 +46,11 @@ export default function ProposedMeasuresPage() {
   const [selectedFormType, setSelectedFormType] = useState(null);
   const [loadingDraftOptions, setLoadingDraftOptions] = useState(false);
   const [activatingDraftKey, setActivatingDraftKey] = useState('');
+  const [deletingMeasureKey, setDeletingMeasureKey] = useState('');
+  const [draftFormInitialData, setDraftFormInitialData] = useState(null);
 
   const canCreate = ['Admin', 'Councilor', 'Captain'].includes(user?.role ?? '');
+  const canDelete = user?.role === 'Admin';
 
   const showActionMessage = (message) => {
     setActionMsg(message);
@@ -149,22 +153,65 @@ export default function ProposedMeasuresPage() {
       setActivatingDraftKey(draftKey);
       setError('');
 
+      const detailEndpoint = draft.itemType === 'Ordinance'
+        ? `/ordinances/${draft.id}`
+        : `/resolutions/${draft.id}`;
+      const detailRes = await api.get(detailEndpoint);
+      const detail = detailRes?.data || draft;
+
       if (draft.itemType === 'Ordinance') {
-        await api.post(`/ordinances/${draft.id}/submit-to-secretary`, {
-          comment: 'Submitted from Proposed Measures draft picker',
+        setDraftFormInitialData({
+          title: detail.title || '',
+          ordinance_number: detail.ordinance_number || '',
+          description: detail.description || '',
+          content: detail.content || '',
+          remarks: detail.remarks || '',
         });
       } else {
-        await api.patch(`/resolutions/${draft.id}/status`, { status: 'Submitted' });
+        setDraftFormInitialData({
+          title: detail.title || '',
+          resolution_number: detail.resolution_number || '',
+          description: detail.description || '',
+          content: detail.content || '',
+          remarks: detail.remarks || '',
+        });
       }
 
+      setSelectedFormType(draft.itemType);
       setShowDraftSelector(false);
-      showActionMessage(`✅ "${draft.title}" is now in Proposed Measures.`);
-      await Promise.all([fetchMeasures(), fetchDraftOptions()]);
+      showActionMessage('Draft loaded for editing. Submitting will create a proposed measure and keep the original draft.');
     } catch (err) {
-      setError(err?.message || 'Failed to use draft as a proposed measure. Please try again.');
-      console.error('Error promoting draft to proposed measure:', err);
+      setError(err?.response?.data?.error || 'Failed to open draft for editing. Please try again.');
+      console.error('Error preparing draft for submission:', err);
     } finally {
       setActivatingDraftKey('');
+    }
+  };
+
+  const handleDeleteMeasure = async (measure) => {
+    const measureTypeLabel = measure.itemType?.toLowerCase() || 'measure';
+    if (!window.confirm(`Delete this ${measureTypeLabel}: "${measure.title}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    const measureKey = `${measure.itemType}-${measure.id}`;
+    setDeletingMeasureKey(measureKey);
+    setError('');
+
+    try {
+      if (measure.itemType === 'Ordinance') {
+        await api.delete(`/ordinances/${measure.id}`);
+      } else {
+        await api.delete(`/resolutions/${measure.id}`);
+      }
+
+      showActionMessage(`🗑️ "${measure.title}" deleted.`);
+      await fetchMeasures();
+    } catch (err) {
+      setError(err?.response?.data?.error || `Failed to delete ${measureTypeLabel}. Please try again.`);
+      console.error('Error deleting proposed measure:', err);
+    } finally {
+      setDeletingMeasureKey('');
     }
   };
 
@@ -213,11 +260,17 @@ export default function ProposedMeasuresPage() {
       <OrdinanceForm
         autoSubmitAfterCreate
         initialStatusOnCreate="Submitted"
+        initialData={draftFormInitialData}
         onSuccess={() => {
+          setDraftFormInitialData(null);
           setSelectedFormType(null);
           fetchMeasures();
+          fetchDraftOptions();
         }}
-        onCancel={() => setSelectedFormType(null)}
+        onCancel={() => {
+          setDraftFormInitialData(null);
+          setSelectedFormType(null);
+        }}
       />
     );
   }
@@ -226,11 +279,17 @@ export default function ProposedMeasuresPage() {
     return (
       <ResolutionForm
         initialStatusOnCreate="Submitted"
+        initialData={draftFormInitialData}
         onSuccess={() => {
+          setDraftFormInitialData(null);
           setSelectedFormType(null);
           fetchMeasures();
+          fetchDraftOptions();
         }}
-        onCancel={() => setSelectedFormType(null)}
+        onCancel={() => {
+          setDraftFormInitialData(null);
+          setSelectedFormType(null);
+        }}
       />
     );
   }
@@ -290,6 +349,7 @@ export default function ProposedMeasuresPage() {
               <button
                 className="type-option-btn ordinance-option"
                 onClick={() => {
+                  setDraftFormInitialData(null);
                   setShowTypeSelector(false);
                   setSelectedFormType('Ordinance');
                 }}
@@ -301,6 +361,7 @@ export default function ProposedMeasuresPage() {
               <button
                 className="type-option-btn resolution-option"
                 onClick={() => {
+                  setDraftFormInitialData(null);
                   setShowTypeSelector(false);
                   setSelectedFormType('Resolution');
                 }}
@@ -372,7 +433,7 @@ export default function ProposedMeasuresPage() {
                         onClick={() => handleUseDraftAsProposedMeasure(draft)}
                         disabled={isActivating}
                       >
-                        {isActivating ? 'Submitting...' : 'Use as Proposed Measure'}
+                        {isActivating ? 'Opening...' : 'Edit then Submit as Proposed'}
                       </button>
                     </div>
                   );
@@ -528,6 +589,8 @@ export default function ProposedMeasuresPage() {
 
             const statusColor = STATUS_COLORS[measure.status] || '#95a5a6';
             const statusIcon = STATUS_ICONS[measure.status] || '📄';
+            const measureKey = `${measure.itemType}-${measure.id}`;
+            const isDeleting = deletingMeasureKey === measureKey;
 
             return (
               <div key={`${measure.itemType}-${measure.id}`} className="measure-card">
@@ -558,7 +621,10 @@ export default function ProposedMeasuresPage() {
                   <h4 className="measure-title">{measure.title}</h4>
 
                   {measure.description && (
-                    <p className="measure-description">{measure.description}</p>
+                    <RichTextContent
+                      value={measure.description}
+                      className="measure-description"
+                    />
                   )}
 
                   <div className="measure-meta">
@@ -609,6 +675,16 @@ export default function ProposedMeasuresPage() {
                         aria-label={`View details for ${measure.title}`}
                       >
                         👁️ View Details
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => handleDeleteMeasure(measure)}
+                        className="btn-action btn-delete"
+                        aria-label={`Delete ${measure.title}`}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? 'Deleting...' : '🗑️ Delete'}
                       </button>
                     )}
                   </div>

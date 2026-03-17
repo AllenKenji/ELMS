@@ -27,6 +27,11 @@ exports.create = async (req, res) => {
     res.status(201).json(item);
   } catch (err) {
     console.error('Create order of business item error:', err);
+    if (err.code === '23514' || err.code === '22P02') {
+      return res.status(400).json({
+        error: err.detail || 'Invalid order of business data. Please review the selected item type and numeric fields.',
+      });
+    }
     if (err.status === 404) return res.status(404).json({ error: err.message });
     if (err.status === 400) return res.status(400).json({ error: err.message });
     res.status(500).json({ error: 'Error creating order of business item' });

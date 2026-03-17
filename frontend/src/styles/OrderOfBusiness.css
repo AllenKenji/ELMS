@@ -42,6 +42,47 @@
   font-size: 0.95rem;
 }
 
+.oob-fallback-agenda {
+  margin-top: 0.85rem;
+  width: 100%;
+  max-width: 680px;
+  text-align: left;
+  background: #f8fafc;
+  border: 1px solid #dfe7ef;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+}
+
+.oob-fallback-agenda h5 {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  color: #4b5d73;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.oob-fallback-agenda p {
+  margin: 0;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.oob-fallback-agenda-content {
+  color: #334155;
+  line-height: 1.5;
+}
+
+.oob-fallback-agenda-content p,
+.oob-fallback-agenda-content ul,
+.oob-fallback-agenda-content ol {
+  margin: 0.2rem 0;
+}
+
+.oob-fallback-agenda-content ul,
+.oob-fallback-agenda-content ol {
+  padding-left: 1.2rem;
+}
+
 /* ── List ── */
 .oob-list {
   list-style: none;

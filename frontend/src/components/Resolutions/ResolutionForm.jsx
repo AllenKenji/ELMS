@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import api from '../../api/api';
+import RichTextEditor from '../common/RichTextEditor';
+import { richTextToPlainText, hasMeaningfulRichText, sanitizeRichText } from '../../utils/richText';
 import '../../styles/ResolutionForm.css';
 
 export default function ResolutionForm({
@@ -26,6 +28,8 @@ export default function ResolutionForm({
 
   const validateForm = () => {
     const newErrors = {};
+    const descriptionText = richTextToPlainText(formData.description || '');
+    const contentText = richTextToPlainText(formData.content || '');
 
     if (!formData.title?.trim()) {
       newErrors.title = 'Title is required';
@@ -35,15 +39,15 @@ export default function ResolutionForm({
       newErrors.title = 'Title cannot exceed 200 characters';
     }
 
-    if (!formData.description?.trim()) {
+    if (!hasMeaningfulRichText(formData.description)) {
       newErrors.description = 'Description is required';
-    } else if (formData.description.trim().length < 10) {
+    } else if (descriptionText.length < 10) {
       newErrors.description = 'Description must be at least 10 characters';
     }
 
-    if (!formData.content?.trim()) {
+    if (!hasMeaningfulRichText(formData.content)) {
       newErrors.content = 'Content is required';
-    } else if (formData.content.trim().length < 20) {
+    } else if (contentText.length < 20) {
       newErrors.content = 'Content must be at least 20 characters';
     }
 
@@ -67,6 +71,20 @@ export default function ResolutionForm({
     }
   };
 
+  const handleRichTextChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+
+    if (formErrors[name]) {
+      setFormErrors(prev => ({
+        ...prev,
+        [name]: '',
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -82,8 +100,8 @@ export default function ResolutionForm({
       const payload = {
         title: formData.title.trim(),
         resolution_number: formData.resolution_number.trim() || null,
-        description: formData.description.trim(),
-        content: formData.content.trim(),
+        description: sanitizeRichText(formData.description || ''),
+        content: sanitizeRichText(formData.content || ''),
         remarks: formData.remarks.trim() || null,
         status: initialStatusOnCreate,
       };
@@ -133,8 +151,8 @@ export default function ResolutionForm({
 
   const characterCount = {
     title: formData.title.length,
-    description: formData.description.length,
-    content: formData.content.length,
+    description: richTextToPlainText(formData.description || '').length,
+    content: richTextToPlainText(formData.content || '').length,
   };
 
   return (
@@ -213,16 +231,13 @@ export default function ResolutionForm({
             <label htmlFor="description">
               Description <span className="required">*</span>
             </label>
-            <textarea
+            <RichTextEditor
               id="description"
-              name="description"
               placeholder="Brief description of the resolution"
               value={formData.description}
-              onChange={handleChange}
-              className={formErrors.description ? 'input-error' : ''}
-              rows="3"
-              maxLength="500"
-              required
+              onChange={(value) => handleRichTextChange('description', value)}
+              disabled={loading}
+              ariaInvalid={!!formErrors.description}
             />
             <div className="field-hint">
               {formErrors.description ? (
@@ -238,15 +253,13 @@ export default function ResolutionForm({
             <label htmlFor="content">
               Full Text <span className="required">*</span>
             </label>
-            <textarea
+            <RichTextEditor
               id="content"
-              name="content"
               placeholder="Complete resolution text..."
               value={formData.content}
-              onChange={handleChange}
-              className={formErrors.content ? 'input-error' : ''}
-              rows="8"
-              required
+              onChange={(value) => handleRichTextChange('content', value)}
+              disabled={loading}
+              ariaInvalid={!!formErrors.content}
             />
             <div className="field-hint">
               {formErrors.content ? (

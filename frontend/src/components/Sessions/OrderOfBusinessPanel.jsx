@@ -1,20 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import OrderOfBusinessForm from './OrderOfBusinessForm';
+import RichTextContent from '../common/RichTextContent';
 import '../../styles/OrderOfBusiness.css';
-
-const ITEM_TYPES = [
-  'Call to Order',
-  'Roll Call',
-  'Prayer',
-  'Approval of Minutes',
-  'Ordinance',
-  'Resolution',
-  'Announcement',
-  'Question Hour',
-  'Adjournment',
-  'Other',
-];
 
 const STATUS_COLORS = {
   Scheduled: '#3498db',
@@ -35,7 +24,7 @@ const EMPTY_FORM = {
   notes: '',
 };
 
-export default function OrderOfBusinessPanel({ sessionId, readOnly = false }) {
+export default function OrderOfBusinessPanel({ sessionId, readOnly = false, fallbackAgenda = '' }) {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [ordinances, setOrdinances] = useState([]);
@@ -56,8 +45,9 @@ export default function OrderOfBusinessPanel({ sessionId, readOnly = false }) {
       setError('');
       const res = await api.get(`/order-of-business/${sessionId}`);
       setItems(res.data || []);
-    } catch {
+    } catch (err) {
       setItems([]);
+      setError(err?.message || 'Failed to load order of business.');
     } finally {
       setLoading(false);
     }
@@ -247,6 +237,12 @@ export default function OrderOfBusinessPanel({ sessionId, readOnly = false }) {
         <div className="oob-empty">
           <span className="oob-empty-icon">📋</span>
           <p>No items in the order of business yet.</p>
+          {fallbackAgenda?.trim() && (
+            <div className="oob-fallback-agenda">
+              <h5>Saved Session Agenda</h5>
+              <RichTextContent value={fallbackAgenda} className="oob-fallback-agenda-content" />
+            </div>
+          )}
         </div>
       ) : (
         <ol className="oob-list">
@@ -352,186 +348,21 @@ export default function OrderOfBusinessPanel({ sessionId, readOnly = false }) {
 
       {/* Add/Edit Form */}
       {canManage && showForm && (
-        <div className="oob-form-container">
-          <h4 className="oob-form-title">
-            {editingItem ? '✏️ Edit Order of Business Item' : '➕ Add Order of Business Item'}
-          </h4>
-          <form className="oob-form" onSubmit={handleSubmit}>
-            {/* Title */}
-            <div className="oob-form-group">
-              <label htmlFor="oob-title">Title *</label>
-              <input
-                id="oob-title"
-                type="text"
-                name="title"
-                value={form.title}
-                onChange={handleFormChange}
-                placeholder="Agenda item title"
-                required
-                className="oob-input"
-              />
-            </div>
-
-            {/* Item Type */}
-            <div className="oob-form-row">
-              <div className="oob-form-group">
-                <label htmlFor="oob-type">Item Type *</label>
-                <select
-                  id="oob-type"
-                  name="item_type"
-                  value={form.item_type}
-                  onChange={handleFormChange}
-                  className="oob-select"
-                  required
-                >
-                  {ITEM_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="oob-form-group">
-                <label htmlFor="oob-duration">Duration (minutes)</label>
-                <input
-                  id="oob-duration"
-                  type="number"
-                  name="duration_minutes"
-                  value={form.duration_minutes}
-                  onChange={handleFormChange}
-                  min="1"
-                  placeholder="e.g. 15"
-                  className="oob-input"
-                />
-              </div>
-            </div>
-
-            {/* Linked Document */}
-            <div className="oob-form-row">
-              <div className="oob-form-group">
-                <label htmlFor="oob-doc-type">Link to Document</label>
-                <select
-                  id="oob-doc-type"
-                  name="related_document_type"
-                  value={form.related_document_type}
-                  onChange={handleFormChange}
-                  className="oob-select"
-                >
-                  <option value="">— None —</option>
-                  <option value="ordinance">Ordinance</option>
-                  <option value="resolution">Resolution</option>
-                </select>
-              </div>
-
-              {form.related_document_type === 'ordinance' && (
-                <div className="oob-form-group">
-                  <label htmlFor="oob-doc-id">Select Ordinance</label>
-                  <select
-                    id="oob-doc-id"
-                    name="related_document_id"
-                    value={form.related_document_id}
-                    onChange={handleFormChange}
-                    className="oob-select"
-                  >
-                    <option value="">— Select —</option>
-                    {ordinances.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.title}{o.ordinance_number ? ` (No. ${o.ordinance_number})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {form.related_document_type === 'resolution' && (
-                <div className="oob-form-group">
-                  <label htmlFor="oob-res-id">Select Resolution</label>
-                  <select
-                    id="oob-res-id"
-                    name="related_document_id"
-                    value={form.related_document_id}
-                    onChange={handleFormChange}
-                    className="oob-select"
-                  >
-                    <option value="">— Select —</option>
-                    {resolutions.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.title}{r.resolution_number ? ` (No. ${r.resolution_number})` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-
-            {/* Status & Priority */}
-            <div className="oob-form-row">
-              <div className="oob-form-group">
-                <label htmlFor="oob-status">Status</label>
-                <select
-                  id="oob-status"
-                  name="status"
-                  value={form.status}
-                  onChange={handleFormChange}
-                  className="oob-select"
-                >
-                  {Object.keys(STATUS_COLORS).map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="oob-form-group">
-                <label htmlFor="oob-priority">Priority</label>
-                <input
-                  id="oob-priority"
-                  type="number"
-                  name="priority"
-                  value={form.priority}
-                  onChange={handleFormChange}
-                  min="0"
-                  placeholder="0"
-                  className="oob-input"
-                />
-              </div>
-            </div>
-
-            {/* Notes */}
-            <div className="oob-form-group">
-              <label htmlFor="oob-notes">Notes</label>
-              <textarea
-                id="oob-notes"
-                name="notes"
-                value={form.notes}
-                onChange={handleFormChange}
-                placeholder="Optional notes or remarks"
-                rows={2}
-                className="oob-textarea"
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="oob-form-actions">
-              <button
-                type="button"
-                className="oob-btn-cancel"
-                onClick={() => {
-                  setShowForm(false);
-                  setEditingItem(null);
-                  setForm(EMPTY_FORM);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="oob-btn-submit"
-                disabled={saving}
-              >
-                {saving ? 'Saving…' : editingItem ? 'Update Item' : 'Add Item'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <OrderOfBusinessForm
+          form={form}
+          ordinances={ordinances}
+          resolutions={resolutions}
+          statusColors={STATUS_COLORS}
+          saving={saving}
+          editingItem={editingItem}
+          onChange={handleFormChange}
+          onSubmit={handleSubmit}
+          onCancel={() => {
+            setShowForm(false);
+            setEditingItem(null);
+            setForm(EMPTY_FORM);
+          }}
+        />
       )}
     </div>
   );

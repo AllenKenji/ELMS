@@ -1,22 +1,42 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import RichTextEditor from '../common/RichTextEditor';
+import { richTextToPlainText, hasMeaningfulRichText } from '../../utils/richText';
 import '../../styles/SessionForm.css';
 
 const MAX_READING_NUMBER = 3;
 
+function normalizeSessionFormData(data) {
+  const source = data || {};
+  let normalizedDate = '';
+  let normalizedTime = '14:00';
+
+  if (source.date) {
+    const parsed = new Date(source.date);
+    if (!Number.isNaN(parsed.getTime())) {
+      normalizedDate = parsed.toISOString().split('T')[0];
+      normalizedTime = parsed.toTimeString().slice(0, 5);
+    }
+  }
+
+  return {
+    title: source.title ?? '',
+    date: normalizedDate,
+    time: source.time ?? normalizedTime,
+    location: source.location ?? '',
+    agenda: source.agenda ?? '',
+    notes: source.notes ?? '',
+  };
+}
+
+function safeTrim(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export default function SessionForm({ onSuccess, onCancel, sessionId = null, initialData = null }) {
   const { user } = useAuth();
-  const [formData, setFormData] = useState(
-    initialData || {
-      title: '',
-      date: '',
-      time: '14:00',
-      location: '',
-      agenda: '',
-      notes: '',
-    }
-  );
+  const [formData, setFormData] = useState(normalizeSessionFormData(initialData));
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,6 +51,10 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
   const [readingNumber, setReadingNumber] = useState('');
   const [showAgendaAdd, setShowAgendaAdd] = useState(false);
   const [agendaError, setAgendaError] = useState('');
+
+  useEffect(() => {
+    setFormData(normalizeSessionFormData(initialData));
+  }, [initialData]);
 
   useEffect(() => {
     if (!sessionId && canManageAgenda) {
@@ -95,6 +119,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
 
   const validateForm = () => {
     const newErrors = {};
+    const agendaText = richTextToPlainText(formData.agenda || '');
 
     if (!formData.title?.trim()) {
       newErrors.title = 'Title is required';
@@ -125,9 +150,9 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       newErrors.location = 'Location must be at least 3 characters';
     }
 
-    if (!formData.agenda?.trim()) {
+    if (!hasMeaningfulRichText(formData.agenda)) {
       newErrors.agenda = 'Agenda is required';
-    } else if (formData.agenda.trim().length < 10) {
+    } else if (agendaText.length < 10) {
       newErrors.agenda = 'Agenda must be at least 10 characters';
     }
 
@@ -151,6 +176,20 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
     }
   };
 
+  const handleAgendaChange = (htmlValue) => {
+    setFormData(prev => ({
+      ...prev,
+      agenda: htmlValue,
+    }));
+
+    if (formErrors.agenda) {
+      setFormErrors(prev => ({
+        ...prev,
+        agenda: '',
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -167,11 +206,11 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       const dateTime = `${formData.date}T${formData.time}:00`;
 
       const payload = {
-        title: formData.title.trim(),
+        title: safeTrim(formData.title),
         date: dateTime,
-        location: formData.location.trim(),
-        agenda: formData.agenda.trim(),
-        notes: formData.notes.trim() || null,
+        location: safeTrim(formData.location),
+        agenda: safeTrim(formData.agenda),
+        notes: safeTrim(formData.notes) || null,
       };
 
       let response;
@@ -209,14 +248,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       }
 
       // Reset form
-      setFormData({
-        title: '',
-        date: '',
-        time: '14:00',
-        location: '',
-        agenda: '',
-        notes: '',
-      });
+      setFormData(normalizeSessionFormData());
       setAgendaItems([]);
 
       // Call success callback after 1.5 seconds
@@ -234,14 +266,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
   };
 
   const handleReset = () => {
-    setFormData({
-      title: '',
-      date: '',
-      time: '14:00',
-      location: '',
-      agenda: '',
-      notes: '',
-    });
+    setFormData(normalizeSessionFormData());
     setFormErrors({});
     setError('');
     setSuccess('');
@@ -309,7 +334,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
               type="text"
               name="title"
               placeholder="e.g., Regular Session - March 2026"
-              value={formData.title}
+              value={formData.title ?? ''}
               onChange={handleChange}
               disabled={loading}
               maxLength="150"
@@ -317,7 +342,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
               aria-describedby={formErrors.title ? 'title-error' : 'title-hint'}
             />
             <div className="form-hint" id="title-hint">
-              {formData.title.length}/150 characters
+              {(formData.title || '').length}/150 characters
             </div>
             {formErrors.title && (
               <span id="title-error" className="error-text">{formErrors.title}</span>
@@ -331,7 +356,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
               id="date"
               type="date"
               name="date"
-              value={formData.date}
+              value={formData.date ?? ''}
               onChange={handleChange}
               disabled={loading}
               min={today}
@@ -350,7 +375,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
               id="time"
               type="time"
               name="time"
-              value={formData.time}
+              value={formData.time ?? ''}
               onChange={handleChange}
               disabled={loading}
               aria-invalid={!!formErrors.time}
@@ -369,7 +394,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
               type="text"
               name="location"
               placeholder="e.g., Barangay Hall, Community Center"
-              value={formData.location}
+              value={formData.location ?? ''}
               onChange={handleChange}
               disabled={loading}
               aria-invalid={!!formErrors.location}
@@ -383,19 +408,17 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
           {/* Agenda */}
           <div className="form-group full-width">
             <label htmlFor="agenda">Agenda *</label>
-            <textarea
+            <RichTextEditor
               id="agenda"
-              name="agenda"
               placeholder="List the main topics and items to be discussed..."
-              value={formData.agenda}
-              onChange={handleChange}
+              value={formData.agenda ?? ''}
+              onChange={handleAgendaChange}
               disabled={loading}
-              rows="4"
-              aria-invalid={!!formErrors.agenda}
-              aria-describedby={formErrors.agenda ? 'agenda-error' : 'agenda-hint'}
+              ariaInvalid={!!formErrors.agenda}
+              ariaDescribedBy={formErrors.agenda ? 'agenda-error' : 'agenda-hint'}
             />
             <div className="form-hint" id="agenda-hint">
-              {formData.agenda.length} characters
+              {richTextToPlainText(formData.agenda || '').length} characters
             </div>
             {formErrors.agenda && (
               <span id="agenda-error" className="error-text">{formErrors.agenda}</span>
@@ -409,7 +432,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
               id="notes"
               name="notes"
               placeholder="Add any additional information..."
-              value={formData.notes}
+              value={formData.notes ?? ''}
               onChange={handleChange}
               disabled={loading}
               rows="3"
@@ -601,15 +624,13 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
 
         {/* Helper Text */}
         <div className="form-helper">
-          <p>
-            <strong>💡 Tips:</strong>
-            <ul>
-              <li>Future dates only - select a date that hasn't passed</li>
-              <li>Be specific in the agenda for better participation</li>
-              <li>All marked with * are required fields</li>
-              <li>Session will be broadcast to all council members</li>
-            </ul>
-          </p>
+          <p><strong>💡 Tips:</strong></p>
+          <ul>
+            <li>Future dates only - select a date that hasn't passed</li>
+            <li>Be specific in the agenda for better participation</li>
+            <li>All marked with * are required fields</li>
+            <li>Session will be broadcast to all council members</li>
+          </ul>
         </div>
       </form>
     </div>

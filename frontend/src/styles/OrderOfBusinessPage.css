@@ -1,0 +1,57 @@
+.oob-page {
+  padding: 1.5rem;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.oob-page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.oob-page-header h3 {
+  margin: 0;
+}
+
+.oob-page-header p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+}
+
+.oob-session-select-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.oob-session-select-wrap label {
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.oob-session-select-wrap select {
+  min-width: 260px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+}
+
+.oob-page-error {
+  margin-bottom: 1rem;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.6rem 0.8rem;
+}
+
+.oob-page-empty {
+  color: #64748b;
+  padding: 1rem 0;
+}

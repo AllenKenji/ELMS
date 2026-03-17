@@ -9,8 +9,9 @@ CREATE TABLE IF NOT EXISTS order_of_business (
   item_type             VARCHAR(50) NOT NULL DEFAULT 'Other'
                           CHECK (item_type IN (
                             'Call to Order', 'Roll Call', 'Prayer',
+                            'Unfinished Business', 'New Business', 'Committee Reports',
                             'Approval of Minutes', 'Ordinance', 'Resolution',
-                            'Announcement', 'Question Hour', 'Adjournment', 'Other'
+                            'Announcement', 'Question Hour', 'Adjournment', 'Other', 'Other Matters'
                           )),
   related_document_id   INTEGER,
   related_document_type VARCHAR(20) CHECK (related_document_type IN ('ordinance', 'resolution')),

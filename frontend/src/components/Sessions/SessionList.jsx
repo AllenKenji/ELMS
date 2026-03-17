@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import RichTextContent from '../common/RichTextContent';
 import SessionForm from './SessionForm';
 import SessionDetails from './SessionDetails';
 import '../../styles/SessionList.css';
@@ -186,7 +187,6 @@ export default function SessionList() {
         </div>
       </div>
 
-      {/* Empty State */}
       {filteredSessions.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📅</div>
@@ -245,9 +245,11 @@ export default function SessionList() {
                       </span>
                     </div>
 
-                    <p className="session-agenda">
-                      {session.agenda}
-                    </p>
+                    <RichTextContent
+                      value={session.agenda}
+                      className="session-agenda"
+                      fallback="No agenda text provided"
+                    />
                   </div>
 
                   <div className="card-footer">

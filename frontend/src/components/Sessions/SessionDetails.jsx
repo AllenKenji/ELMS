@@ -3,6 +3,7 @@ import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import SessionAgendaPanel from './SessionAgendaPanel';
 import OrderOfBusinessPanel from './OrderOfBusinessPanel';
+import RichTextContent from '../common/RichTextContent';
 import '../../styles/SessionDetails.css';
 
 const SESSION_STATUS = {
@@ -293,11 +294,11 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                 {/* Agenda Summary */}
                 <section className="detail-section full-width">
                   <h3>📋 Agenda</h3>
-                  <div className="detail-text">
-                    {session.agenda
-                      ? session.agenda
-                      : 'See the Agenda tab for scheduled ordinances.'}
-                  </div>
+                  <RichTextContent
+                    value={session.agenda}
+                    className="detail-text richtext-rendered"
+                    fallback="See the Agenda tab for scheduled ordinances."
+                  />
                 </section>
 
                 {/* Notes */}
@@ -317,7 +318,10 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
           {activeTab === 'order-of-business' && (
             <div className="tab-pane order-of-business-pane">
               <h3>📋 Order of Business</h3>
-              <OrderOfBusinessPanel sessionId={sessionId} />
+              <OrderOfBusinessPanel
+                sessionId={sessionId}
+                fallbackAgenda={session?.agenda || ''}
+              />
             </div>
           )}
 
