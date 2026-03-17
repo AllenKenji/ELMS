@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import '../../styles/SessionForm.css';
+
+const MAX_READING_NUMBER = 3;
 
 export default function SessionForm({ onSuccess, onCancel, sessionId = null, initialData = null }) {
   const { user } = useAuth();
@@ -20,6 +22,76 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formErrors, setFormErrors] = useState({});
+
+  // Agenda builder state (only used when creating a new session)
+  const canManageAgenda = ['Admin', 'Secretary'].includes(user?.role);
+  const [agendaItems, setAgendaItems] = useState([]);
+  const [availableOrdinances, setAvailableOrdinances] = useState([]);
+  const [selectedOrdinanceId, setSelectedOrdinanceId] = useState('');
+  const [readingNumber, setReadingNumber] = useState('');
+  const [showAgendaAdd, setShowAgendaAdd] = useState(false);
+  const [agendaError, setAgendaError] = useState('');
+
+  useEffect(() => {
+    if (!sessionId && canManageAgenda) {
+      api.get('/ordinances')
+        .then(res => setAvailableOrdinances(res.data || []))
+        .catch(() => setAvailableOrdinances([]));
+    }
+  }, [sessionId, canManageAgenda]);
+
+  const agendaOrdinanceIds = new Set(agendaItems.map(i => String(i.ordinance_id)));
+  const unscheduledOrdinances = availableOrdinances.filter(
+    o => !agendaOrdinanceIds.has(String(o.id))
+  );
+
+  const handleAddAgendaItem = () => {
+    if (!selectedOrdinanceId) return;
+    const ordinance = availableOrdinances.find(o => String(o.id) === String(selectedOrdinanceId));
+    if (!ordinance) return;
+    if (agendaOrdinanceIds.has(String(selectedOrdinanceId))) {
+      setAgendaError('This ordinance is already on the agenda.');
+      return;
+    }
+    const parsedReading = readingNumber ? parseInt(readingNumber, 10) : null;
+    if (parsedReading !== null && (parsedReading < 1 || parsedReading > MAX_READING_NUMBER)) {
+      setAgendaError(`Reading number must be between 1 and ${MAX_READING_NUMBER}.`);
+      return;
+    }
+    setAgendaError('');
+    setAgendaItems(prev => [
+      ...prev,
+      {
+        ordinance_id: ordinance.id,
+        title: ordinance.title,
+        ordinance_number: ordinance.ordinance_number,
+        description: ordinance.description,
+        reading_number: parsedReading,
+        agenda_order: prev.length + 1,
+      },
+    ]);
+    setSelectedOrdinanceId('');
+    setReadingNumber('');
+    setShowAgendaAdd(false);
+  };
+
+  const handleRemoveAgendaItem = (ordinanceId) => {
+    setAgendaItems(prev => {
+      const updated = prev.filter(i => String(i.ordinance_id) !== String(ordinanceId));
+      return updated.map((item, idx) => ({ ...item, agenda_order: idx + 1 }));
+    });
+    setAgendaError('');
+  };
+
+  const handleMoveAgendaItem = (index, direction) => {
+    setAgendaItems(prev => {
+      const updated = [...prev];
+      const swapIndex = index + direction;
+      if (swapIndex < 0 || swapIndex >= updated.length) return prev;
+      [updated[index], updated[swapIndex]] = [updated[swapIndex], updated[index]];
+      return updated.map((item, idx) => ({ ...item, agenda_order: idx + 1 }));
+    });
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -110,6 +182,29 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       } else {
         // Create new session
         response = await api.post('/sessions', payload);
+        const newSessionId = response.data?.id || response.data?.session?.id;
+
+        // Add agenda items sequentially after session creation
+        if (newSessionId && agendaItems.length > 0) {
+          const failedItems = [];
+          for (const item of agendaItems) {
+            try {
+              await api.post(`/sessions/${newSessionId}/add-agenda-item`, {
+                ordinance_id: item.ordinance_id,
+                agenda_order: item.agenda_order,
+                reading_number: item.reading_number || null,
+              });
+            } catch {
+              failedItems.push(item.title || `Ordinance #${item.ordinance_id}`);
+            }
+          }
+          if (failedItems.length > 0) {
+            setError(
+              `Session created, but some agenda items could not be added: ${failedItems.join(', ')}. You can add them later from the session details page.`
+            );
+          }
+        }
+
         setSuccess('Session created successfully!');
       }
 
@@ -122,6 +217,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
         agenda: '',
         notes: '',
       });
+      setAgendaItems([]);
 
       // Call success callback after 1.5 seconds
       setTimeout(() => onSuccess?.(response.data), 1500);
@@ -149,6 +245,11 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
     setFormErrors({});
     setError('');
     setSuccess('');
+    setAgendaItems([]);
+    setSelectedOrdinanceId('');
+    setReadingNumber('');
+    setShowAgendaAdd(false);
+    setAgendaError('');
   };
 
   // Get min date (today)
@@ -315,6 +416,148 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
             />
           </div>
         </div>
+
+        {/* Agenda Builder – only shown when creating a new session for eligible roles */}
+        {!sessionId && canManageAgenda && (
+          <div className="agenda-builder-section">
+            <div className="agenda-builder-header">
+              <h4 className="agenda-builder-title">📋 Session Agenda (Optional)</h4>
+              <p className="agenda-builder-subtitle">
+                Add proposed measures to the session agenda before saving.
+              </p>
+            </div>
+
+            {agendaError && (
+              <div className="agenda-builder-error">
+                <span>⚠️</span> {agendaError}
+              </div>
+            )}
+
+            {agendaItems.length === 0 ? (
+              <div className="agenda-builder-empty">
+                <span className="agenda-builder-empty-icon">📄</span>
+                <p>No ordinances added yet. Use the button below to add proposed measures.</p>
+              </div>
+            ) : (
+              <ol className="agenda-builder-list">
+                {agendaItems.map((item, index) => (
+                  <li key={item.ordinance_id} className="agenda-builder-item">
+                    <div className="agenda-builder-item-order">{item.agenda_order}</div>
+                    <div className="agenda-builder-item-body">
+                      <div className="agenda-builder-item-title">
+                        {item.title || 'Untitled Ordinance'}
+                      </div>
+                      <div className="agenda-builder-item-meta">
+                        {item.ordinance_number && (
+                          <span className="agenda-builder-meta-tag">
+                            No. {item.ordinance_number}
+                          </span>
+                        )}
+                        {item.reading_number && (
+                          <span className="agenda-builder-meta-tag agenda-builder-reading-tag">
+                            Reading #{item.reading_number}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="agenda-builder-item-actions">
+                      <button
+                        type="button"
+                        className="agenda-builder-btn agenda-builder-btn-move"
+                        onClick={() => handleMoveAgendaItem(index, -1)}
+                        disabled={index === 0}
+                        title="Move up"
+                        aria-label="Move item up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        type="button"
+                        className="agenda-builder-btn agenda-builder-btn-move"
+                        onClick={() => handleMoveAgendaItem(index, 1)}
+                        disabled={index === agendaItems.length - 1}
+                        title="Move down"
+                        aria-label="Move item down"
+                      >
+                        ▼
+                      </button>
+                      <button
+                        type="button"
+                        className="agenda-builder-btn agenda-builder-btn-remove"
+                        onClick={() => handleRemoveAgendaItem(item.ordinance_id)}
+                        title="Remove from agenda"
+                        aria-label="Remove ordinance from agenda"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            )}
+
+            <div className="agenda-builder-add-section">
+              {showAgendaAdd ? (
+                <div className="agenda-builder-add-form">
+                  <div className="agenda-builder-form-row">
+                    <select
+                      value={selectedOrdinanceId}
+                      onChange={e => setSelectedOrdinanceId(e.target.value)}
+                      className="agenda-builder-select"
+                    >
+                      <option value="">— Select an ordinance —</option>
+                      {unscheduledOrdinances.map(o => (
+                        <option key={o.id} value={o.id}>
+                          {o.title}{o.ordinance_number ? ` (No. ${o.ordinance_number})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="1"
+                      max={MAX_READING_NUMBER}
+                      placeholder="Reading # (1–3, optional)"
+                      value={readingNumber}
+                      onChange={e => setReadingNumber(e.target.value)}
+                      className="agenda-builder-reading-input"
+                    />
+                  </div>
+                  <div className="agenda-builder-form-actions">
+                    <button
+                      type="button"
+                      className="agenda-builder-btn-cancel"
+                      onClick={() => {
+                        setShowAgendaAdd(false);
+                        setSelectedOrdinanceId('');
+                        setReadingNumber('');
+                        setAgendaError('');
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      className="agenda-builder-btn-submit"
+                      onClick={handleAddAgendaItem}
+                      disabled={!selectedOrdinanceId}
+                    >
+                      Add to Agenda
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="agenda-builder-btn-add"
+                  onClick={() => setShowAgendaAdd(true)}
+                  disabled={unscheduledOrdinances.length === 0}
+                >
+                  ➕ Add Ordinance to Agenda
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Form Actions */}
         <div className="form-actions">
