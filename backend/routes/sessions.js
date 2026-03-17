@@ -28,5 +28,6 @@ router.get('/:id/minutes', sessionLimiter, authenticateToken, sessionController.
 const ordinanceController = require('../controllers/ordinanceController');
 router.get('/:id/agenda', sessionLimiter, authenticateToken, ordinanceController.getSessionAgenda);
 router.post('/:id/add-agenda-item', sessionLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.addAgendaItem);
+router.delete('/:id/agenda-item/:ordinanceId', sessionLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.removeAgendaItem);
 
 module.exports = router;

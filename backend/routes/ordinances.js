@@ -28,6 +28,7 @@ router.post('/:id/workflow-action', authenticateToken, ordinanceController.workf
 router.post('/:id/approvals', authenticateToken, authorizeRoles('Admin', 'Secretary'), ordinanceController.createApproval);
 router.put('/:id/approvals/:approvalId', authenticateToken, ordinanceController.updateApproval);
 router.get('/:id/generate-pdf', authenticateToken, ordinanceController.generatePdf);
+router.get('/:id/sessions', authenticateToken, ordinanceController.getOrdinanceSessions);
 
 // ─── Three-Readings Legislative Workflow ──────────────────────────────────────
 router.get('/:id/workflow-status', workflowLimiter, authenticateToken, ordinanceController.getWorkflowStatus);

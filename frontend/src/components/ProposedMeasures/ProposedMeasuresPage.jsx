@@ -30,6 +30,7 @@ function getProgressStepClassName(isActive, isCompleted) {
 export default function ProposedMeasuresPage() {
   const { user } = useAuth();
   const [measures, setMeasures] = useState([]);
+  const [ordinanceSessions, setOrdinanceSessions] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,9 +48,10 @@ export default function ProposedMeasuresPage() {
       setLoading(true);
       setError('');
 
-      const [ordRes, resRes] = await Promise.all([
+      const [ordRes, resRes, sessRes] = await Promise.all([
         api.get('/ordinances'),
         api.get('/resolutions'),
+        api.get('/sessions').catch(() => ({ data: [] })),
       ]);
 
       const PROPOSED_STATUSES = ['Submitted', 'Under Review', 'Approved', 'Rejected'];
@@ -63,6 +65,26 @@ export default function ProposedMeasuresPage() {
         .map((r) => ({ ...r, itemType: 'Resolution' }));
 
       setMeasures([...ordinances, ...resolutions]);
+
+      // Build ordinance -> session lookup from session agenda items
+      const fetchedSessions = sessRes.data || [];
+      if (fetchedSessions.length > 0) {
+        const agendaResults = await Promise.allSettled(
+          fetchedSessions.map((s) => api.get(`/sessions/${s.id}/agenda`))
+        );
+        const sessionMap = {};
+        agendaResults.forEach((result, idx) => {
+          if (result.status === 'fulfilled') {
+            const session = fetchedSessions[idx];
+            (result.value.data || []).forEach((item) => {
+              const oid = String(item.ordinance_id);
+              if (!sessionMap[oid]) sessionMap[oid] = [];
+              sessionMap[oid].push(session);
+            });
+          }
+        });
+        setOrdinanceSessions(sessionMap);
+      }
     } catch (err) {
       setError('Failed to load proposed measures. Please try again.');
       console.error('Error fetching proposed measures:', err);
@@ -395,6 +417,14 @@ export default function ProposedMeasuresPage() {
                   <div className="measure-meta">
                     <span className="meta-item">👤 {proposerName}</span>
                     <span className="meta-item">📅 {submittedDate}</span>
+                    {measure.itemType === 'Ordinance' && ordinanceSessions[String(measure.id)]?.length > 0 && (
+                      <span className="meta-item session-assignment">
+                        🏛️{' '}
+                        {ordinanceSessions[String(measure.id)]
+                          .map((s) => s.title)
+                          .join(', ')}
+                      </span>
+                    )}
                   </div>
 
                   {/* Progress indicator */}
@@ -404,7 +434,6 @@ export default function ProposedMeasuresPage() {
                       const currentIdx = steps.indexOf(measure.status);
                       const isActive = measure.status === step;
                       const isCompleted = currentIdx > idx;
-                      const isRejected = measure.status === 'Rejected';
 
                       return (
                         <div key={step} className="progress-step-wrapper">

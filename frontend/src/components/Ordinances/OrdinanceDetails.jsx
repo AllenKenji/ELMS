@@ -54,6 +54,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [workflow, setWorkflow] = useState([]);
+  const [scheduledSessions, setScheduledSessions] = useState([]);
   const [activeTab, setActiveTab] = useState('details');
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [newStatus, setNewStatus] = useState('');
@@ -82,10 +83,20 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
     }
   }, [ordinanceId]);
 
+  const fetchScheduledSessions = useCallback(async () => {
+    try {
+      const res = await api.get(`/ordinances/${ordinanceId}/sessions`);
+      setScheduledSessions(res.data || []);
+    } catch {
+      setScheduledSessions([]);
+    }
+  }, [ordinanceId]);
+
   useEffect(() => {
     fetchOrdinanceDetails();
     fetchWorkflowHistory();
-  }, [fetchOrdinanceDetails, fetchWorkflowHistory]);
+    fetchScheduledSessions();
+  }, [fetchOrdinanceDetails, fetchWorkflowHistory, fetchScheduledSessions]);
 
   const handleStatusChange = async () => {
     if (!newStatus) return;
@@ -333,6 +344,42 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                     </div>
                   </section>
                 )}
+
+                {/* Scheduled Sessions */}
+                <section className="detail-section full-width">
+                  <h3>🏛️ Scheduled Sessions</h3>
+                  {scheduledSessions.length > 0 ? (
+                    <ul className="session-schedule-list">
+                      {scheduledSessions.map((s) => (
+                        <li key={s.id} className="session-schedule-item">
+                          <strong>{s.title}</strong>
+                          {s.date && (
+                            <span className="session-schedule-date">
+                              {' — '}
+                              {new Date(s.date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                              })}
+                            </span>
+                          )}
+                          {s.agenda_order && (
+                            <span className="session-schedule-tag">
+                              Agenda #{s.agenda_order}
+                            </span>
+                          )}
+                          {s.reading_number && (
+                            <span className="session-schedule-tag reading">
+                              Reading #{s.reading_number}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="detail-text">Not scheduled in any session agenda yet.</p>
+                  )}
+                </section>
 
                 {/* Action Buttons */}
                 <section className="detail-section full-width">

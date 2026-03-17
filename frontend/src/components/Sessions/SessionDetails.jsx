@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import SessionAgendaPanel from './SessionAgendaPanel';
 import '../../styles/SessionDetails.css';
 
 const SESSION_STATUS = {
@@ -218,10 +219,16 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
             📋 Details
           </button>
           <button
+            className={`tab-button ${activeTab === 'agenda' ? 'active' : ''}`}
+            onClick={() => setActiveTab('agenda')}
+          >
+            📜 Agenda
+          </button>
+          <button
             className={`tab-button ${activeTab === 'ordinances' ? 'active' : ''}`}
             onClick={() => setActiveTab('ordinances')}
           >
-            📜 Ordinances ({ordinances.length})
+            📃 Ordinances ({ordinances.length})
           </button>
           <button
             className={`tab-button ${activeTab === 'participants' ? 'active' : ''}`}
@@ -276,11 +283,13 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                   </div>
                 </section>
 
-                {/* Agenda */}
+                {/* Agenda Summary */}
                 <section className="detail-section full-width">
                   <h3>📋 Agenda</h3>
                   <div className="detail-text">
-                    {session.agenda || 'No agenda provided'}
+                    {session.agenda
+                      ? session.agenda
+                      : 'See the Agenda tab for scheduled ordinances.'}
                   </div>
                 </section>
 
@@ -294,6 +303,14 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                   </section>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Agenda Tab */}
+          {activeTab === 'agenda' && (
+            <div className="tab-pane agenda-pane">
+              <h3>Session Agenda</h3>
+              <SessionAgendaPanel sessionId={sessionId} />
             </div>
           )}
 

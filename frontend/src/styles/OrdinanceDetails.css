@@ -636,3 +636,42 @@
     padding: 0.5rem;
   }
 }
+/* Scheduled Sessions */
+.session-schedule-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.session-schedule-item {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: #f0f4f8;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  color: #2c3e50;
+}
+
+.session-schedule-date {
+  color: #555;
+}
+
+.session-schedule-tag {
+  background: #e8f0fe;
+  color: #1a73e8;
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.session-schedule-tag.reading {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
