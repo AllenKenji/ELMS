@@ -9,6 +9,7 @@ export default function OrdinanceForm({
   ordinanceId,
   initialData,
   autoSubmitAfterCreate = false,
+  initialStatusOnCreate = 'Draft',
 }) {
   const { user } = useAuth();
 
@@ -96,14 +97,13 @@ export default function OrdinanceForm({
         await api.put(`/ordinances/${ordinanceId}`, payload);
         successMsg = 'Ordinance updated successfully!';
       } else {
-        const payload = { ...basePayload };
+        const payload = {
+          ...basePayload,
+          status: autoSubmitAfterCreate ? 'Submitted' : initialStatusOnCreate,
+        };
         const res = await api.post('/ordinances', payload);
 
-        if (autoSubmitAfterCreate && res?.data?.id) {
-          await api.post(`/ordinances/${res.data.id}/workflow-action`, {
-            action: 'submit',
-            comment: 'Submitted from Proposed Measures page',
-          });
+        if (autoSubmitAfterCreate) {
           successMsg = 'Ordinance submitted successfully!';
         } else {
           successMsg = res.data?.message || 'Ordinance saved as draft successfully!';

@@ -20,7 +20,7 @@ export default function DraftsPage() {
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [selectedFormType, setSelectedFormType] = useState(null);
 
-  const canCreate = ['Admin', 'Secretary', 'Councilor', 'Captain'].includes(user?.role ?? '');
+  const canCreate = ['Admin', 'Councilor', 'Captain'].includes(user?.role ?? '');
 
   const fetchDrafts = useCallback(async () => {
     try {
@@ -61,12 +61,18 @@ export default function DraftsPage() {
 
   const handleSubmit = async (draft) => {
     try {
-      const endpoint = draft.itemType === 'Ordinance' ? '/ordinances' : '/resolutions';
-      await api.put(`${endpoint}/${draft.id}/status`, { status: 'Submitted' });
-      showActionMessage(`✅ "${draft.title}" has been submitted for review.`);
+      if (draft.itemType === 'Ordinance') {
+        await api.post(`/ordinances/${draft.id}/submit-to-secretary`, {
+          comment: 'Submitted from Drafts page',
+        });
+      } else {
+        await api.patch(`/resolutions/${draft.id}/status`, { status: 'Submitted' });
+      }
+
+      showActionMessage(`✅ "${draft.title}" is now in Proposed Measures.`);
       fetchDrafts();
     } catch (err) {
-      setError('Failed to submit draft. Please try again.');
+      setError(err?.message || 'Failed to use draft as a proposed measure. Please try again.');
       console.error('Error submitting draft:', err);
     }
   };
@@ -86,7 +92,7 @@ export default function DraftsPage() {
 
   const canEdit = ['Admin', 'Secretary', 'Councilor'].includes(user?.role);
   const canDelete = ['Admin', 'Secretary'].includes(user?.role);
-  const canSubmit = ['Admin', 'Secretary', 'Councilor'].includes(user?.role);
+  const canSubmit = ['Admin', 'Councilor'].includes(user?.role);
 
   // Filter & sort
   let filtered = drafts.filter((d) => {
@@ -433,9 +439,9 @@ export default function DraftsPage() {
                       <button
                         onClick={() => handleSubmit(draft)}
                         className="btn-action btn-submit"
-                        aria-label={`Submit ${draft.title}`}
+                        aria-label={`Use ${draft.title} as a proposed measure`}
                       >
-                        📤 Submit
+                        📤 Use as Proposed Measure
                       </button>
                     )}
                     {canDelete && (

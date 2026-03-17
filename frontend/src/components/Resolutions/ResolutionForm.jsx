@@ -2,7 +2,13 @@ import { useState } from 'react';
 import api from '../../api/api';
 import '../../styles/ResolutionForm.css';
 
-export default function ResolutionForm({ onSuccess, onCancel, resolutionId = null, initialData = null }) {
+export default function ResolutionForm({
+  onSuccess,
+  onCancel,
+  resolutionId = null,
+  initialData = null,
+  initialStatusOnCreate = 'Draft',
+}) {
   const [formData, setFormData] = useState(
     initialData || {
       title: '',
@@ -79,6 +85,7 @@ export default function ResolutionForm({ onSuccess, onCancel, resolutionId = nul
         description: formData.description.trim(),
         content: formData.content.trim(),
         remarks: formData.remarks.trim() || null,
+        status: initialStatusOnCreate,
       };
 
       if (resolutionId) {

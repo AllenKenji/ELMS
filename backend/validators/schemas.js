@@ -71,6 +71,13 @@ const ORDINANCE_STATUSES = [
   'approved',
   'rejected',
   'enacted',
+  'Draft',
+  'Submitted',
+  'Under Review',
+  'Approved',
+  'Rejected',
+  'Published',
+  'Archived',
 ];
 
 /**

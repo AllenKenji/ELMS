@@ -53,10 +53,11 @@ exports.getById = async (req, res) => {
  */
 exports.update = async (req, res) => {
   try {
-    const resolution = await resolutionService.updateResolution(req.params.id, req.body, req.user.id);
+    const resolution = await resolutionService.updateResolution(req.params.id, req.body, req.user.id, req.user.role);
     res.json(resolution);
   } catch (err) {
     console.error('Update resolution error:', err);
+    if (err.status === 403) return res.status(403).json({ error: err.message });
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Error updating resolution' });
   }
@@ -83,11 +84,12 @@ exports.remove = async (req, res) => {
  */
 exports.changeStatus = async (req, res) => {
   try {
-    const resolution = await resolutionService.changeStatus(req.params.id, req.body.status);
+    const resolution = await resolutionService.changeStatus(req.params.id, req.body.status, req.user);
     res.json(resolution);
   } catch (err) {
     console.error('Status change error:', err);
     if (err.status === 400) return res.status(400).json({ error: err.message });
+    if (err.status === 403) return res.status(403).json({ error: err.message });
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Error updating status' });
   }

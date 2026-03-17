@@ -4,7 +4,7 @@ import '../../styles/QuickActionPanel.css';
 export default function QuickActionPanel({ onNewOrdinance, onNewSession, onViewSessions }) {
   const { user } = useAuth();
 
-  const canCreateOrdinance = ['Councilor', 'Secretary', 'Admin'].includes(user?.role);
+  const canCreateOrdinance = ['Councilor', 'Admin'].includes(user?.role);
   const canCreateSession = ['Secretary', 'Admin'].includes(user?.role);
 
   return (

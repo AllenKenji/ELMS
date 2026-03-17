@@ -129,11 +129,13 @@ exports.changeStatus = async (req, res) => {
       req.params.id,
       req.body.status,
       req.body.notes,
-      req.user.id
+      req.user.id,
+      req.user.role
     );
     res.json(result);
   } catch (err) {
     console.error('Status change error:', err);
+    if (err.status === 403) return res.status(403).json({ error: err.message });
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Error changing status' });
   }
@@ -149,12 +151,14 @@ exports.workflowAction = async (req, res) => {
       req.params.id,
       req.body.action,
       req.body.comment,
-      req.user.id
+      req.user.id,
+      req.user.role
     );
     res.json(result);
   } catch (err) {
     console.error('Workflow action error:', err);
     if (err.status === 400) return res.status(400).json({ error: err.message });
+    if (err.status === 403) return res.status(403).json({ error: err.message });
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Error performing workflow action' });
   }

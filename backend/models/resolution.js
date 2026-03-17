@@ -37,11 +37,20 @@ exports.findById = async (id) => {
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.create = async (title, resolutionNumber, description, content, remarks, proposerId, proposerName) => {
+exports.create = async (title, resolutionNumber, description, content, remarks, proposerId, proposerName, status = 'Draft') => {
+  const normalizedStatus = {
+    draft: 'Draft',
+    pending: 'Submitted',
+    under_review: 'Under Review',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    enacted: 'Published',
+  }[status] || status;
+
   return pool.query(
     `INSERT INTO resolutions (title, resolution_number, description, content, remarks, proposer_id, proposer_name, status, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', NOW()) RETURNING *`,
-    [title, resolutionNumber, description, content, remarks || null, proposerId, proposerName]
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *`,
+    [title, resolutionNumber, description, content, remarks || null, proposerId, proposerName, normalizedStatus]
   );
 };
 

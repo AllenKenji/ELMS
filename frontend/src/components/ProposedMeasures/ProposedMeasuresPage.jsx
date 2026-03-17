@@ -30,18 +30,28 @@ function getProgressStepClassName(isActive, isCompleted) {
 export default function ProposedMeasuresPage() {
   const { user } = useAuth();
   const [measures, setMeasures] = useState([]);
+  const [draftOptions, setDraftOptions] = useState([]);
   const [ordinanceSessions, setOrdinanceSessions] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionMsg, setActionMsg] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [sortBy, setSortBy] = useState('date');
   const [viewingMeasure, setViewingMeasure] = useState(null);
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [showDraftSelector, setShowDraftSelector] = useState(false);
   const [selectedFormType, setSelectedFormType] = useState(null);
+  const [loadingDraftOptions, setLoadingDraftOptions] = useState(false);
+  const [activatingDraftKey, setActivatingDraftKey] = useState('');
 
-  const canCreate = ['Admin', 'Secretary', 'Councilor', 'Captain'].includes(user?.role ?? '');
+  const canCreate = ['Admin', 'Councilor', 'Captain'].includes(user?.role ?? '');
+
+  const showActionMessage = (message) => {
+    setActionMsg(message);
+    setTimeout(() => setActionMsg(''), 3500);
+  };
 
   const fetchMeasures = useCallback(async () => {
     try {
@@ -98,6 +108,66 @@ export default function ProposedMeasuresPage() {
     fetchMeasures();
   }, [fetchMeasures]);
 
+  const fetchDraftOptions = useCallback(async () => {
+    try {
+      setLoadingDraftOptions(true);
+      setError('');
+
+      const [ordRes, resRes] = await Promise.all([
+        api.get('/ordinances'),
+        api.get('/resolutions'),
+      ]);
+
+      const ordinanceDrafts = (ordRes.data || [])
+        .filter((item) => item.status === 'Draft')
+        .map((item) => ({ ...item, itemType: 'Ordinance' }));
+
+      const resolutionDrafts = (resRes.data || [])
+        .filter((item) => item.status === 'Draft')
+        .map((item) => ({ ...item, itemType: 'Resolution' }));
+
+      setDraftOptions([...ordinanceDrafts, ...resolutionDrafts]);
+    } catch (err) {
+      setDraftOptions([]);
+      setError('Failed to load drafts. Please try again.');
+      console.error('Error fetching draft options:', err);
+    } finally {
+      setLoadingDraftOptions(false);
+    }
+  }, []);
+
+  const openDraftSelector = async () => {
+    setShowTypeSelector(false);
+    setShowDraftSelector(true);
+    await fetchDraftOptions();
+  };
+
+  const handleUseDraftAsProposedMeasure = async (draft) => {
+    const draftKey = `${draft.itemType}-${draft.id}`;
+
+    try {
+      setActivatingDraftKey(draftKey);
+      setError('');
+
+      if (draft.itemType === 'Ordinance') {
+        await api.post(`/ordinances/${draft.id}/submit-to-secretary`, {
+          comment: 'Submitted from Proposed Measures draft picker',
+        });
+      } else {
+        await api.patch(`/resolutions/${draft.id}/status`, { status: 'Submitted' });
+      }
+
+      setShowDraftSelector(false);
+      showActionMessage(`✅ "${draft.title}" is now in Proposed Measures.`);
+      await Promise.all([fetchMeasures(), fetchDraftOptions()]);
+    } catch (err) {
+      setError(err?.message || 'Failed to use draft as a proposed measure. Please try again.');
+      console.error('Error promoting draft to proposed measure:', err);
+    } finally {
+      setActivatingDraftKey('');
+    }
+  };
+
   // Filter & sort
   let filtered = measures.filter((m) => {
     const matchSearch =
@@ -142,6 +212,7 @@ export default function ProposedMeasuresPage() {
     return (
       <OrdinanceForm
         autoSubmitAfterCreate
+        initialStatusOnCreate="Submitted"
         onSuccess={() => {
           setSelectedFormType(null);
           fetchMeasures();
@@ -154,6 +225,7 @@ export default function ProposedMeasuresPage() {
   if (selectedFormType === 'Resolution') {
     return (
       <ResolutionForm
+        initialStatusOnCreate="Submitted"
         onSuccess={() => {
           setSelectedFormType(null);
           fetchMeasures();
@@ -237,7 +309,76 @@ export default function ProposedMeasuresPage() {
                 <strong>Resolution</strong>
                 <span className="type-option-desc">Non-binding expression or declaration</span>
               </button>
+              <button
+                className="type-option-btn draft-option"
+                onClick={openDraftSelector}
+              >
+                <span className="type-option-icon">✏️</span>
+                <strong>Use Existing Draft</strong>
+                <span className="type-option-desc">Select a saved draft and move it to Proposed Measures</span>
+              </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showDraftSelector && (
+        <div className="type-selector-overlay">
+          <div className="type-selector-modal draft-selector-modal">
+            <div className="type-selector-header">
+              <h4>✏️ Select Draft</h4>
+              <button
+                className="btn-close-selector"
+                onClick={() => setShowDraftSelector(false)}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="type-selector-subtitle">Choose a draft to use as a proposed measure.</p>
+
+            {loadingDraftOptions ? (
+              <div className="draft-selector-empty">Loading drafts...</div>
+            ) : draftOptions.length === 0 ? (
+              <div className="draft-selector-empty">No drafts are available to submit.</div>
+            ) : (
+              <div className="draft-selector-list">
+                {draftOptions.map((draft) => {
+                  const draftKey = `${draft.itemType}-${draft.id}`;
+                  const proposerName = draft.proposer_name || draft.author_name || 'Unknown';
+                  const isActivating = activatingDraftKey === draftKey;
+
+                  return (
+                    <div key={draftKey} className="draft-selector-card">
+                      <div className="draft-selector-content">
+                        <div className="draft-selector-top">
+                          <span className={`type-badge ${draft.itemType.toLowerCase()}`}>
+                            {draft.itemType}
+                          </span>
+                          <span className="status-badge-draft">Draft</span>
+                        </div>
+                        <h4>{draft.title}</h4>
+                        {draft.description && <p>{draft.description}</p>}
+                        <div className="draft-selector-meta">
+                          <span>👤 {proposerName}</span>
+                          <span>
+                            #️⃣ {draft.ordinance_number || draft.resolution_number || 'Pending Number'}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-action btn-submit"
+                        onClick={() => handleUseDraftAsProposedMeasure(draft)}
+                        disabled={isActivating}
+                      >
+                        {isActivating ? 'Submitting...' : 'Use as Proposed Measure'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -280,6 +421,12 @@ export default function ProposedMeasuresPage() {
           </div>
         </div>
       </div>
+
+      {actionMsg && (
+        <div className="alert alert-success" role="status">
+          {actionMsg}
+        </div>
+      )}
 
       {error && (
         <div className="alert alert-error" role="alert">

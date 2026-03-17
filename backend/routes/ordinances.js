@@ -15,7 +15,7 @@ const workflowLimiter = rateLimit({
   message: { status: 'fail', message: 'Too many requests, please try again later.' },
 });
 
-router.post('/', authenticateToken, authorizeRoles('Secretary', 'Councilor', 'Admin'), validateBody(createOrdinanceSchema), ordinanceController.create);
+router.post('/', authenticateToken, authorizeRoles('Councilor', 'Admin'), validateBody(createOrdinanceSchema), ordinanceController.create);
 
 router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Councilor', 'Admin'), validateBody(updateOrdinanceSchema), ordinanceController.update);router.get('/', authenticateToken, ordinanceController.getAll);
 router.get('/:id', authenticateToken, ordinanceController.getById);
@@ -33,7 +33,7 @@ router.get('/:id/sessions', workflowLimiter, authenticateToken, ordinanceControl
 // ─── Three-Readings Legislative Workflow ──────────────────────────────────────
 router.get('/:id/workflow-status', workflowLimiter, authenticateToken, ordinanceController.getWorkflowStatus);
 router.get('/:id/committee-report', workflowLimiter, authenticateToken, ordinanceController.getCommitteeReport);
-router.post('/:id/submit-to-secretary',  workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Secretary', 'Admin'), ordinanceController.submitToSecretary);
+router.post('/:id/submit-to-secretary',  workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Admin'), ordinanceController.submitToSecretary);
 router.post('/:id/first-reading',        workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.firstReading);
 router.post('/:id/assign-committee',     workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.assignCommittee);
 router.post('/:id/committee-report',     workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin', 'Captain'), ordinanceController.committeeReport);

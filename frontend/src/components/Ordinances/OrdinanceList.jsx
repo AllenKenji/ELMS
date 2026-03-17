@@ -24,7 +24,7 @@ const STATUS_BADGES = {
   'Archived': 'badge-secondary',
 };
 
-export default function OrdinanceList({ onRefresh }) {
+export default function OrdinanceList() {
   const { user } = useAuth();
   const [ordinances, setOrdinances] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,7 +45,7 @@ export default function OrdinanceList({ onRefresh }) {
       
       // Fetch ordinances for current user only
       const res = await api.get(`/ordinances?proposer_id=${user.id}`);
-      setOrdinances(res.data || []);
+      setOrdinances((res.data || []).filter((ordinance) => ordinance.status === 'Approved'));
     } catch (err) {
       setError('Failed to load ordinances. Please try again.');
       console.error('Error fetching ordinances:', err);
@@ -111,10 +111,7 @@ export default function OrdinanceList({ onRefresh }) {
   // Statistics
   const stats = {
     total: ordinances.length,
-    draft: ordinances.filter(o => o.status === 'Draft').length,
-    submitted: ordinances.filter(o => o.status === 'Submitted').length,
     approved: ordinances.filter(o => o.status === 'Approved').length,
-    published: ordinances.filter(o => o.status === 'Published').length,
   };
 
   if (loading) {
@@ -153,31 +150,10 @@ export default function OrdinanceList({ onRefresh }) {
             </div>
           </div>
           <div className="stat-card">
-            <div className="stat-icon">✏️</div>
-            <div className="stat-info">
-              <span className="stat-label">Draft</span>
-              <span className="stat-value">{stats.draft}</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon">📤</div>
-            <div className="stat-info">
-              <span className="stat-label">Submitted</span>
-              <span className="stat-value">{stats.submitted}</span>
-            </div>
-          </div>
-          <div className="stat-card">
             <div className="stat-icon">✅</div>
             <div className="stat-info">
               <span className="stat-label">Approved</span>
               <span className="stat-value">{stats.approved}</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon">📖</div>
-            <div className="stat-info">
-              <span className="stat-label">Published</span>
-              <span className="stat-value">{stats.published}</span>
             </div>
           </div>
         </div>
@@ -251,7 +227,7 @@ export default function OrdinanceList({ onRefresh }) {
           {searchTerm ? (
             <p className="text-muted">Try adjusting your search terms</p>
           ) : (
-            <p className="text-muted">No ordinances have been enacted yet. Submit a proposed measure to get started.</p>
+            <p className="text-muted">No approved ordinances found yet.</p>
           )}
         </div>
       ) : (

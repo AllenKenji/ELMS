@@ -34,7 +34,7 @@ export default function ResolutionList() {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get('/resolutions');
+      const res = await api.get('/resolutions?status=Approved');
       setResolutions(res.data || []);
     } catch (err) {
       setError('Failed to load resolutions');
@@ -143,12 +143,7 @@ export default function ResolutionList() {
             onChange={(e) => setStatusFilter(e.target.value)}
           >
             <option value="">All Statuses</option>
-            <option value="Draft">Draft</option>
-            <option value="Submitted">Submitted</option>
-            <option value="Under Review">Under Review</option>
             <option value="Approved">Approved</option>
-            <option value="Published">Published</option>
-            <option value="Rejected">Rejected</option>
           </select>
         </div>
 
@@ -188,7 +183,7 @@ export default function ResolutionList() {
           <p className="text-muted">
             {searchTerm || statusFilter
               ? 'Try adjusting your search or filters'
-              : 'No resolutions have been enacted yet. Submit a proposed measure to get started.'}
+              : 'No approved resolutions found yet.'}
           </p>
         </div>
       ) : (

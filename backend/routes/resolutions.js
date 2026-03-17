@@ -4,7 +4,7 @@ const authenticateToken = require('../middleware/auth');
 const authorizeRoles = require('../middleware/roles');
 const resolutionController = require('../controllers/resolutionController');
 
-router.post('/', authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.create);
+router.post('/', authenticateToken, authorizeRoles('Admin'), resolutionController.create);
 router.get('/', authenticateToken, resolutionController.getAll);
 router.get('/:id', authenticateToken, resolutionController.getById);
 router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.update);

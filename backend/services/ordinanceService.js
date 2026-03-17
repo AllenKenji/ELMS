@@ -13,10 +13,11 @@ const { getIO } = require('../socket');
  * @param {object} user
  * @returns {Promise<object>}
  */
-exports.createOrdinance = async ({ title, ordinance_number, description, content, remarks, proposer_name }, user) => {
+exports.createOrdinance = async ({ title, ordinance_number, description, content, remarks, proposer_name, status }, user) => {
+  const initialStatus = status || 'Draft';
   const result = await Ordinance.create(
     title, ordinance_number, description, content, remarks,
-    user.id, proposer_name || user.name
+    user.id, proposer_name || user.name, initialStatus
   );
   const ordinance = result.rows[0];
 
@@ -144,10 +145,26 @@ exports.getApprovals = async (id) => {
  * @param {number} userId
  * @returns {Promise<object>}
  */
-exports.changeStatus = async (id, status, notes, userId) => {
+exports.changeStatus = async (id, status, notes, userId, userRole) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const existingResult = await Ordinance.findById(id);
+    if (existingResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      const err = new Error('Ordinance not found');
+      err.status = 404;
+      throw err;
+    }
+
+    const existingOrdinance = existingResult.rows[0];
+    if (userRole === 'Secretary' && existingOrdinance.status === 'Draft' && status === 'Submitted') {
+      await client.query('ROLLBACK');
+      const err = new Error('Secretary is not allowed to submit draft ordinances as proposed measures');
+      err.status = 403;
+      throw err;
+    }
 
     const ordinanceResult = await Ordinance.updateStatus(client, id, status);
     if (ordinanceResult.rows.length === 0) {
@@ -187,7 +204,7 @@ exports.changeStatus = async (id, status, notes, userId) => {
  * @param {number} userId
  * @returns {Promise<object>}
  */
-exports.performWorkflowAction = async (id, action, comment, userId) => {
+exports.performWorkflowAction = async (id, action, comment, userId, userRole) => {
   const validActions = {
     submit: 'Submitted',
     approve: 'Approved',
@@ -217,6 +234,13 @@ exports.performWorkflowAction = async (id, action, comment, userId) => {
 
     const ordinance = ordinanceResult.rows[0];
     const newStatus = validActions[action];
+
+    if (userRole === 'Secretary' && ordinance.status === 'Draft' && newStatus === 'Submitted') {
+      await client.query('ROLLBACK');
+      const err = new Error('Secretary is not allowed to submit draft ordinances as proposed measures');
+      err.status = 403;
+      throw err;
+    }
 
     const updatedOrdinance = await Ordinance.updateStatus(client, id, newStatus);
     const workflowResult = await Ordinance.insertWorkflowAction(

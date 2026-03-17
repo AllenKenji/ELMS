@@ -21,15 +21,24 @@ exports.findById = async (id) => {
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.create = async (title, ordinanceNumber, description, content, remarks, proposerId, proposerName) => {
+exports.create = async (title, ordinanceNumber, description, content, remarks, proposerId, proposerName, status = 'Draft') => {
+  const normalizedStatus = {
+    draft: 'Draft',
+    pending: 'Submitted',
+    under_review: 'Under Review',
+    approved: 'Approved',
+    rejected: 'Rejected',
+    enacted: 'Published',
+  }[status] || status;
+
   return pool.query(
     `INSERT INTO ordinances (
        title, ordinance_number, description, content, remarks,
        proposer_id, proposer_name, status, created_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', NOW())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
      RETURNING *`,
-    [title, ordinanceNumber, description, content, remarks, proposerId, proposerName]
+    [title, ordinanceNumber, description, content, remarks, proposerId, proposerName, normalizedStatus]
   );
 };
 
@@ -41,7 +50,8 @@ exports.update = async (id, title, ordinanceNumber, description, content, remark
          ordinance_number = COALESCE($2, ordinance_number),
          description = COALESCE($3, description),
          content = COALESCE($4, content),
-         remarks = COALESCE($5, remarks)
+         remarks = COALESCE($5, remarks),
+         updated_at = NOW()
      WHERE id = $6 RETURNING *`,
     [title, ordinanceNumber, description, content, remarks, id]
   );
@@ -55,7 +65,7 @@ exports.deleteById = async (client, id) => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.updateStatus = async (client, id, status) => {
   return client.query(
-    'UPDATE ordinances SET status = $1 WHERE id = $2 RETURNING *',
+    'UPDATE ordinances SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
     [status, id]
   );
 };
@@ -153,4 +163,198 @@ exports.updateApprovalByApprover = async (client, ordinanceId, approverId, statu
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.deleteApprovals = async (client, ordinanceId) => {
   return client.query('DELETE FROM ordinance_approvals WHERE ordinance_id = $1', [ordinanceId]);
+};
+
+// ─── Legislative Workflow helpers ────────────────────────────────────────────
+
+/** Set reading_stage (and optionally status) on an ordinance. */
+exports.setReadingStage = async (client, id, readingStage, status) => {
+  const q = status
+    ? 'UPDATE ordinances SET reading_stage=$1, status=$2, updated_at=NOW() WHERE id=$3 RETURNING *'
+    : 'UPDATE ordinances SET reading_stage=$1, updated_at=NOW() WHERE id=$2 RETURNING *';
+  const params = status ? [readingStage, status, id] : [readingStage, id];
+  return client.query(q, params);
+};
+
+/** Update committee assignment fields on an ordinance. */
+exports.assignCommittee = async (client, id, committeeId, assignedBy) => {
+  return client.query(
+    `UPDATE ordinances
+     SET committee_id=$1, committee_assignment_date=NOW(), assigned_by=$2,
+         reading_stage='COMMITTEE_REVIEW', status='Under Review', updated_at=NOW()
+     WHERE id=$3 RETURNING *`,
+    [committeeId, assignedBy, id]
+  );
+};
+
+/** Record voting results on an ordinance. */
+exports.recordVote = async (client, id, votingResults, sessionId) => {
+  return client.query(
+    `UPDATE ordinances
+     SET voting_results=$1, voted_at=NOW(),
+         session_id_third_reading=$2,
+         reading_stage='THIRD_READING_VOTED', status='Under Review', updated_at=NOW()
+     WHERE id=$3 RETURNING *`,
+    [JSON.stringify(votingResults), sessionId, id]
+  );
+};
+
+/** Record executive approval. */
+exports.recordApproval = async (client, id, approvedBy, remarks) => {
+  return client.query(
+    `UPDATE ordinances
+     SET approved_by=$1, approved_at=NOW(), approval_remarks=$2,
+         reading_stage='APPROVED', status='Approved', updated_at=NOW()
+     WHERE id=$3 RETURNING *`,
+    [approvedBy, remarks || null, id]
+  );
+};
+
+/** Record executive rejection. */
+exports.recordRejection = async (client, id, approvedBy, reason) => {
+  return client.query(
+    `UPDATE ordinances
+     SET approved_by=$1, approved_at=NOW(), rejection_reason=$2,
+         reading_stage='REJECTED', status='Rejected', updated_at=NOW()
+     WHERE id=$3 RETURNING *`,
+    [approvedBy, reason || null, id]
+  );
+};
+
+/** Record public posting. */
+exports.recordPosting = async (client, id, postingEndDate) => {
+  return client.query(
+    `UPDATE ordinances
+     SET posted_at=NOW(), posting_end_date=$1,
+         reading_stage='POSTED', status='Published', updated_at=NOW()
+     WHERE id=$2 RETURNING *`,
+    [postingEndDate, id]
+  );
+};
+
+/** Mark ordinance as effective. */
+exports.recordEffective = async (client, id, effectiveDate) => {
+  return client.query(
+    `UPDATE ordinances
+     SET effective_date=$1, reading_stage='EFFECTIVE', status='Published', updated_at=NOW()
+     WHERE id=$2 RETURNING *`,
+    [effectiveDate, id]
+  );
+};
+
+/** Insert a reading_sessions row. */
+exports.insertReadingSession = async (client, ordinanceId, sessionId, readingNumber, notes, presiding) => {
+  return client.query(
+    `INSERT INTO reading_sessions
+       (ordinance_id, session_id, reading_number, discussion_notes, presiding_officer, conducted_at)
+     VALUES ($1,$2,$3,$4,$5,NOW()) RETURNING *`,
+    [ordinanceId, sessionId || null, readingNumber, notes || null, presiding || null]
+  );
+};
+
+/** Insert a committee_reports row. */
+exports.insertCommitteeReport = async (client, data) => {
+  const { ordinanceId, committeeId, submittedBy, recommendation, reportContent, meetingDate, meetingMinutes, attendees } = data;
+  return client.query(
+    `INSERT INTO committee_reports
+       (ordinance_id, committee_id, submitted_by, recommendation, report_content,
+        meeting_date, meeting_minutes, attendees, submitted_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,NOW()) RETURNING *`,
+    [ordinanceId, committeeId || null, submittedBy, recommendation, reportContent || null,
+     meetingDate || null, meetingMinutes || null, JSON.stringify(attendees || [])]
+  );
+};
+
+/** Get the latest committee report for an ordinance. */
+exports.findCommitteeReport = async (id) => {
+  return pool.query(
+    `SELECT cr.*, u.name as submitted_by_name, c.name as committee_name
+     FROM committee_reports cr
+     LEFT JOIN users u ON u.id = cr.submitted_by
+     LEFT JOIN committees c ON c.id = cr.committee_id
+     WHERE cr.ordinance_id=$1
+     ORDER BY cr.submitted_at DESC LIMIT 1`,
+    [id]
+  );
+};
+
+/** Get all reading sessions for an ordinance. */
+exports.findReadingSessions = async (id) => {
+  return pool.query(
+    `SELECT rs.*, s.title as session_title, s.date as session_date, u.name as presiding_officer_name
+     FROM reading_sessions rs
+     LEFT JOIN sessions s ON s.id = rs.session_id
+     LEFT JOIN users u ON u.id = rs.presiding_officer
+     WHERE rs.ordinance_id=$1
+     ORDER BY rs.reading_number ASC`,
+    [id]
+  );
+};
+
+/** Insert or update a session_agenda_items row. */
+exports.upsertAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNumber) => {
+  return pool.query(
+    `INSERT INTO session_agenda_items (session_id, ordinance_id, agenda_order, reading_number, created_at)
+     VALUES ($1,$2,$3,$4,NOW())
+     ON CONFLICT (session_id, ordinance_id) DO UPDATE
+       SET agenda_order=$3, reading_number=$4
+     RETURNING *`,
+    [sessionId, ordinanceId, agendaOrder || 1, readingNumber || null]
+  );
+};
+
+/** Get all agenda items for a session (with ordinance details). */
+exports.findAgendaBySession = async (sessionId) => {
+  return pool.query(
+    `SELECT ai.*, o.title, o.ordinance_number, o.reading_stage, o.status,
+            o.proposer_name, o.description
+     FROM session_agenda_items ai
+     LEFT JOIN ordinances o ON o.id = ai.ordinance_id
+     WHERE ai.session_id=$1
+     ORDER BY ai.agenda_order ASC`,
+    [sessionId]
+  );
+};
+
+/** Remove an ordinance from a session agenda. */
+exports.removeAgendaItem = async (sessionId, ordinanceId) => {
+  return pool.query(
+    'DELETE FROM session_agenda_items WHERE session_id=$1 AND ordinance_id=$2 RETURNING *',
+    [sessionId, ordinanceId]
+  );
+};
+
+/** Get all sessions an ordinance is assigned to (via agenda items). */
+exports.findSessionsByOrdinance = async (ordinanceId) => {
+  return pool.query(
+    `SELECT s.id, s.title, s.date, ai.agenda_order, ai.reading_number
+     FROM session_agenda_items ai
+     JOIN sessions s ON s.id = ai.session_id
+     WHERE ai.ordinance_id=$1
+     ORDER BY s.date ASC`,
+    [ordinanceId]
+  );
+};
+
+/** Get posting records for an ordinance. */
+exports.findPostingRecords = async (id) => {
+  return pool.query(
+    `SELECT pr.*, u.name as posted_by_name
+     FROM posting_records pr
+     LEFT JOIN users u ON u.id = pr.posted_by
+     WHERE pr.ordinance_id=$1
+     ORDER BY pr.posted_at DESC`,
+    [id]
+  );
+};
+
+/** Insert a posting_records row. */
+exports.insertPostingRecord = async (client, data) => {
+  const { ordinanceId, postedBy, postingDurationDays, postingLocation, effectiveDate, notes } = data;
+  return client.query(
+    `INSERT INTO posting_records
+       (ordinance_id, posted_by, posting_duration_days, posting_location, effective_date, notes, posted_at)
+     VALUES ($1,$2,$3,$4,$5,$6,NOW()) RETURNING *`,
+    [ordinanceId, postedBy, postingDurationDays || 3, postingLocation || null, effectiveDate || null, notes || null]
+  );
 };

@@ -13,8 +13,18 @@ const VALID_STATUSES = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Publi
  * @param {object} user
  * @returns {Promise<object>}
  */
-exports.createResolution = async ({ title, resolution_number, description, content, remarks }, user) => {
-  const result = await Resolution.create(title, resolution_number, description, content, remarks, user.id, user.name);
+exports.createResolution = async ({ title, resolution_number, description, content, remarks, status }, user) => {
+  const initialStatus = status || 'Draft';
+  const result = await Resolution.create(
+    title,
+    resolution_number,
+    description,
+    content,
+    remarks,
+    user.id,
+    user.name,
+    initialStatus
+  );
   const resolution = result.rows[0];
 
   await AuditLog.create(null, user.id, 'RESOLUTION_CREATE', `Resolution "${title}" created`);
@@ -58,7 +68,20 @@ exports.getResolutionById = async (id) => {
  * @param {number} userId
  * @returns {Promise<object>}
  */
-exports.updateResolution = async (id, { title, resolution_number, description, content, remarks, status }, userId) => {
+exports.updateResolution = async (id, { title, resolution_number, description, content, remarks, status }, userId, userRole) => {
+  const existing = await Resolution.findById(id);
+  if (existing.rows.length === 0) {
+    const err = new Error('Resolution not found');
+    err.status = 404;
+    throw err;
+  }
+
+  if (userRole === 'Secretary' && existing.rows[0].status === 'Draft' && status === 'Submitted') {
+    const err = new Error('Secretary is not allowed to submit draft resolutions as proposed measures');
+    err.status = 403;
+    throw err;
+  }
+
   const result = await Resolution.update(id, title, resolution_number, description, content, remarks, status);
   if (result.rows.length === 0) {
     const err = new Error('Resolution not found');
@@ -99,10 +122,23 @@ exports.deleteResolution = async (id, userId) => {
  * @param {string} status
  * @returns {Promise<object>}
  */
-exports.changeStatus = async (id, status) => {
+exports.changeStatus = async (id, status, user) => {
   if (!VALID_STATUSES.includes(status)) {
     const err = new Error('Invalid status');
     err.status = 400;
+    throw err;
+  }
+
+  const existing = await Resolution.findById(id);
+  if (existing.rows.length === 0) {
+    const err = new Error('Resolution not found');
+    err.status = 404;
+    throw err;
+  }
+
+  if (user?.role === 'Secretary' && existing.rows[0].status === 'Draft' && status === 'Submitted') {
+    const err = new Error('Secretary is not allowed to submit draft resolutions as proposed measures');
+    err.status = 403;
     throw err;
   }
 
