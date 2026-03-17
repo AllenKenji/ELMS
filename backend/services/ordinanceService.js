@@ -711,3 +711,19 @@ exports.getSessionAgenda = async (sessionId) => {
   const result = await Ordinance.findAgendaBySession(sessionId);
   return result.rows;
 };
+
+/**
+ * Remove an ordinance from a session agenda.
+ */
+exports.removeAgendaItem = async (sessionId, ordinanceId) => {
+  const result = await Ordinance.removeAgendaItem(sessionId, ordinanceId);
+  return result.rows[0] || null;
+};
+
+/**
+ * Get all sessions an ordinance is scheduled in (via agenda items).
+ */
+exports.getOrdinanceSessions = async (ordinanceId) => {
+  const result = await Ordinance.findSessionsByOrdinance(ordinanceId);
+  return result.rows;
+};

@@ -307,6 +307,26 @@ exports.findAgendaBySession = async (sessionId) => {
   );
 };
 
+/** Remove an ordinance from a session agenda. */
+exports.removeAgendaItem = async (sessionId, ordinanceId) => {
+  return pool.query(
+    'DELETE FROM session_agenda_items WHERE session_id=$1 AND ordinance_id=$2 RETURNING *',
+    [sessionId, ordinanceId]
+  );
+};
+
+/** Get all sessions an ordinance is assigned to (via agenda items). */
+exports.findSessionsByOrdinance = async (ordinanceId) => {
+  return pool.query(
+    `SELECT s.id, s.title, s.date, ai.agenda_order, ai.reading_number
+     FROM session_agenda_items ai
+     JOIN sessions s ON s.id = ai.session_id
+     WHERE ai.ordinance_id=$1
+     ORDER BY s.date ASC`,
+    [ordinanceId]
+  );
+};
+
 /** Get posting records for an ordinance. */
 exports.findPostingRecords = async (id) => {
   return pool.query(

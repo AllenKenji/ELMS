@@ -396,6 +396,7 @@ exports.getWorkflowStatus = async (req, res) => {
 exports.addAgendaItem = async (req, res) => {
   try {
     const { ordinance_id, agenda_order, reading_number } = req.body;
+    if (!ordinance_id) return res.status(400).json({ error: 'ordinance_id is required' });
     const result = await ordinanceService.addAgendaItem(req.params.id, ordinance_id, agenda_order, reading_number);
     res.json(result);
   } catch (err) {
@@ -412,5 +413,28 @@ exports.getSessionAgenda = async (req, res) => {
   } catch (err) {
     console.error('Get session agenda error:', err);
     res.status(500).json({ error: 'Error fetching session agenda' });
+  }
+};
+
+/** DELETE /sessions/:id/agenda-item/:ordinanceId */
+exports.removeAgendaItem = async (req, res) => {
+  try {
+    const result = await ordinanceService.removeAgendaItem(req.params.id, req.params.ordinanceId);
+    if (!result) return res.status(404).json({ error: 'Agenda item not found' });
+    res.json({ message: 'Agenda item removed', item: result });
+  } catch (err) {
+    console.error('Remove agenda item error:', err);
+    res.status(500).json({ error: 'Error removing agenda item' });
+  }
+};
+
+/** GET /ordinances/:id/sessions */
+exports.getOrdinanceSessions = async (req, res) => {
+  try {
+    const sessions = await ordinanceService.getOrdinanceSessions(req.params.id);
+    res.json(sessions);
+  } catch (err) {
+    console.error('Get ordinance sessions error:', err);
+    res.status(500).json({ error: 'Error fetching ordinance sessions' });
   }
 };

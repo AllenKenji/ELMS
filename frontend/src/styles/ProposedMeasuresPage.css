@@ -467,6 +467,11 @@
   color: #888;
 }
 
+.meta-item.session-assignment {
+  color: #2980b9;
+  font-weight: 500;
+}
+
 /* Progress Indicator */
 .measure-progress {
   display: flex;
