@@ -80,6 +80,9 @@ const ORDINANCE_STATUSES = [
   'Archived',
 ];
 
+const attachmentsSchema = Joi.array().items(Joi.string().trim().max(500)).optional().default([]);
+const coAuthorIdsSchema = Joi.array().items(Joi.number().integer().positive());
+
 /**
  * Schema for POST /ordinances
  */
@@ -101,6 +104,18 @@ const createOrdinanceSchema = Joi.object({
   remarks: Joi.string().trim().max(5000).optional().allow(null, '').messages({
     'string.max': 'Remarks must be at most 5000 characters.',
   }),
+  co_authors: coAuthorIdsSchema.optional().default([]),
+  whereas_clauses: Joi.string().trim().min(10).max(10000).required().messages({
+    'string.min': 'Whereas clauses must be at least 10 characters.',
+    'string.max': 'Whereas clauses must be at most 10000 characters.',
+    'any.required': 'Whereas clauses are required.',
+  }),
+  effectivity_clause: Joi.string().trim().min(5).max(5000).required().messages({
+    'string.min': 'Effectivity clause must be at least 5 characters.',
+    'string.max': 'Effectivity clause must be at most 5000 characters.',
+    'any.required': 'Effectivity clause is required.',
+  }),
+  attachments: attachmentsSchema,
   status: Joi.string()
     .valid(...ORDINANCE_STATUSES)
     .default('draft')
@@ -129,6 +144,16 @@ const updateOrdinanceSchema = Joi.object({
   remarks: Joi.string().trim().max(5000).optional().allow(null, '').messages({
     'string.max': 'Remarks must be at most 5000 characters.',
   }),
+  co_authors: coAuthorIdsSchema.optional(),
+  whereas_clauses: Joi.string().trim().min(10).max(10000).optional().allow(null, '').messages({
+    'string.min': 'Whereas clauses must be at least 10 characters.',
+    'string.max': 'Whereas clauses must be at most 10000 characters.',
+  }),
+  effectivity_clause: Joi.string().trim().min(5).max(5000).optional().allow(null, '').messages({
+    'string.min': 'Effectivity clause must be at least 5 characters.',
+    'string.max': 'Effectivity clause must be at most 5000 characters.',
+  }),
+  attachments: attachmentsSchema,
   status: Joi.string()
     .valid(...ORDINANCE_STATUSES)
     .optional()
@@ -137,6 +162,37 @@ const updateOrdinanceSchema = Joi.object({
     }),
   session_id: Joi.number().integer().positive().optional().allow(null),
   committee_id: Joi.number().integer().positive().optional().allow(null),
+})
+  .min(1)
+  .messages({
+    'object.min': 'At least one field must be provided to update.',
+  })
+  .options({ allowUnknown: false });
+
+const createResolutionSchema = Joi.object({
+  title: Joi.string().trim().min(3).max(255).required(),
+  description: Joi.string().trim().min(10).max(5000).required(),
+  resolution_number: Joi.string().trim().max(100).optional().allow(null, ''),
+  content: Joi.string().trim().min(20).required(),
+  remarks: Joi.string().trim().max(5000).optional().allow(null, ''),
+  co_authors: coAuthorIdsSchema.required(),
+  whereas_clauses: Joi.string().trim().min(10).max(10000).required(),
+  effectivity_clause: Joi.string().trim().min(5).max(5000).required(),
+  attachments: attachmentsSchema,
+  status: Joi.string().valid('Draft', 'Submitted', 'Under Review', 'Approved', 'Published', 'Rejected').optional(),
+}).options({ allowUnknown: false });
+
+const updateResolutionSchema = Joi.object({
+  title: Joi.string().trim().min(3).max(255).optional(),
+  description: Joi.string().trim().min(10).max(5000).optional(),
+  resolution_number: Joi.string().trim().max(100).optional().allow(null, ''),
+  content: Joi.string().trim().min(20).optional(),
+  remarks: Joi.string().trim().max(5000).optional().allow(null, ''),
+  co_authors: coAuthorIdsSchema.optional(),
+  whereas_clauses: Joi.string().trim().min(10).max(10000).optional().allow(null, ''),
+  effectivity_clause: Joi.string().trim().min(5).max(5000).optional().allow(null, ''),
+  attachments: attachmentsSchema,
+  status: Joi.string().valid('Draft', 'Submitted', 'Under Review', 'Approved', 'Published', 'Rejected').optional(),
 })
   .min(1)
   .messages({
@@ -206,6 +262,8 @@ module.exports = {
   // Ordinances
   createOrdinanceSchema,
   updateOrdinanceSchema,
+  createResolutionSchema,
+  updateResolutionSchema,
   // Minutes
   createMinutesSchema,
   // Messages

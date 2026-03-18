@@ -21,7 +21,20 @@ exports.findById = async (id) => {
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.create = async (title, ordinanceNumber, description, content, remarks, proposerId, proposerName, status = 'Draft') => {
+exports.create = async (
+  title,
+  ordinanceNumber,
+  description,
+  content,
+  remarks,
+  proposerId,
+  proposerName,
+  status = 'Draft',
+  coAuthors = null,
+  whereasClauses = null,
+  effectivityClause = null,
+  attachments = []
+) => {
   const normalizedStatus = {
     draft: 'Draft',
     pending: 'Submitted',
@@ -34,16 +47,44 @@ exports.create = async (title, ordinanceNumber, description, content, remarks, p
   return pool.query(
     `INSERT INTO ordinances (
        title, ordinance_number, description, content, remarks,
-       proposer_id, proposer_name, status, created_at
+       proposer_id, proposer_name, status,
+       co_authors, whereas_clauses, effectivity_clause, attachments,
+       created_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, NOW())
      RETURNING *`,
-    [title, ordinanceNumber, description, content, remarks, proposerId, proposerName, normalizedStatus]
+    [
+      title,
+      ordinanceNumber,
+      description,
+      content,
+      remarks,
+      proposerId,
+      proposerName,
+      normalizedStatus,
+      coAuthors,
+      whereasClauses,
+      effectivityClause,
+      JSON.stringify(Array.isArray(attachments) ? attachments : []),
+    ]
   );
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.update = async (id, title, ordinanceNumber, description, content, remarks) => {
+exports.update = async (
+  id,
+  title,
+  ordinanceNumber,
+  description,
+  content,
+  remarks,
+  coAuthors,
+  whereasClauses,
+  effectivityClause,
+  attachments
+) => {
+  const keepExistingCoAuthors = coAuthors === undefined;
+
   return pool.query(
     `UPDATE ordinances
      SET title = COALESCE($1, title),
@@ -51,9 +92,25 @@ exports.update = async (id, title, ordinanceNumber, description, content, remark
          description = COALESCE($3, description),
          content = COALESCE($4, content),
          remarks = COALESCE($5, remarks),
+         co_authors = CASE WHEN $11 THEN co_authors ELSE $6 END,
+         whereas_clauses = COALESCE($7, whereas_clauses),
+         effectivity_clause = COALESCE($8, effectivity_clause),
+         attachments = COALESCE($9::jsonb, attachments),
          updated_at = NOW()
-     WHERE id = $6 RETURNING *`,
-    [title, ordinanceNumber, description, content, remarks, id]
+       WHERE id = $10 RETURNING *`,
+    [
+      title,
+      ordinanceNumber,
+      description,
+      content,
+      remarks,
+      coAuthors,
+      whereasClauses,
+      effectivityClause,
+      attachments === undefined ? null : JSON.stringify(Array.isArray(attachments) ? attachments : []),
+      id,
+      keepExistingCoAuthors,
+    ]
   );
 };
 

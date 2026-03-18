@@ -246,7 +246,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
             <div className="tab-pane details-pane">
               <div className="details-grid">
                 {/* Basic Info */}
-                <section className="detail-section">
+                <div className="detail-section">
                   <h3>📄 Basic Information</h3>
                   <div className="detail-item">
                     <label>Ordinance Number:</label>
@@ -276,10 +276,56 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                     <label>Proposer:</label>
                     <span>{ordinance.proposer_name || 'System'}</span>
                   </div>
-                </section>
+                </div>
+
+                {/* Co-authors / Sponsors */}
+                {Array.isArray(ordinance.co_authors) && ordinance.co_authors.length > 0 && (
+                  <div className="detail-section full-width">
+                    <h3>🤝 Co-authors / Sponsors</h3>
+                    <ul className="detail-list">
+                      {ordinance.co_authors.map((c, idx) => (
+                        <li key={c.id || c.name || idx}>
+                          <span>{c.name}</span>
+                          {c.email && (
+                            <span style={{ color: '#888', marginLeft: 8, fontSize: '0.95em' }}>({c.email})</span>
+                          )}
+                          {c.role_name && (
+                            <span style={{ color: '#888', marginLeft: 8, fontSize: '0.95em' }}>- {c.role_name}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Attachments */}
+                {ordinance.attachments && ordinance.attachments.length > 0 && (
+                  <div className="detail-section full-width">
+                    <h3>📎 Attachments</h3>
+                    <ul className="detail-list">
+                      {ordinance.attachments.map((att, idx) => {
+                        // If it's a file path (starts with /uploads/), show as download link
+                        const isFile = typeof att === 'string' && att.startsWith('/uploads/');
+                        return (
+                          <li key={idx}>
+                            {isFile ? (
+                              <a href={att} target="_blank" rel="noopener noreferrer" download>
+                                {att.split('/').pop()}
+                              </a>
+                            ) : (
+                              <a href={att} target="_blank" rel="noopener noreferrer">
+                                {att}
+                              </a>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
 
                 {/* Dates */}
-                <section className="detail-section">
+                <div className="detail-section">
                   <h3>📅 Key Dates</h3>
                   <div className="detail-item">
                     <label>Submitted:</label>
@@ -317,36 +363,36 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                       </span>
                     </div>
                   )}
-                </section>
+                </div>
 
                 {/* Description */}
-                <section className="detail-section full-width">
+                <div className="detail-section full-width">
                   <h3>📝 Description</h3>
                   <div className="detail-text">
                     {ordinance.description || 'No description provided'}
                   </div>
-                </section>
+                </div>
 
                 {/* Full Content */}
-                <section className="detail-section full-width">
+                <div className="detail-section full-width">
                   <h3>📖 Full Content</h3>
                   <div className="detail-content-box">
                     {ordinance.content || 'No content available'}
                   </div>
-                </section>
+                </div>
 
                 {/* Remarks */}
                 {ordinance.remarks && (
-                  <section className="detail-section full-width">
+                  <div className="detail-section full-width">
                     <h3>💬 Remarks</h3>
                     <div className="detail-text">
                       {ordinance.remarks}
                     </div>
-                  </section>
+                  </div>
                 )}
 
                 {/* Scheduled Sessions */}
-                <section className="detail-section full-width">
+                <div className="detail-section full-width">
                   <h3>🏛️ Scheduled Sessions</h3>
                   {scheduledSessions.length > 0 ? (
                     <ul className="session-schedule-list">
@@ -379,10 +425,10 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                   ) : (
                     <p className="detail-text">Not scheduled in any session agenda yet.</p>
                   )}
-                </section>
+                </div>
 
                 {/* Action Buttons */}
-                <section className="detail-section full-width">
+                <div className="detail-section full-width">
                   <h3>⚙️ Actions</h3>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {canChangeStatus() && (
@@ -400,7 +446,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                       📄 Download PDF
                     </button>
                   </div>
-                </section>
+                </div>
               </div>
             </div>
           )}

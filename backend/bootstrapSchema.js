@@ -60,6 +60,26 @@ async function ensureLegislativeAgendaSchema() {
   `);
 }
 
+async function ensureProposedMeasureStructureSchema() {
+  await pool.query(`
+    ALTER TABLE ordinances
+    ADD COLUMN IF NOT EXISTS co_authors TEXT,
+    ADD COLUMN IF NOT EXISTS whereas_clauses TEXT,
+    ADD COLUMN IF NOT EXISTS effectivity_clause TEXT,
+    ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS session_id INTEGER;
+  `);
+
+  await pool.query(`
+    ALTER TABLE resolutions
+    ADD COLUMN IF NOT EXISTS co_authors TEXT,
+    ADD COLUMN IF NOT EXISTS whereas_clauses TEXT,
+    ADD COLUMN IF NOT EXISTS effectivity_clause TEXT,
+    ADD COLUMN IF NOT EXISTS attachments JSONB DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS session_id INTEGER;
+  `);
+}
+
 async function ensureOrderOfBusinessSchema() {
   const migrationPath = path.join(__dirname, 'migrations', '010_create_order_of_business_table.sql');
   const sql = await fs.readFile(migrationPath, 'utf8');
@@ -83,6 +103,7 @@ async function ensureOrderOfBusinessItemTypeConstraint() {
 }
 
 async function bootstrapSchema() {
+  await ensureProposedMeasureStructureSchema();
   await ensureLegislativeAgendaSchema();
   await ensureOrderOfBusinessSchema();
   await ensureOrderOfBusinessItemTypeConstraint();

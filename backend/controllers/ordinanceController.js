@@ -1,4 +1,19 @@
 /**
+ * Get workflow status for an ordinance (current reading stage and ordinance info).
+ * GET /ordinances/:id/workflow-status
+ */
+exports.getWorkflowStatus = async (req, res) => {
+  try {
+    const ordinance = await require('../services/ordinanceService').getOrdinanceById(req.params.id);
+    // Return the ordinance object (should include reading_stage)
+    res.json({ ordinance });
+  } catch (err) {
+    console.error('Get workflow status error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error fetching workflow status' });
+  }
+};
+/**
  * Ordinance Controller - Handles ordinance HTTP requests.
  */
 const ordinanceService = require('../services/ordinanceService');
@@ -10,7 +25,35 @@ const { generateOrdinancePdf } = require('../services/pdfService');
  */
 exports.create = async (req, res) => {
   try {
-    const ordinance = await ordinanceService.createOrdinance(req.body, req.user);
+    // Support both JSON and multipart/form-data
+    let data = req.body;
+    // If multipart, parse fields and files
+    if (req.files && req.files.length > 0) {
+      // Attachments from file upload
+      const filePaths = req.files.map(f => `/uploads/ordinances/${f.filename}`);
+      // Parse attachments_text (links) if present
+      let attachments = [];
+      if (Array.isArray(data.attachments)) {
+        attachments = data.attachments;
+      } else if (typeof data.attachments === 'string' && data.attachments.trim()) {
+        try {
+          attachments = JSON.parse(data.attachments);
+        } catch {
+          attachments = [data.attachments];
+        }
+      }
+      // Combine file paths and links
+      data = { ...data, attachments: [...attachments, ...filePaths] };
+    }
+    // Parse co_authors if sent as string
+    if (typeof data.co_authors === 'string') {
+      try {
+        data.co_authors = JSON.parse(data.co_authors);
+      } catch {
+        data.co_authors = data.co_authors.split(',').map(id => Number(id.trim())).filter(Boolean);
+      }
+    }
+    const ordinance = await ordinanceService.createOrdinance(data, req.user);
     res.json(ordinance);
   } catch (err) {
     console.error('Create ordinance error:', err);

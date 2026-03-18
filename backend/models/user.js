@@ -5,7 +5,11 @@ const pool = require('../db');
 
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findAll = async () => {
-  return pool.query('SELECT id, name, email, role_id FROM users');
+  return pool.query(
+    `SELECT u.id, u.name, u.email, u.role_id, r.role_name, r.role_name AS role
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id`
+  );
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */

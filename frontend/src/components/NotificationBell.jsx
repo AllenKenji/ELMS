@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../context/useAuth';
 import api from '../api/api';
 import '../styles/NotificationBell.css';
 
 export default function NotificationBell() {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -10,29 +12,38 @@ export default function NotificationBell() {
 
   // Fetch unread count
   useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
     const fetchUnreadCount = async () => {
       try {
         const res = await api.get('/notifications/count/unread');
         setUnreadCount(res.data.unread || 0);
       } catch (err) {
+        if (err?.response?.status === 401) {
+          setUnreadCount(0);
+        }
         console.error('Error fetching unread count:', err);
       }
     };
-
     fetchUnreadCount();
-    // Poll every 30 seconds
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   // Fetch notifications when dropdown opens
   const handleBellClick = async () => {
+    if (!user) return;
     if (!showDropdown) {
       setLoading(true);
       try {
         const res = await api.get('/notifications?unread=true');
         setNotifications(res.data || []);
       } catch (err) {
+        if (err?.response?.status === 401) {
+          setNotifications([]);
+        }
         console.error('Error fetching notifications:', err);
       } finally {
         setLoading(false);
@@ -94,6 +105,7 @@ export default function NotificationBell() {
         onClick={handleBellClick}
         aria-label="Notifications"
         title="Notifications"
+        disabled={!user}
       >
         🔔
         {unreadCount > 0 && (
@@ -113,7 +125,7 @@ export default function NotificationBell() {
             {/* Header */}
             <div className="dropdown-header">
               <h3>Notifications</h3>
-              {unreadCount > 0 && (
+              {user && unreadCount > 0 && (
                 <button
                   className="mark-all-btn"
                   onClick={async () => {
@@ -132,7 +144,11 @@ export default function NotificationBell() {
             </div>
 
             {/* Notifications List */}
-            {loading ? (
+            {!user ? (
+              <div className="dropdown-empty">
+                <p>Please log in to view notifications.</p>
+              </div>
+            ) : loading ? (
               <div className="dropdown-loading">Loading...</div>
             ) : notifications.length === 0 ? (
               <div className="dropdown-empty">

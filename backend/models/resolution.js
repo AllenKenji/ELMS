@@ -37,7 +37,20 @@ exports.findById = async (id) => {
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.create = async (title, resolutionNumber, description, content, remarks, proposerId, proposerName, status = 'Draft') => {
+exports.create = async (
+  title,
+  resolutionNumber,
+  description,
+  content,
+  remarks,
+  proposerId,
+  proposerName,
+  status = 'Draft',
+  coAuthors = null,
+  whereasClauses = null,
+  effectivityClause = null,
+  attachments = []
+) => {
   const normalizedStatus = {
     draft: 'Draft',
     pending: 'Submitted',
@@ -48,19 +61,71 @@ exports.create = async (title, resolutionNumber, description, content, remarks, 
   }[status] || status;
 
   return pool.query(
-    `INSERT INTO resolutions (title, resolution_number, description, content, remarks, proposer_id, proposer_name, status, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING *`,
-    [title, resolutionNumber, description, content, remarks || null, proposerId, proposerName, normalizedStatus]
+    `INSERT INTO resolutions (
+       title, resolution_number, description, content, remarks,
+       proposer_id, proposer_name, status,
+       co_authors, whereas_clauses, effectivity_clause, attachments,
+       created_at
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, NOW()) RETURNING *`,
+    [
+      title,
+      resolutionNumber,
+      description,
+      content,
+      remarks || null,
+      proposerId,
+      proposerName,
+      normalizedStatus,
+      coAuthors,
+      whereasClauses,
+      effectivityClause,
+      JSON.stringify(Array.isArray(attachments) ? attachments : []),
+    ]
   );
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.update = async (id, title, resolutionNumber, description, content, remarks, status) => {
+exports.update = async (
+  id,
+  title,
+  resolutionNumber,
+  description,
+  content,
+  remarks,
+  status,
+  coAuthors,
+  whereasClauses,
+  effectivityClause,
+  attachments
+) => {
   return pool.query(
     `UPDATE resolutions
-     SET title=$1, resolution_number=$2, description=$3, content=$4, remarks=$5, status=$6, updated_at=NOW()
-     WHERE id=$7 RETURNING *`,
-    [title, resolutionNumber, description, content, remarks || null, status || 'Draft', id]
+     SET title=$1,
+         resolution_number=$2,
+         description=$3,
+         content=$4,
+         remarks=$5,
+         status=$6,
+         co_authors=$7,
+         whereas_clauses=$8,
+         effectivity_clause=$9,
+         attachments=$10::jsonb,
+         updated_at=NOW()
+       WHERE id=$11 RETURNING *`,
+    [
+      title,
+      resolutionNumber,
+      description,
+      content,
+      remarks || null,
+      status || 'Draft',
+      coAuthors || null,
+      whereasClauses || null,
+      effectivityClause || null,
+      JSON.stringify(Array.isArray(attachments) ? attachments : []),
+      id,
+    ]
   );
 };
 

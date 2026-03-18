@@ -23,6 +23,24 @@ function formatDate(value) {
  * @param {string} documentType  e.g. 'ORDINANCE' or 'RESOLUTION'
  */
 function writeHeader(doc, documentType) {
+  // Add left and right logos (replace with actual file paths)
+  const leftLogoPath = 'public/logo-left.png'; // Update with actual path
+  const rightLogoPath = 'public/logo-right.png'; // Update with actual path
+  const logoSize = 50;
+  const pageWidth = doc.page.width;
+  const marginLeft = doc.page.margins.left;
+  const marginRight = doc.page.margins.right;
+  const y = doc.y;
+  try {
+    doc.image(leftLogoPath, marginLeft, y, { width: logoSize, height: logoSize });
+  } catch {}
+  try {
+    doc.image(rightLogoPath, pageWidth - marginRight - logoSize, y, { width: logoSize, height: logoSize });
+  } catch {}
+
+  // Move y below logos
+  doc.y = y + logoSize + 5;
+
   doc
     .fontSize(10)
     .fillColor('#666666')
@@ -148,6 +166,11 @@ function generateOrdinancePdf(ordinance, stream) {
   writeMetaRow(doc, 'Ordinance Number', ordinance.ordinance_number || 'Pending Assignment');
   writeMetaRow(doc, 'Status', ordinance.status);
   writeMetaRow(doc, 'Proposed By', ordinance.proposer_name || 'N/A');
+  // Co-authors
+  if (Array.isArray(ordinance.co_authors) && ordinance.co_authors.length > 0) {
+    const coAuthorNames = ordinance.co_authors.map(c => c.name + (c.email ? ` <${c.email}>` : '')).join(', ');
+    writeMetaRow(doc, 'Co-authors', coAuthorNames);
+  }
   writeMetaRow(doc, 'Date Created', formatDate(ordinance.created_at));
   if (ordinance.approved_date) {
     writeMetaRow(doc, 'Date Approved', formatDate(ordinance.approved_date));

@@ -161,7 +161,7 @@ export default function DashboardLayout() {
 
           <div className="topbar-right">
             <div className="topbar-user">
-              <NotificationBell />
+              {user && <NotificationBell />}
               <div className="user-avatar">
                 {user?.name?.charAt(0).toUpperCase() || 'U'}
               </div>

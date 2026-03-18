@@ -7,17 +7,103 @@ const AuditLog = require('../models/AuditLog');
 const { createNotification } = require('../utils/notifications');
 const { getIO } = require('../socket');
 
+async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true } = {}) {
+  if (coAuthorIds === undefined || coAuthorIds === null) {
+    if (allowEmpty) return null;
+    const err = new Error('Co-authors must be provided as an array');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!Array.isArray(coAuthorIds)) {
+    const err = new Error('Co-authors must be provided as an array');
+    err.status = 400;
+    throw err;
+  }
+
+  if (coAuthorIds.length === 0) {
+    if (allowEmpty) return null;
+    const err = new Error('At least one co-author / sponsor is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const normalized = [...new Set(coAuthorIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+  if (normalized.length !== coAuthorIds.length) {
+    const err = new Error('Co-authors must be valid user IDs');
+    err.status = 400;
+    throw err;
+  }
+
+  const result = await pool.query(
+    `SELECT u.id, r.role_name
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.id = ANY($1::int[])`,
+    [normalized]
+  );
+
+  if (result.rows.length !== normalized.length) {
+    const err = new Error('One or more selected co-authors do not exist');
+    err.status = 400;
+    throw err;
+  }
+
+  const hasNonCouncilor = result.rows.some(
+    (row) => String(row.role_name || '').toLowerCase() !== 'councilor'
+  );
+  if (hasNonCouncilor) {
+    const err = new Error('Co-authors / sponsors must be users with Councilor role');
+    err.status = 400;
+    throw err;
+  }
+
+  return normalized.join(',');
+}
+
 /**
  * Create a new ordinance.
  * @param {object} data
  * @param {object} user
  * @returns {Promise<object>}
  */
-exports.createOrdinance = async ({ title, ordinance_number, description, content, remarks, proposer_name, status }, user) => {
+exports.createOrdinance = async (data, user) => {
+  // Debug: log incoming data
+  console.log('createOrdinance received:', JSON.stringify(data, null, 2));
+  // Defensive: check required fields
+  const requiredFields = ['title', 'content'];
+  for (const field of requiredFields) {
+    if (!data[field]) {
+      const err = new Error(`Missing required field: ${field}`);
+      err.status = 400;
+      throw err;
+    }
+  }
+  // Destructure with defaults
+  const {
+    title = '',
+    ordinance_number = '',
+    description = '',
+    content = '',
+    remarks = '',
+    proposer_name = '',
+    status = '',
+    co_authors = [],
+    whereas_clauses = '',
+    effectivity_clause = '',
+    attachments = [],
+  } = data;
+  const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors, { allowEmpty: true });
   const initialStatus = status || 'Draft';
   const result = await Ordinance.create(
     title, ordinance_number, description, content, remarks,
-    user.id, proposer_name || user.name, initialStatus
+    user.id,
+    proposer_name || user.name,
+    initialStatus,
+    normalizedCoAuthors,
+    whereas_clauses,
+    effectivity_clause,
+    attachments
   );
   const ordinance = result.rows[0];
 
@@ -53,7 +139,23 @@ exports.getOrdinanceById = async (id) => {
     err.status = 404;
     throw err;
   }
-  return result.rows[0];
+  const ordinance = result.rows[0];
+  // Parse co_authors as array of user objects
+  let coAuthors = [];
+  if (ordinance.co_authors) {
+    // co_authors is a comma-separated string of IDs
+    const ids = ordinance.co_authors.split(',').map(id => Number(id.trim())).filter(Boolean);
+    if (ids.length > 0) {
+      const { rows } = await require('../models/User').findAll();
+      coAuthors = rows.filter(u => ids.includes(u.id)).map(u => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role_name: u.role_name || u.role
+      }));
+    }
+  }
+  return { ...ordinance, co_authors: coAuthors };
 };
 
 /**
@@ -63,8 +165,37 @@ exports.getOrdinanceById = async (id) => {
  * @param {number} userId
  * @returns {Promise<object>}
  */
-exports.updateOrdinance = async (id, { title, ordinance_number, description, content, remarks }, userId) => {
-  const result = await Ordinance.update(id, title, ordinance_number, description, content, remarks);
+exports.updateOrdinance = async (
+  id,
+  {
+    title,
+    ordinance_number,
+    description,
+    content,
+    remarks,
+    co_authors,
+    whereas_clauses,
+    effectivity_clause,
+    attachments,
+  },
+  userId
+) => {
+  const normalizedCoAuthors = co_authors === undefined
+    ? undefined
+    : await normalizeCouncilorCoAuthors(co_authors, { allowEmpty: true });
+
+  const result = await Ordinance.update(
+    id,
+    title,
+    ordinance_number,
+    description,
+    content,
+    remarks,
+    normalizedCoAuthors,
+    whereas_clauses,
+    effectivity_clause,
+    attachments
+  );
   if (result.rows.length === 0) {
     const err = new Error('Ordinance not found');
     err.status = 404;

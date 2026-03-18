@@ -1,8 +1,48 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../../api/api';
 import RichTextEditor from '../common/RichTextEditor';
 import { richTextToPlainText, hasMeaningfulRichText, sanitizeRichText } from '../../utils/richText';
 import '../../styles/ResolutionForm.css';
+
+function attachmentsToText(value) {
+  if (Array.isArray(value)) return value.join('\n');
+  if (typeof value === 'string') return value;
+  return '';
+}
+
+function normalizeFormData(data) {
+  const source = data || {};
+  const coAuthors = Array.isArray(source.co_authors)
+    ? source.co_authors.map((id) => String(id))
+    : typeof source.co_authors === 'string' && source.co_authors.trim()
+      ? source.co_authors.split(',').map((id) => id.trim()).filter(Boolean)
+      : [];
+
+  return {
+    title: source.title || '',
+    resolution_number: source.resolution_number || '',
+    description: source.description || '',
+    content: source.content || '',
+    co_authors: coAuthors,
+    whereas_clauses: source.whereas_clauses || '',
+    effectivity_clause: source.effectivity_clause || '',
+    attachments_text: attachmentsToText(source.attachments),
+    remarks: source.remarks || '',
+  };
+}
+
+function parseAttachments(textValue) {
+  return String(textValue || '')
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function isCouncilorUser(user) {
+  const roleName = String(user?.role_name || user?.role || '').toLowerCase();
+  if (roleName) return roleName === 'councilor';
+  return Number(user?.role_id) === 3;
+}
 
 export default function ResolutionForm({
   onSuccess,
@@ -12,19 +52,28 @@ export default function ResolutionForm({
   initialStatusOnCreate = 'Draft',
 }) {
   const [formData, setFormData] = useState(
-    initialData || {
-      title: '',
-      resolution_number: '',
-      description: '',
-      content: '',
-      remarks: '',
-    }
+    normalizeFormData(initialData)
   );
 
   const [loading, setLoading] = useState(false);
+  const [councilorUsers, setCouncilorUsers] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formErrors, setFormErrors] = useState({});
+
+  useEffect(() => {
+    const fetchCouncilors = async () => {
+      try {
+        const res = await api.get('/users');
+        const allUsers = res.data || [];
+        setCouncilorUsers(allUsers.filter(isCouncilorUser));
+      } catch {
+        setCouncilorUsers([]);
+      }
+    };
+
+    fetchCouncilors();
+  }, []);
 
   const validateForm = () => {
     const newErrors = {};
@@ -49,6 +98,18 @@ export default function ResolutionForm({
       newErrors.content = 'Content is required';
     } else if (contentText.length < 20) {
       newErrors.content = 'Content must be at least 20 characters';
+    }
+
+    if (!Array.isArray(formData.co_authors) || formData.co_authors.length === 0) {
+      newErrors.co_authors = 'Co-authors / sponsors are required';
+    }
+
+    if (!hasMeaningfulRichText(formData.whereas_clauses)) {
+      newErrors.whereas_clauses = 'Whereas clauses are required';
+    }
+
+    if (!hasMeaningfulRichText(formData.effectivity_clause)) {
+      newErrors.effectivity_clause = 'Effectivity clause is required';
     }
 
     setFormErrors(newErrors);
@@ -85,6 +146,21 @@ export default function ResolutionForm({
     }
   };
 
+  const handleCoAuthorsChange = (e) => {
+    const selectedIds = Array.from(e.target.selectedOptions).map((option) => option.value);
+    setFormData((prev) => ({
+      ...prev,
+      co_authors: selectedIds,
+    }));
+
+    if (formErrors.co_authors) {
+      setFormErrors((prev) => ({
+        ...prev,
+        co_authors: '',
+      }));
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -102,6 +178,10 @@ export default function ResolutionForm({
         resolution_number: formData.resolution_number.trim() || null,
         description: sanitizeRichText(formData.description || ''),
         content: sanitizeRichText(formData.content || ''),
+        co_authors: formData.co_authors.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
+        whereas_clauses: sanitizeRichText(formData.whereas_clauses || ''),
+        effectivity_clause: sanitizeRichText(formData.effectivity_clause || ''),
+        attachments: parseAttachments(formData.attachments_text),
         remarks: formData.remarks.trim() || null,
         status: initialStatusOnCreate,
       };
@@ -116,11 +196,7 @@ export default function ResolutionForm({
 
       // Reset form
       setFormData({
-        title: '',
-        resolution_number: '',
-        description: '',
-        content: '',
-        remarks: '',
+        ...normalizeFormData(),
       });
 
       setTimeout(() => onSuccess?.(), 1500);
@@ -137,13 +213,7 @@ export default function ResolutionForm({
   };
 
   const handleReset = () => {
-    setFormData({
-      title: '',
-      resolution_number: '',
-      description: '',
-      content: '',
-      remarks: '',
-    });
+    setFormData(normalizeFormData());
     setFormErrors({});
     setError('');
     setSuccess('');
@@ -153,6 +223,8 @@ export default function ResolutionForm({
     title: formData.title.length,
     description: richTextToPlainText(formData.description || '').length,
     content: richTextToPlainText(formData.content || '').length,
+    whereas: richTextToPlainText(formData.whereas_clauses || '').length,
+    effectivity: richTextToPlainText(formData.effectivity_clause || '').length,
   };
 
   return (
@@ -226,6 +298,34 @@ export default function ResolutionForm({
             <p className="field-helper">Automatic if left blank</p>
           </div>
 
+          <div className="form-group">
+            <label htmlFor="co_authors">
+              Co-authors / Sponsors <span className="required">*</span>
+            </label>
+            <select
+              id="co_authors"
+              name="co_authors"
+              multiple
+              value={formData.co_authors}
+              onChange={handleCoAuthorsChange}
+              className={formErrors.co_authors ? 'input-error' : ''}
+              size={Math.min(Math.max(councilorUsers.length, 4), 8)}
+              required
+            >
+              {councilorUsers.map((councilor) => (
+                <option key={councilor.id} value={String(councilor.id)}>
+                  {councilor.name}
+                </option>
+              ))}
+            </select>
+            <p className="field-helper">Hold Ctrl (or Cmd) to select multiple councilors.</p>
+            {formErrors.co_authors && (
+              <div className="field-hint">
+                <span className="error-text">{formErrors.co_authors}</span>
+              </div>
+            )}
+          </div>
+
           {/* Description Field */}
           <div className="form-group">
             <label htmlFor="description">
@@ -268,6 +368,60 @@ export default function ResolutionForm({
                 <span className="char-count">{characterCount.content} characters</span>
               )}
             </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="whereas_clauses">
+              Whereas Clauses <span className="required">*</span>
+            </label>
+            <RichTextEditor
+              id="whereas_clauses"
+              placeholder="Background, rationale, and legal basis..."
+              value={formData.whereas_clauses}
+              onChange={(value) => handleRichTextChange('whereas_clauses', value)}
+              disabled={loading}
+              ariaInvalid={!!formErrors.whereas_clauses}
+            />
+            <div className="field-hint">
+              {formErrors.whereas_clauses ? (
+                <span className="error-text">{formErrors.whereas_clauses}</span>
+              ) : (
+                <span className="char-count">{characterCount.whereas} characters</span>
+              )}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="effectivity_clause">
+              Effectivity Clause <span className="required">*</span>
+            </label>
+            <RichTextEditor
+              id="effectivity_clause"
+              placeholder="State when this measure takes effect..."
+              value={formData.effectivity_clause}
+              onChange={(value) => handleRichTextChange('effectivity_clause', value)}
+              disabled={loading}
+              ariaInvalid={!!formErrors.effectivity_clause}
+            />
+            <div className="field-hint">
+              {formErrors.effectivity_clause ? (
+                <span className="error-text">{formErrors.effectivity_clause}</span>
+              ) : (
+                <span className="char-count">{characterCount.effectivity} characters</span>
+              )}
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="attachments_text">Attachments (Optional)</label>
+            <textarea
+              id="attachments_text"
+              name="attachments_text"
+              placeholder="One supporting document/link per line"
+              value={formData.attachments_text}
+              onChange={handleChange}
+              rows="3"
+            />
           </div>
 
           {/* Remarks Field */}

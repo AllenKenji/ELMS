@@ -4,8 +4,9 @@ const rateLimit = require('express-rate-limit');
 const authenticateToken = require('../middleware/auth');
 const authorizeRoles = require('../middleware/roles');
 const ordinanceController = require('../controllers/ordinanceController');
-const { validateBody } = require('../middleware/validation');
-const { createOrdinanceSchema, updateOrdinanceSchema } = require('../validators/schemas');
+const upload = require('../middleware/upload');
+// const { validateBody } = require('../middleware/validation');
+// const { createOrdinanceSchema, updateOrdinanceSchema } = require('../validators/schemas');
 
 const workflowLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -15,12 +16,14 @@ const workflowLimiter = rateLimit({
   message: { status: 'fail', message: 'Too many requests, please try again later.' },
 });
 
-router.post('/', authenticateToken, authorizeRoles('Councilor', 'Admin'), validateBody(createOrdinanceSchema), ordinanceController.create);
+router.post('/', authenticateToken, authorizeRoles('Councilor', 'Admin'), upload.array('attachments_files'), ordinanceController.create);
 
-router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Councilor', 'Admin'), validateBody(updateOrdinanceSchema), ordinanceController.update);router.get('/', authenticateToken, ordinanceController.getAll);
+router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Councilor', 'Admin'), upload.array('attachments_files'), ordinanceController.update);
+router.get('/', authenticateToken, ordinanceController.getAll);
 router.get('/:id', authenticateToken, ordinanceController.getById);
 router.delete('/:id', authenticateToken, authorizeRoles('Admin', 'Secretary'), ordinanceController.remove);
 router.get('/:id/workflow', authenticateToken, ordinanceController.getWorkflow);
+router.get('/:id/workflow-status', workflowLimiter, authenticateToken, ordinanceController.getWorkflowStatus);
 router.get('/:id/history', authenticateToken, ordinanceController.getHistory);
 router.get('/:id/approvals', authenticateToken, ordinanceController.getApprovals);
 router.put('/:id/status', authenticateToken, authorizeRoles('Admin', 'Secretary'), ordinanceController.changeStatus);

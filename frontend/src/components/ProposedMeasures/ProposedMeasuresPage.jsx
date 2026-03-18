@@ -165,6 +165,10 @@ export default function ProposedMeasuresPage() {
           ordinance_number: detail.ordinance_number || '',
           description: detail.description || '',
           content: detail.content || '',
+          co_authors: detail.co_authors || '',
+          whereas_clauses: detail.whereas_clauses || '',
+          effectivity_clause: detail.effectivity_clause || '',
+          attachments: detail.attachments || [],
           remarks: detail.remarks || '',
         });
       } else {
@@ -173,6 +177,10 @@ export default function ProposedMeasuresPage() {
           resolution_number: detail.resolution_number || '',
           description: detail.description || '',
           content: detail.content || '',
+          co_authors: detail.co_authors || '',
+          whereas_clauses: detail.whereas_clauses || '',
+          effectivity_clause: detail.effectivity_clause || '',
+          attachments: detail.attachments || [],
           remarks: detail.remarks || '',
         });
       }
@@ -494,6 +502,60 @@ export default function ProposedMeasuresPage() {
           <span>⚠️</span> {error}
         </div>
       )}
+
+      <section className="measure-guidance" aria-label="Proposed measure structure guide">
+        <h4>What&apos;s included in a proposed measure</h4>
+        <p className="measure-guidance-subtitle">
+          Use this structure when preparing an ordinance or resolution.
+        </p>
+
+        <div className="measure-guidance-grid">
+          <div className="guidance-block">
+            <h5>Core Contents</h5>
+            <ul>
+              <li>
+                <strong>Title / Caption:</strong> A clear, concise name for the measure.
+              </li>
+              <li>
+                <strong>Type:</strong> Ordinance or Resolution.
+              </li>
+              <li>
+                <strong>Author(s):</strong> Councilor(s) who filed the measure.
+              </li>
+              <li>
+                <strong>Co-authors / Sponsors:</strong> Councilors supporting the measure.
+              </li>
+              <li>
+                <strong>Whereas Clauses (Recitals):</strong> Background, rationale, and legal basis.
+              </li>
+              <li>
+                <strong>Body / Provisions:</strong> Substantive rules, regulations, or actions proposed.
+              </li>
+              <li>
+                <strong>Effectivity Clause:</strong> When the ordinance or resolution takes effect.
+              </li>
+              <li>
+                <strong>Attachments:</strong> Supporting documents, committee reports, or references.
+              </li>
+            </ul>
+          </div>
+
+          <div className="guidance-block">
+            <h5>System Metadata</h5>
+            <ul>
+              <li>
+                <strong>status:</strong> draft, filed, under committee review, approved, enacted
+              </li>
+              <li>
+                <strong>created_at / updated_at:</strong> automatic audit timestamps
+              </li>
+              <li>
+                <strong>session_id:</strong> assigned once scheduled for deliberation
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
       {/* Filters */}
       <div className="proposed-filters">
