@@ -1,0 +1,640 @@
+.session-form-wrapper {
+  width: 100%;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.session-form-container {
+  padding: 2rem;
+}
+
+/* Header */
+.form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 1rem;
+  gap: 1rem;
+}
+
+.form-title-section h3 {
+  margin: 0 0 0.5rem 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+.form-subtitle {
+  margin: 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.btn-close-form {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-close-form:hover:not(:disabled) {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+.btn-close-form:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Alerts */
+.alert {
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  border-left: 4px solid;
+}
+
+.alert-icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+}
+
+.alert p {
+  margin: 0.25rem 0 0 0;
+  line-height: 1.5;
+}
+
+.alert-error {
+  background-color: #fee;
+  color: #c33;
+  border-left-color: #c33;
+}
+
+.alert-success {
+  background-color: #efe;
+  color: #3c3;
+  border-left-color: #3c3;
+}
+
+/* Form Grid */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-group.full-width {
+  grid-column: 1 / -1;
+}
+
+.form-group label {
+  font-weight: 600;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.form-group input,
+.form-group textarea {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.form-group input:disabled,
+.form-group textarea:disabled {
+  background-color: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.form-group input[aria-invalid="true"],
+.form-group textarea[aria-invalid="true"] {
+  border-color: #e74c3c;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+}
+
+.richtext-editor {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.richtext-editor:focus-within {
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.richtext-editor.is-disabled {
+  background: #f5f5f5;
+}
+
+.richtext-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #e8e8e8;
+  background: #f8fbff;
+}
+
+.richtext-tool-btn {
+  border: 1px solid #cfd8e3;
+  background: #fff;
+  color: #2c3e50;
+  border-radius: 4px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.richtext-tool-btn:hover:not(:disabled) {
+  background: #eaf3ff;
+}
+
+.richtext-tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.richtext-input {
+  min-height: 130px;
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  outline: none;
+}
+
+.richtext-input:empty::before {
+  content: attr(data-placeholder);
+  color: #9aa4af;
+}
+
+.richtext-input p,
+.richtext-input ul,
+.richtext-input ol {
+  margin: 0.25rem 0;
+}
+
+.richtext-input ul,
+.richtext-input ol {
+  padding-left: 1.25rem;
+}
+
+.form-hint {
+  font-size: 0.85rem;
+  color: #999;
+  margin-top: 0.25rem;
+}
+
+.error-text {
+  color: #e74c3c;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-submit,
+.btn-reset,
+.btn-cancel {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-submit {
+  background-color: #27ae60;
+  color: white;
+}
+
+.btn-submit:hover:not(:disabled) {
+  background-color: #229954;
+}
+
+.btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-reset {
+  background-color: #95a5a6;
+  color: white;
+}
+
+.btn-reset:hover:not(:disabled) {
+  background-color: #7f8c8d;
+}
+
+.btn-reset:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-cancel {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.btn-cancel:hover:not(:disabled) {
+  background-color: #c0392b;
+}
+
+.btn-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Helper Text */
+.form-helper {
+  background-color: #f9f9f9;
+  padding: 1rem;
+  border-radius: 4px;
+  border-left: 4px solid #4a90e2;
+}
+
+.form-helper p {
+  margin: 0;
+  color: #333;
+  font-size: 0.9rem;
+}
+
+.form-helper ul {
+  margin: 0.5rem 0 0 1.5rem;
+  padding: 0;
+  color: #666;
+}
+
+.form-helper li {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
+/* Agenda Builder Section */
+.agenda-builder-section {
+  background: #f7faff;
+  border: 1px solid #d0e4f7;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.agenda-builder-header {
+  margin-bottom: 1rem;
+}
+
+.agenda-builder-title {
+  margin: 0 0 0.25rem 0;
+  color: #2c3e50;
+  font-size: 1rem;
+}
+
+.agenda-builder-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.agenda-builder-error {
+  background: #fef0f0;
+  border: 1px solid #e74c3c;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  color: #c0392b;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.agenda-builder-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1.5rem;
+  color: #888;
+  gap: 0.4rem;
+  background: white;
+  border: 1px dashed #ccc;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+}
+
+.agenda-builder-empty-icon {
+  font-size: 1.8rem;
+}
+
+.agenda-builder-empty p {
+  margin: 0;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.agenda-builder-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.agenda-builder-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.65rem 0.9rem;
+}
+
+.agenda-builder-item-order {
+  flex-shrink: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 50%;
+  background: #3498db;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
+.agenda-builder-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.agenda-builder-item-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #2c3e50;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agenda-builder-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.agenda-builder-meta-tag {
+  background: #eef2f7;
+  color: #555;
+  border-radius: 4px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.76rem;
+}
+
+.agenda-builder-reading-tag {
+  background: #e8f0fe;
+  color: #1a73e8;
+}
+
+.agenda-builder-item-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.agenda-builder-btn {
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0.25rem 0.45rem;
+  line-height: 1;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.agenda-builder-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.agenda-builder-btn-move {
+  background: #ecf0f1;
+  color: #555;
+}
+
+.agenda-builder-btn-move:hover:not(:disabled) {
+  background: #dde4ea;
+}
+
+.agenda-builder-btn-remove {
+  background: #fdecea;
+  color: #e74c3c;
+}
+
+.agenda-builder-btn-remove:hover:not(:disabled) {
+  background: #f9c0bc;
+}
+
+.agenda-builder-add-section {
+  border-top: 1px dashed #c5d8ee;
+  padding-top: 0.85rem;
+}
+
+.agenda-builder-btn-add {
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.agenda-builder-btn-add:hover:not(:disabled) {
+  background: #2980b9;
+}
+
+.agenda-builder-btn-add:disabled {
+  background: #b0c8de;
+  cursor: not-allowed;
+}
+
+.agenda-builder-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.agenda-builder-form-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.agenda-builder-select {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.agenda-builder-select:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.agenda-builder-reading-input {
+  width: 150px;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.agenda-builder-reading-input:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.agenda-builder-form-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.agenda-builder-btn-cancel {
+  background: #ecf0f1;
+  color: #555;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.agenda-builder-btn-cancel:hover {
+  background: #dde4ea;
+}
+
+.agenda-builder-btn-submit {
+  background: #27ae60;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1.1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.agenda-builder-btn-submit:hover:not(:disabled) {
+  background: #229954;
+}
+
+.agenda-builder-btn-submit:disabled {
+  background: #a9d4bc;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .session-form-container {
+    padding: 1.5rem;
+  }
+
+  .form-header {
+    flex-direction: column;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn-submit,
+  .btn-reset,
+  .btn-cancel {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .agenda-builder-form-row {
+    flex-direction: column;
+  }
+
+  .agenda-builder-reading-input {
+    width: 100%;
+  }
+
+  .agenda-builder-item-title {
+    white-space: normal;
+  }
+}
