@@ -260,4 +260,109 @@ function generateResolutionPdf(resolution, stream) {
   doc.end();
 }
 
-module.exports = { generateOrdinancePdf, generateResolutionPdf };
+/**
+ * Generates a PDF for the Order of Business (agenda) of a session.
+ * @param {object} session - Session record with title, date, etc.
+ * @param {object[]} items - Array of order-of-business items sorted by item_number
+ * @param {import('stream').Writable} stream - Destination stream (e.g. HTTP response)
+ */
+function generateOrderOfBusinessPdf(session, items, stream) {
+  const doc = new PDFDocument({ margin: 60, bufferPages: true });
+  doc.pipe(stream);
+
+  writeHeader(doc, 'ORDER OF BUSINESS');
+
+  // Session title
+  doc
+    .moveDown(0.5)
+    .font('Helvetica-Bold')
+    .fontSize(13)
+    .fillColor('#1a1a2e')
+    .text(session.title || 'Untitled Session', { align: 'center' })
+    .moveDown(0.4);
+
+  // Session metadata
+  doc
+    .moveTo(doc.page.margins.left, doc.y)
+    .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+    .strokeColor('#eeeeee')
+    .stroke()
+    .moveDown(0.4);
+
+  if (session.date) {
+    writeMetaRow(doc, 'Session Date', formatDate(session.date));
+  }
+  if (session.location) {
+    writeMetaRow(doc, 'Venue', session.location);
+  }
+  writeMetaRow(doc, 'Total Agenda Items', String(items.length));
+
+  doc
+    .moveDown(0.4)
+    .moveTo(doc.page.margins.left, doc.y)
+    .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+    .strokeColor('#eeeeee')
+    .stroke()
+    .moveDown(0.6);
+
+  // Agenda items
+  items.forEach((item, index) => {
+    const num = item.item_number ?? index + 1;
+
+    doc
+      .font('Helvetica-Bold')
+      .fontSize(11)
+      .fillColor('#1a1a2e')
+      .text(`${num}. ${item.title}`, { continued: false });
+
+    // Item details line
+    const details = [];
+    if (item.item_type) details.push(`Type: ${item.item_type}`);
+    if (item.status) details.push(`Status: ${item.status}`);
+    if (item.duration_minutes) details.push(`Duration: ${item.duration_minutes} min`);
+
+    if (details.length > 0) {
+      doc
+        .font('Helvetica')
+        .fontSize(9)
+        .fillColor('#666666')
+        .text(details.join('  |  '))
+        .moveDown(0.1);
+    }
+
+    // Linked document
+    if (item.related_document_type) {
+      let linkedLabel = '';
+      if (item.related_document_type === 'ordinance' && item.ordinance_title) {
+        linkedLabel = `Linked Ordinance: ${item.ordinance_title}${item.ordinance_number ? ` (No. ${item.ordinance_number})` : ''}`;
+      } else if (item.related_document_type === 'resolution' && item.resolution_title) {
+        linkedLabel = `Linked Resolution: ${item.resolution_title}${item.resolution_number ? ` (No. ${item.resolution_number})` : ''}`;
+      }
+      if (linkedLabel) {
+        doc
+          .font('Helvetica-Oblique')
+          .fontSize(9)
+          .fillColor('#888888')
+          .text(linkedLabel)
+          .moveDown(0.1);
+      }
+    }
+
+    // Notes
+    if (item.notes) {
+      doc
+        .font('Helvetica')
+        .fontSize(9)
+        .fillColor('#555555')
+        .text(`Notes: ${item.notes}`)
+        .moveDown(0.1);
+    }
+
+    doc.moveDown(0.4);
+  });
+
+  writeFooter(doc);
+  doc.end();
+}
+
+module.exports = { generateOrdinancePdf, generateResolutionPdf, generateOrderOfBusinessPdf };

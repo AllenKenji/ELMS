@@ -84,6 +84,12 @@ async function ensureOrderOfBusinessSchema() {
   const migrationPath = path.join(__dirname, 'migrations', '010_create_order_of_business_table.sql');
   const sql = await fs.readFile(migrationPath, 'utf8');
   await pool.query(sql);
+
+  // Ensure session_id is nullable (workflow: OOB created before session)
+  await pool.query(`
+    ALTER TABLE order_of_business
+    ALTER COLUMN session_id DROP NOT NULL;
+  `).catch(() => {});
 }
 
 async function ensureOrderOfBusinessItemTypeConstraint() {

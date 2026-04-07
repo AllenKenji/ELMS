@@ -48,11 +48,7 @@ function getAvailableActions(readingStage, userRole, ord, user) {
     case 'SUBMITTED':
       return canDo(userRole, 'assign-committee') ? ['assign-committee'] : [];
     case 'COMMITTEE_REPORT_SUBMITTED': {
-      // Allow chair and admin to create committee report
-      const isChair = ord?.committee && ord.committee.chair_id === user?.id;
-      const isAdmin = userRole && userRole.toLowerCase() === 'admin';
       const actions = [];
-      if (isChair || isAdmin) actions.push('committee-report');
       if (canDo(userRole, 'first-reading')) actions.push('first-reading');
       return actions;
     }
@@ -476,8 +472,10 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
             <button
               className="lw-action-btn lw-committee-report"
               onClick={() => handleActionClick('committee-report')}
+              disabled={!!workflowStatus?.committeeReport}
+              title={workflowStatus?.committeeReport ? 'Committee report already submitted' : ''}
             >
-              {ACTION_LABELS['committee-report']?.emoji} {ACTION_LABELS['committee-report']?.label}
+              {ACTION_LABELS['committee-report']?.emoji} {workflowStatus?.committeeReport ? 'Committee Report Submitted' : ACTION_LABELS['committee-report']?.label}
             </button>
           )}
           {availableActions.includes('first-reading') && (

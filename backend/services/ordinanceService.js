@@ -726,7 +726,7 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     await createNotification(ordinance.proposer_id, `Committee report submitted for your ordinance "${ordinance.title}". Recommendation: ${reportData.recommendation}`);
 
     // Notify all secretaries and admins
-    const usersRes = await client.query(`SELECT id, role FROM users WHERE role IN ('Secretary', 'Admin')`);
+    const usersRes = await client.query(`SELECT u.id, r.role_name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin')`);
     for (const user of usersRes.rows) {
       await createNotification(
         user.id,

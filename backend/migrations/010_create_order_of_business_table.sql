@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS order_of_business (
   id                    SERIAL PRIMARY KEY,
-  session_id            INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  session_id            INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
   item_number           INTEGER NOT NULL DEFAULT 1,
   title                 VARCHAR(255) NOT NULL,
   item_type             VARCHAR(50) NOT NULL DEFAULT 'Other'

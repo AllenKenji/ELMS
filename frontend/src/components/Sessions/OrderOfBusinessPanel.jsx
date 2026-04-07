@@ -223,6 +223,22 @@ export default function OrderOfBusinessPanel({ sessionId, readOnly = false, fall
     return null;
   };
 
+  const handleDownloadPdf = async () => {
+    try {
+      const response = await api.get(`/order-of-business/${sessionId}/generate-pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `order-of-business-session-${sessionId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err?.message || 'Failed to download PDF.');
+    }
+  };
+
   if (loading) {
     return <div className="oob-loading">Loading order of business...</div>;
   }
@@ -341,6 +357,14 @@ export default function OrderOfBusinessPanel({ sessionId, readOnly = false, fall
       )}
 
       {/* Add button */}
+      {items.length > 0 && (
+        <div className="oob-add-section">
+          <button className="oob-btn-add" onClick={handleDownloadPdf}>
+            📄 Download PDF
+          </button>
+        </div>
+      )}
+
       {canManage && !showForm && (
         <div className="oob-add-section">
           <button className="oob-btn-add" onClick={openAddForm}>

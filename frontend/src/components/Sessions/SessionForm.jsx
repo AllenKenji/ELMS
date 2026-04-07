@@ -52,6 +52,10 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
   const [showAgendaAdd, setShowAgendaAdd] = useState(false);
   const [agendaError, setAgendaError] = useState('');
 
+  // Unassigned OOB items state
+  const [unassignedOob, setUnassignedOob] = useState([]);
+  const [selectedOobIds, setSelectedOobIds] = useState(new Set());
+
   useEffect(() => {
     setFormData(normalizeSessionFormData(initialData));
   }, [initialData]);
@@ -61,6 +65,15 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       api.get('/ordinances')
         .then(res => setAvailableOrdinances(res.data || []))
         .catch(() => setAvailableOrdinances([]));
+      // Fetch unassigned OOB items
+      api.get('/order-of-business/unassigned')
+        .then(res => {
+          const items = res.data || [];
+          setUnassignedOob(items);
+          // Pre-select all unassigned items
+          setSelectedOobIds(new Set(items.map(i => i.id)));
+        })
+        .catch(() => setUnassignedOob([]));
     }
   }, [sessionId, canManageAgenda]);
 
@@ -223,6 +236,21 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
         response = await api.post('/sessions', payload);
         const newSessionId = response.data?.id || response.data?.session?.id;
 
+        // Assign selected unassigned OOB items to the new session
+        if (newSessionId && selectedOobIds.size > 0) {
+          try {
+            await api.post('/order-of-business/assign-session', {
+              session_id: newSessionId,
+              item_ids: Array.from(selectedOobIds),
+            });
+          } catch {
+            setError(prev => prev
+              ? prev + ' Some order of business items could not be assigned.'
+              : 'Session created, but some order of business items could not be assigned.'
+            );
+          }
+        }
+
         // Add agenda items sequentially after session creation
         if (newSessionId && agendaItems.length > 0) {
           const failedItems = [];
@@ -275,6 +303,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
     setReadingNumber('');
     setShowAgendaAdd(false);
     setAgendaError('');
+    setSelectedOobIds(new Set(unassignedOob.map(i => i.id)));
   };
 
   // Get min date (today)
@@ -439,6 +468,49 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
             />
           </div>
         </div>
+
+        {/* Unassigned Order of Business Items – link to this session */}
+        {!sessionId && canManageAgenda && unassignedOob.length > 0 && (
+          <div className="agenda-builder-section">
+            <div className="agenda-builder-header">
+              <h4 className="agenda-builder-title">📋 Order of Business Items</h4>
+              <p className="agenda-builder-subtitle">
+                Select the order of business items to include in this session.
+              </p>
+            </div>
+            <ol className="agenda-builder-list">
+              {unassignedOob.map((item) => (
+                <li key={item.id} className="agenda-builder-item">
+                  <label className="oob-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={selectedOobIds.has(item.id)}
+                      onChange={(e) => {
+                        setSelectedOobIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(item.id);
+                          else next.delete(item.id);
+                          return next;
+                        });
+                      }}
+                    />
+                    <div className="agenda-builder-item-body">
+                      <div className="agenda-builder-item-title">{item.title}</div>
+                      <div className="agenda-builder-item-meta">
+                        <span className="agenda-builder-meta-tag">{item.item_type}</span>
+                        {item.ordinance_title && (
+                          <span className="agenda-builder-meta-tag">
+                            Ordinance: {item.ordinance_title}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </label>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
 
         {/* Agenda Builder – only shown when creating a new session for eligible roles */}
         {!sessionId && canManageAgenda && (

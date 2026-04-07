@@ -55,6 +55,40 @@ exports.nextItemNumber = async (sessionId) => {
 };
 
 /**
+ * Get the next available item_number for unassigned items (no session).
+ * @returns {Promise<number>}
+ */
+exports.nextUnassignedItemNumber = async () => {
+  const result = await pool.query(
+    'SELECT COALESCE(MAX(item_number), 0) + 1 AS next_num FROM order_of_business WHERE session_id IS NULL'
+  );
+  return result.rows[0].next_num;
+};
+
+/**
+ * Retrieve all unassigned (no session) order-of-business items.
+ * @returns {Promise<import('pg').QueryResult>}
+ */
+exports.findUnassigned = async () => {
+  return pool.query(
+    `SELECT oob.*,
+            o.title  AS ordinance_title,
+            o.ordinance_number,
+            r.title  AS resolution_title,
+            r.resolution_number
+       FROM order_of_business oob
+       LEFT JOIN ordinances o
+              ON oob.related_document_type = 'ordinance'
+             AND oob.related_document_id = o.id
+       LEFT JOIN resolutions r
+              ON oob.related_document_type = 'resolution'
+             AND oob.related_document_id = r.id
+      WHERE oob.session_id IS NULL
+      ORDER BY oob.item_number ASC, oob.id ASC`
+  );
+};
+
+/**
  * Create a new order-of-business item.
  * @param {object} data
  * @returns {Promise<import('pg').QueryResult>}

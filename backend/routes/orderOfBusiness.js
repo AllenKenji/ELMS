@@ -17,7 +17,23 @@ const oobLimiter = rateLimit({
 // being treated as an :id parameter value.
 router.post('/reorder', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.reorder);
 
+// Batch-create multiple OOB items (full agenda)
+router.post('/batch', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.batchCreate);
+
+// Get unassigned OOB items (no session yet)
+router.get('/unassigned', oobLimiter, authenticateToken, ctrl.getUnassigned);
+
+// Assign OOB items to a session
+router.post('/assign-session', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.assignToSession);
+
+// Get all sessions that have OOB items (compiled list)
+router.get('/sessions-with-oob', oobLimiter, authenticateToken, ctrl.getSessionsWithOob);
+
+// Delete all OOB items for a session
+router.delete('/session/:sessionId', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.deleteBySession);
+
 // Get full order of business for a session
+router.get('/:sessionId/generate-pdf', oobLimiter, authenticateToken, ctrl.generatePdf);
 router.get('/:sessionId', oobLimiter, authenticateToken, ctrl.getBySession);
 
 // Create a new order-of-business item (Secretary and Admin only)
