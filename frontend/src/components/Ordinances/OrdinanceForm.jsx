@@ -11,13 +11,28 @@ function attachmentsToText(value) {
   return '';
 }
 
+function normalizeCoAuthors(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((author) => {
+        if (author && typeof author === 'object') {
+          return author.id != null ? String(author.id) : '';
+        }
+        return String(author);
+      })
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value.split(',').map((id) => id.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
 function normalizeFormData(data) {
   const source = data || {};
-  const coAuthors = Array.isArray(source.co_authors)
-    ? source.co_authors.map((id) => String(id))
-    : typeof source.co_authors === 'string' && source.co_authors.trim()
-      ? source.co_authors.split(',').map((id) => id.trim()).filter(Boolean)
-      : [];
+  const coAuthors = normalizeCoAuthors(source.co_authors);
 
   return {
     title: source.title || '',

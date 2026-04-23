@@ -1,10 +1,171 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import RichTextContent from '../common/RichTextContent';
 import SessionForm from './SessionForm';
 import SessionDetails from './SessionDetails';
 import '../../styles/SessionList.css';
+
+function getSessionDate(session) {
+  const sessionDate = new Date(session.date);
+  return Number.isNaN(sessionDate.getTime()) ? null : sessionDate;
+}
+
+function isCompletedSession(session) {
+  const sessionDate = getSessionDate(session);
+  return Boolean(sessionDate && sessionDate < new Date());
+}
+
+function formatDuration(totalMinutes) {
+  const minutes = Number(totalMinutes || 0);
+  if (!minutes) {
+    return null;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  if (hours && remainder) {
+    return `${hours}h ${remainder}m`;
+  }
+
+  if (hours) {
+    return `${hours}h`;
+  }
+
+  return `${remainder}m`;
+}
+
+function formatSessionTimeRange(session) {
+  const sessionDate = getSessionDate(session);
+  if (!sessionDate) {
+    return 'Time not specified';
+  }
+
+  const startText = sessionDate.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const totalMinutes = Number(session.total_oob_minutes || 0);
+  if (!totalMinutes) {
+    return startText;
+  }
+
+  const endDate = new Date(sessionDate.getTime() + totalMinutes * 60000);
+  const endText = endDate.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return `${startText} - ${endText}`;
+}
+
+function matchesSessionFilter(session, filter) {
+  if (filter === 'completed') {
+    return isCompletedSession(session);
+  }
+
+  if (filter === 'upcoming') {
+    return !isCompletedSession(session);
+  }
+
+  return true;
+}
+
+function sortSessions(list, sortBy) {
+  return [...list].sort((a, b) => {
+    if (sortBy === 'date') {
+      return new Date(b.date) - new Date(a.date);
+    }
+
+    return a.title.localeCompare(b.title);
+  });
+}
+
+function SessionSection({ title, count, sessions, canCreateSession, onViewDetails, onEditSession }) {
+  if (sessions.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="session-section">
+      <div className="session-section-header">
+        <h4>{title}</h4>
+        <span className="session-section-count">{count}</span>
+      </div>
+
+      <div className="sessions-grid">
+        {sessions.map((session) => {
+          const sessionDate = new Date(session.date);
+          const status = isCompletedSession(session) ? 'Completed' : 'Upcoming';
+          const totalDuration = formatDuration(session.total_oob_minutes);
+
+          return (
+            <div key={session.id} className="session-card">
+              <div className="card-status">
+                <span className={`status-badge ${status.toLowerCase()}`}>
+                  {status}
+                </span>
+              </div>
+
+              <div className="card-content">
+                <h4>{session.title}</h4>
+
+                <div className="session-meta">
+                  <span className="meta-item">
+                    📅 {sessionDate.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </span>
+                  <span className="meta-item">
+                    🕐 {formatSessionTimeRange(session)}
+                  </span>
+                </div>
+
+                <div className="session-meta">
+                  <span className="meta-item">
+                    📍 {session.location || 'Not specified'}
+                  </span>
+                  {totalDuration && (
+                    <span className="meta-item session-duration-chip">
+                      ⏱️ {totalDuration}
+                    </span>
+                  )}
+                </div>
+
+                <RichTextContent
+                  value={session.agenda}
+                  className="session-agenda"
+                  fallback="No agenda text provided"
+                />
+              </div>
+
+              <div className="card-footer">
+                <button
+                  onClick={() => onViewDetails(session)}
+                  className="btn-view"
+                >
+                  👁️ View Details
+                </button>
+                {canCreateSession && (
+                  <button
+                    onClick={() => onEditSession(session)}
+                    className="btn-edit-card"
+                  >
+                    ✏️ Edit
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
 
 export default function SessionList() {
   const { user } = useAuth();
@@ -17,6 +178,7 @@ export default function SessionList() {
   const [selectedSession, setSelectedSession] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [sortBy, setSortBy] = useState('date');
+  const [sessionFilter, setSessionFilter] = useState('upcoming');
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -64,18 +226,42 @@ export default function SessionList() {
     setShowDetails(true);
   };
 
-  // Filter and sort
-  let filteredSessions = sessions.filter(s =>
-    s.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    s.location?.toLowerCase().includes(searchTerm.toLowerCase())
+  const searchedSessions = useMemo(
+    () => sessions.filter((session) =>
+      session.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      session.location?.toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+    [searchTerm, sessions]
   );
 
-  filteredSessions = filteredSessions.sort((a, b) => {
-    if (sortBy === 'date') {
-      return new Date(b.date) - new Date(a.date);
-    }
-    return a.title.localeCompare(b.title);
-  });
+  const filteredSessions = useMemo(
+    () => searchedSessions.filter((session) => matchesSessionFilter(session, sessionFilter)),
+    [searchedSessions, sessionFilter]
+  );
+
+  const sortedFilteredSessions = useMemo(
+    () => sortSessions(filteredSessions, sortBy),
+    [filteredSessions, sortBy]
+  );
+
+  const upcomingSessions = useMemo(
+    () => sortSessions(searchedSessions.filter((session) => !isCompletedSession(session)), sortBy),
+    [searchedSessions, sortBy]
+  );
+
+  const completedSessions = useMemo(
+    () => sortSessions(searchedSessions.filter((session) => isCompletedSession(session)), sortBy),
+    [searchedSessions, sortBy]
+  );
+
+  const sessionCounts = useMemo(
+    () => ({
+      all: searchedSessions.length,
+      upcoming: searchedSessions.filter((session) => !isCompletedSession(session)).length,
+      completed: searchedSessions.filter((session) => isCompletedSession(session)).length,
+    }),
+    [searchedSessions]
+  );
 
   const canCreateSession = ['Admin', 'Secretary'].includes(user?.role);
 
@@ -187,7 +373,19 @@ export default function SessionList() {
         </div>
       </div>
 
-      {filteredSessions.length === 0 ? (
+      <div className="session-filter-tabs" role="tablist" aria-label="Filter sessions by completion status">
+        <button className={sessionFilter === 'upcoming' ? 'session-filter-tab active' : 'session-filter-tab'} onClick={() => setSessionFilter('upcoming')}>
+          Upcoming ({sessionCounts.upcoming})
+        </button>
+        <button className={sessionFilter === 'completed' ? 'session-filter-tab active' : 'session-filter-tab'} onClick={() => setSessionFilter('completed')}>
+          Completed ({sessionCounts.completed})
+        </button>
+        <button className={sessionFilter === 'all' ? 'session-filter-tab active' : 'session-filter-tab'} onClick={() => setSessionFilter('all')}>
+          All ({sessionCounts.all})
+        </button>
+      </div>
+
+      {sortedFilteredSessions.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📅</div>
           <h4>No sessions found</h4>
@@ -203,75 +401,38 @@ export default function SessionList() {
       ) : (
         <>
           <div className="results-info">
-            <p>Showing <strong>{filteredSessions.length}</strong> of <strong>{sessions.length}</strong> sessions</p>
+            <p>Showing <strong>{sortedFilteredSessions.length}</strong> of <strong>{sessions.length}</strong> sessions</p>
           </div>
 
-          {/* Sessions Grid */}
-          <div className="sessions-grid">
-            {filteredSessions.map((session) => {
-              const sessionDate = new Date(session.date);
-              const status = sessionDate < new Date() ? 'Completed' : 'Upcoming';
-
-              return (
-                <div key={session.id} className="session-card">
-                  <div className="card-status">
-                    <span className={`status-badge ${status.toLowerCase()}`}>
-                      {status}
-                    </span>
-                  </div>
-
-                  <div className="card-content">
-                    <h4>{session.title}</h4>
-
-                    <div className="session-meta">
-                      <span className="meta-item">
-                        📅 {sessionDate.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
-                      </span>
-                      <span className="meta-item">
-                        🕐 {sessionDate.toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-
-                    <div className="session-meta">
-                      <span className="meta-item">
-                        📍 {session.location || 'Not specified'}
-                      </span>
-                    </div>
-
-                    <RichTextContent
-                      value={session.agenda}
-                      className="session-agenda"
-                      fallback="No agenda text provided"
-                    />
-                  </div>
-
-                  <div className="card-footer">
-                    <button
-                      onClick={() => handleViewDetails(session)}
-                      className="btn-view"
-                    >
-                      👁️ View Details
-                    </button>
-                    {canCreateSession && (
-                      <button
-                        onClick={() => handleEditSession(session)}
-                        className="btn-edit-card"
-                      >
-                        ✏️ Edit
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {sessionFilter === 'all' ? (
+            <div className="session-sections">
+              <SessionSection
+                title="Upcoming Sessions"
+                count={upcomingSessions.length}
+                sessions={upcomingSessions}
+                canCreateSession={canCreateSession}
+                onViewDetails={handleViewDetails}
+                onEditSession={handleEditSession}
+              />
+              <SessionSection
+                title="Completed Sessions"
+                count={completedSessions.length}
+                sessions={completedSessions}
+                canCreateSession={canCreateSession}
+                onViewDetails={handleViewDetails}
+                onEditSession={handleEditSession}
+              />
+            </div>
+          ) : (
+            <SessionSection
+              title={sessionFilter === 'completed' ? 'Completed Sessions' : 'Upcoming Sessions'}
+              count={sortedFilteredSessions.length}
+              sessions={sortedFilteredSessions}
+              canCreateSession={canCreateSession}
+              onViewDetails={handleViewDetails}
+              onEditSession={handleEditSession}
+            />
+          )}
         </>
       )}
     </div>

@@ -1,8 +1,10 @@
 /**
  * Minutes Service - Business logic for AI-powered meeting minutes generation.
  */
+const fs = require('fs');
 const OpenAI = require('openai');
 const SessionMinutes = require('../models/SessionMinutes');
+const SessionRecording = require('../models/SessionRecording');
 const AuditLog = require('../models/AuditLog');
 const { createNotification } = require('../utils/notifications');
 const { getIO } = require('../socket');
@@ -12,6 +14,7 @@ const ALLOWED_ORDERS = ['ASC', 'DESC'];
 const ALLOWED_STATUSES = ['Draft', 'Generated', 'Archived'];
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
+const SESSION_RECORDING_UPLOAD_PREFIX = '/uploads/session-recordings/';
 
 /**
  * Build an OpenAI client instance.
@@ -26,6 +29,15 @@ function buildOpenAIClient() {
     throw err;
   }
   return new OpenAI({ apiKey });
+}
+
+function resolveSessionRecordingAbsolutePath(relativePath) {
+  if (!relativePath || !String(relativePath).startsWith(SESSION_RECORDING_UPLOAD_PREFIX)) {
+    return null;
+  }
+
+  const relativeFilePath = String(relativePath).replace(/^\/uploads\//, 'uploads/');
+  return require('path').join(__dirname, '..', relativeFilePath);
 }
 
 /**
@@ -260,6 +272,69 @@ exports.updateMinutes = async (id, { title, meeting_date, participants, status }
   return minutes;
 };
 
+exports.transcribeRecording = async (minutesId, recordingId, userId) => {
+  const minutesResult = await SessionMinutes.findById(minutesId);
+  if (minutesResult.rows.length === 0) {
+    const err = new Error('Meeting minutes not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const recordingResult = await SessionRecording.findById(recordingId);
+  if (recordingResult.rows.length === 0 || String(recordingResult.rows[0].minutes_id) !== String(minutesId)) {
+    const err = new Error('Session recording not found for these minutes');
+    err.status = 404;
+    throw err;
+  }
+
+  const recording = recordingResult.rows[0];
+  const absolutePath = resolveSessionRecordingAbsolutePath(recording.recording_url);
+  if (!absolutePath || !fs.existsSync(absolutePath)) {
+    await SessionRecording.updateTranscript(recordingId, null, 'failed', 'Recording file was not found on the server.');
+    const err = new Error('Recording file was not found on the server');
+    err.status = 404;
+    throw err;
+  }
+
+  const client = buildOpenAIClient();
+
+  let transcriptText = '';
+  try {
+    const response = await client.audio.transcriptions.create({
+      file: fs.createReadStream(absolutePath),
+      model: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
+    });
+    transcriptText = String(response?.text || '').trim();
+    if (!transcriptText) {
+      throw new Error('Empty transcription response from OpenAI');
+    }
+  } catch (err) {
+    await SessionRecording.updateTranscript(recordingId, null, 'failed', err.message || 'Transcription failed');
+    if (err.status === 503) throw err;
+    const apiErr = new Error('Failed to transcribe the recording. Please try again later.');
+    apiErr.status = 502;
+    throw apiErr;
+  }
+
+  const currentMinutes = minutesResult.rows[0];
+  const mergedTranscript = currentMinutes.transcript
+    ? `${currentMinutes.transcript}\n\n---\nRecording ${recording.id} Transcript\n${transcriptText}`
+    : transcriptText;
+
+  await SessionMinutes.setTranscript(minutesId, mergedTranscript);
+  await SessionRecording.updateTranscript(recordingId, transcriptText, 'completed', null);
+  await AuditLog.create(null, userId, 'MINUTES_RECORDING_TRANSCRIBED', `Recording ${recordingId} transcribed for minutes "${currentMinutes.title}"`);
+
+  const updatedMinutesResult = await SessionMinutes.findById(minutesId);
+  const updatedMinutes = updatedMinutesResult.rows[0];
+
+  const io = getIO();
+  io.to('Admin').emit('minutesUpdated', updatedMinutes);
+  io.to('Secretary').emit('minutesUpdated', updatedMinutes);
+
+  return updatedMinutes;
+};
+
 /**
  * Delete a meeting minutes record.
  * @param {string|number} id
@@ -267,7 +342,7 @@ exports.updateMinutes = async (id, { title, meeting_date, participants, status }
  * @returns {Promise<void>}
  */
 exports.deleteMinutes = async (id, userId) => {
-  const existing = await MeetingMinutes.findById(id);
+  const existing = await SessionMinutes.findById(id);
   if (existing.rows.length === 0) {
     const err = new Error('Meeting minutes not found');
     err.status = 404;

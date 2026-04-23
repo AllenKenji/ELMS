@@ -266,41 +266,51 @@ function generateResolutionPdf(resolution, stream) {
  * @param {object[]} items - Array of order-of-business items sorted by item_number
  * @param {import('stream').Writable} stream - Destination stream (e.g. HTTP response)
  */
-function generateOrderOfBusinessPdf(session, items, stream) {
-  const doc = new PDFDocument({ margin: 60, bufferPages: true });
-  doc.pipe(stream);
+function generateOrderOfBusinessPdf(doc, items, stream) {
+  const pdfDoc = new PDFDocument({ margin: 60, bufferPages: true });
+  pdfDoc.pipe(stream);
 
-  writeHeader(doc, 'ORDER OF BUSINESS');
+  writeHeader(pdfDoc, 'ORDER OF BUSINESS');
 
-  // Session title
-  doc
+  // Document title
+  pdfDoc
     .moveDown(0.5)
     .font('Helvetica-Bold')
     .fontSize(13)
     .fillColor('#1a1a2e')
-    .text(session.title || 'Untitled Session', { align: 'center' })
+    .text(doc.title || 'Untitled Order of Business', { align: 'center' })
     .moveDown(0.4);
 
-  // Session metadata
-  doc
-    .moveTo(doc.page.margins.left, doc.y)
-    .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+  // Divider
+  pdfDoc
+    .moveTo(pdfDoc.page.margins.left, pdfDoc.y)
+    .lineTo(pdfDoc.page.width - pdfDoc.page.margins.right, pdfDoc.y)
     .strokeColor('#eeeeee')
     .stroke()
     .moveDown(0.4);
 
-  if (session.date) {
-    writeMetaRow(doc, 'Session Date', formatDate(session.date));
+  // Document metadata
+  if (doc.date) {
+    writeMetaRow(pdfDoc, 'Date', formatDate(doc.date));
   }
-  if (session.location) {
-    writeMetaRow(doc, 'Venue', session.location);
+  if (doc.time) {
+    writeMetaRow(pdfDoc, 'Time', doc.time);
   }
-  writeMetaRow(doc, 'Total Agenda Items', String(items.length));
+  if (doc.venue) {
+    writeMetaRow(pdfDoc, 'Venue', doc.venue);
+  }
+  if (doc.presiding_officer) {
+    writeMetaRow(pdfDoc, 'Presiding Officer', doc.presiding_officer);
+  }
+  if (doc.secretary) {
+    writeMetaRow(pdfDoc, 'Secretary', doc.secretary);
+  }
+  writeMetaRow(pdfDoc, 'Total Agenda Items', String(items.length));
 
-  doc
+  pdfDoc
     .moveDown(0.4)
-    .moveTo(doc.page.margins.left, doc.y)
-    .lineTo(doc.page.width - doc.page.margins.right, doc.y)
+    .moveTo(pdfDoc.page.margins.left, pdfDoc.y)
+    .lineTo(pdfDoc.page.width - pdfDoc.page.margins.right, pdfDoc.y)
     .strokeColor('#eeeeee')
     .stroke()
     .moveDown(0.6);
@@ -309,7 +319,7 @@ function generateOrderOfBusinessPdf(session, items, stream) {
   items.forEach((item, index) => {
     const num = item.item_number ?? index + 1;
 
-    doc
+    pdfDoc
       .font('Helvetica-Bold')
       .fontSize(11)
       .fillColor('#1a1a2e')
@@ -322,7 +332,7 @@ function generateOrderOfBusinessPdf(session, items, stream) {
     if (item.duration_minutes) details.push(`Duration: ${item.duration_minutes} min`);
 
     if (details.length > 0) {
-      doc
+      pdfDoc
         .font('Helvetica')
         .fontSize(9)
         .fillColor('#666666')
@@ -339,7 +349,7 @@ function generateOrderOfBusinessPdf(session, items, stream) {
         linkedLabel = `Linked Resolution: ${item.resolution_title}${item.resolution_number ? ` (No. ${item.resolution_number})` : ''}`;
       }
       if (linkedLabel) {
-        doc
+        pdfDoc
           .font('Helvetica-Oblique')
           .fontSize(9)
           .fillColor('#888888')
@@ -350,7 +360,7 @@ function generateOrderOfBusinessPdf(session, items, stream) {
 
     // Notes
     if (item.notes) {
-      doc
+      pdfDoc
         .font('Helvetica')
         .fontSize(9)
         .fillColor('#555555')
@@ -358,11 +368,11 @@ function generateOrderOfBusinessPdf(session, items, stream) {
         .moveDown(0.1);
     }
 
-    doc.moveDown(0.4);
+    pdfDoc.moveDown(0.4);
   });
 
-  writeFooter(doc);
-  doc.end();
+  writeFooter(pdfDoc);
+  pdfDoc.end();
 }
 
 module.exports = { generateOrdinancePdf, generateResolutionPdf, generateOrderOfBusinessPdf };

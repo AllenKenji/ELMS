@@ -1,10 +1,55 @@
 
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import api from '../../api/api';
 import OrderOfBusinessPanel from './OrderOfBusinessPanel';
 import { useAuth } from '../../context/useAuth';
 import '../../styles/OrderOfBusinessPage.css';
+
+function getStartOfToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function getDocumentDate(doc) {
+  if (!doc?.date) {
+    return null;
+  }
+
+  const date = new Date(doc.date);
+  date.setHours(0, 0, 0, 0);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isArchivedDocument(doc) {
+  return String(doc?.status || '').trim().toLowerCase() === 'archived';
+}
+
+function isPastDocument(doc) {
+  if (isArchivedDocument(doc)) {
+    return false;
+  }
+
+  const docDate = getDocumentDate(doc);
+  return Boolean(docDate && docDate < getStartOfToday());
+}
+
+function matchesDocumentFilter(doc, filter) {
+  if (filter === 'active') {
+    return !isArchivedDocument(doc) && !isPastDocument(doc);
+  }
+
+  if (filter === 'past') {
+    return isPastDocument(doc);
+  }
+
+  if (filter === 'archived') {
+    return isArchivedDocument(doc);
+  }
+
+  return true;
+}
 
 /* ── Default agenda sections (template) ─────────────────────────── */
 const buildDefaultSections = () => [
@@ -123,8 +168,9 @@ export default function OrderOfBusinessPage() {
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportsError, setReportsError] = useState('');
 
-  // Create form
+  // Create / Edit form
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingDocId, setEditingDocId] = useState(null);
   const [headerInfo, setHeaderInfo] = useState({
     sessionTitle: '',
     date: '',
@@ -140,15 +186,37 @@ export default function OrderOfBusinessPage() {
   const [unassignedItems, setUnassignedItems] = useState([]);
   const [unassignedLoading, setUnassignedLoading] = useState(false);
 
-  // Compiled OOB list (sessions that have OOB items)
-  const [oobSessions, setOobSessions] = useState([]);
-  const [oobSessionsLoading, setOobSessionsLoading] = useState(false);
-  const [expandedSessionId, setExpandedSessionId] = useState(null);
-  const [deletingSessionId, setDeletingSessionId] = useState(null);
+  // Compiled OOB documents list
+  const [oobDocuments, setOobDocuments] = useState([]);
+  const [oobDocsLoading, setOobDocsLoading] = useState(false);
+  const [expandedDocId, setExpandedDocId] = useState(null);
+  const [deletingDocId, setDeletingDocId] = useState(null);
+  const [archivingDocId, setArchivingDocId] = useState(null);
+  const [documentFilter, setDocumentFilter] = useState('active');
 
   const canManage = ['Secretary', 'Admin'].includes(user?.role);
 
   /* ── Fetchers ──────────────────────────────────────────────────── */
+
+  // Fetch Vice Mayor and Secretary names for auto-fill
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await api.get('/users');
+        const users = res.data || [];
+        const viceMayor = users.find(u => u.role === 'Vice Mayor' || u.role_name === 'Vice Mayor');
+        const secretary = users.find(u => u.role === 'Secretary' || u.role_name === 'Secretary');
+        setHeaderInfo(prev => ({
+          ...prev,
+          presidingOfficer: prev.presidingOfficer || viceMayor?.name || '',
+          secretary: prev.secretary || secretary?.name || '',
+        }));
+      } catch (err) {
+        console.error('Failed to fetch users for auto-fill:', err);
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -169,8 +237,17 @@ export default function OrderOfBusinessPage() {
     setReportsLoading(true);
     setReportsError('');
     try {
-      const res = await api.get('/oob/ordinances-with-committee-reports');
-      setCommitteeReports(res.data || []);
+      const [ordRes, resRes] = await Promise.all([
+        api.get('/oob/ordinances-with-committee-reports'),
+        api.get('/oob/resolutions-with-committee-reports'),
+      ]);
+      const ordReports = (ordRes.data || []).map(r => ({ ...r, type: 'ordinance' }));
+      const resReports = (resRes.data || []).map(r => ({
+        type: 'resolution',
+        ordinance: r.resolution, // map to same shape for shared UI
+        committeeReport: r.committeeReport,
+      }));
+      setCommitteeReports([...ordReports, ...resReports]);
     } catch (err) {
       setReportsError(err?.message || 'Failed to load committee reports.');
       setCommitteeReports([]);
@@ -192,16 +269,31 @@ export default function OrderOfBusinessPage() {
 
   useEffect(() => { fetchUnassigned(); }, [fetchUnassigned]);
 
-  const fetchOobSessions = useCallback(async () => {
-    setOobSessionsLoading(true);
+  const fetchOobDocuments = useCallback(async () => {
+    setOobDocsLoading(true);
     try {
-      const res = await api.get('/order-of-business/sessions-with-oob');
-      setOobSessions(res.data || []);
-    } catch { setOobSessions([]); }
-    finally { setOobSessionsLoading(false); }
+      const res = await api.get('/order-of-business/documents');
+      setOobDocuments(res.data || []);
+    } catch { setOobDocuments([]); }
+    finally { setOobDocsLoading(false); }
   }, []);
 
-  useEffect(() => { fetchOobSessions(); }, [fetchOobSessions]);
+  useEffect(() => { fetchOobDocuments(); }, [fetchOobDocuments]);
+
+  const filteredDocuments = useMemo(
+    () => oobDocuments.filter((doc) => matchesDocumentFilter(doc, documentFilter)),
+    [documentFilter, oobDocuments]
+  );
+
+  const documentCounts = useMemo(
+    () => ({
+      all: oobDocuments.length,
+      active: oobDocuments.filter((doc) => matchesDocumentFilter(doc, 'active')).length,
+      past: oobDocuments.filter((doc) => matchesDocumentFilter(doc, 'past')).length,
+      archived: oobDocuments.filter((doc) => matchesDocumentFilter(doc, 'archived')).length,
+    }),
+    [oobDocuments]
+  );
 
   /* ── Helpers ───────────────────────────────────────────────────── */
   const handleDeleteUnassigned = async (id) => {
@@ -231,17 +323,65 @@ export default function OrderOfBusinessPage() {
 
   const resetForm = () => {
     setShowCreateForm(false);
-    setHeaderInfo({ sessionTitle: '', date: '', time: '', venue: '', presidingOfficer: '', secretary: '' });
+    setEditingDocId(null);
+    setHeaderInfo(prev => ({ sessionTitle: '', date: '', time: '', venue: '', presidingOfficer: prev.presidingOfficer, secretary: prev.secretary }));
     setSections(buildDefaultSections());
   };
 
-  const handleDownloadPdf = async (sessionId) => {
+  const handleEditDocument = async (docId) => {
+    setError('');
     try {
-      const response = await api.get(`/order-of-business/${sessionId}/generate-pdf`, { responseType: 'blob' });
+      const res = await api.get(`/order-of-business/documents/${docId}`);
+      const doc = res.data;
+      setHeaderInfo({
+        sessionTitle: doc.title || '',
+        date: doc.date ? new Date(doc.date).toISOString().split('T')[0] : '',
+        time: doc.time ? doc.time.slice(0, 5) : '',
+        venue: doc.venue || '',
+        presidingOfficer: doc.presiding_officer || '',
+        secretary: doc.secretary || '',
+      });
+      if (doc.session_id) setSelectedSessionId(String(doc.session_id));
+
+      // Map items back to sections
+      const defaults = buildDefaultSections().map(s => ({ ...s, enabled: false }));
+      const docItems = doc.items || [];
+      const mappedKeys = new Set();
+      for (const item of docItems) {
+        const match = defaults.find(s => s.item_type === item.item_type && !mappedKeys.has(s.key));
+        if (match) {
+          mappedKeys.add(match.key);
+          match.enabled = true;
+          match.title = item.title || match.title;
+          match.duration_minutes = item.duration_minutes || match.duration_minutes;
+          match.notes = item.notes || '';
+          if (match.key === 'committee_reports' && item.related_document_id) {
+            match.selectedReportIds = [...(match.selectedReportIds || []), item.related_document_id];
+          }
+        }
+      }
+      // Handle extra committee report items
+      const crSection = defaults.find(s => s.key === 'committee_reports');
+      if (crSection) {
+        const crItems = docItems.filter(i => i.item_type === 'Committee Reports' && i.related_document_id);
+        crSection.selectedReportIds = crItems.map(i => i.related_document_id);
+        if (crItems.length > 0) crSection.enabled = true;
+      }
+      setSections(defaults);
+      setEditingDocId(docId);
+      setShowCreateForm(true);
+    } catch {
+      setError('Failed to load document for editing.');
+    }
+  };
+
+  const handleDownloadPdf = async (docId) => {
+    try {
+      const response = await api.get(`/order-of-business/documents/${docId}/generate-pdf`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `order-of-business-session-${sessionId}.pdf`);
+      link.setAttribute('download', `order-of-business-${docId}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -251,41 +391,59 @@ export default function OrderOfBusinessPage() {
     }
   };
 
-  const handleDeleteOobBySession = async (sessionId, sessionTitle) => {
-    if (!window.confirm(`Delete all order of business items for "${sessionTitle}"? This cannot be undone.`)) return;
-    setDeletingSessionId(sessionId);
+  const handleDeleteDocument = async (docId, docTitle) => {
+    if (!window.confirm(`Delete "${docTitle}"? This will remove the document and all its agenda items. This cannot be undone.`)) return;
+    setDeletingDocId(docId);
     setError('');
     try {
-      await api.delete(`/order-of-business/session/${sessionId}`);
-      fetchOobSessions();
-      fetchUnassigned();
+      await api.delete(`/order-of-business/documents/${docId}`);
+      fetchOobDocuments();
     } catch (err) {
       setError(err?.message || 'Failed to delete order of business.');
     } finally {
-      setDeletingSessionId(null);
+      setDeletingDocId(null);
     }
   };
 
-  /* ── Submit: Batch-create all enabled sections ─────────────────── */
+  const handleArchiveDocument = async (doc, nextStatus) => {
+    setArchivingDocId(doc.id);
+    setError('');
+    try {
+      await api.put(`/order-of-business/documents/${doc.id}`, {
+        document: {
+          title: doc.title,
+          date: doc.date || null,
+          time: doc.time || null,
+          venue: doc.venue || null,
+          presiding_officer: doc.presiding_officer || null,
+          secretary: doc.secretary || null,
+          session_id: doc.session_id || null,
+          status: nextStatus,
+        },
+      });
+      fetchOobDocuments();
+    } catch (err) {
+      setError(err?.message || `Failed to ${nextStatus === 'Archived' ? 'archive' : 'restore'} order of business.`);
+    } finally {
+      setArchivingDocId(null);
+    }
+  };
+
+  /* ── Submit: Create or Update OOB document ─────────────────── */
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
     const enabled = sections.filter(s => s.enabled);
     if (enabled.length === 0) return;
+    if (!headerInfo.sessionTitle) {
+      setError('Session Title is required.');
+      return;
+    }
 
     setSaving(true);
     setError('');
 
-    // Build header notes string for Call to Order item
-    const headerParts = [];
-    if (headerInfo.sessionTitle) headerParts.push(`Session: ${headerInfo.sessionTitle}`);
-    if (headerInfo.date) headerParts.push(`Date: ${headerInfo.date}`);
-    if (headerInfo.time) headerParts.push(`Time: ${headerInfo.time}`);
-    if (headerInfo.venue) headerParts.push(`Venue: ${headerInfo.venue}`);
-    if (headerInfo.presidingOfficer) headerParts.push(`Presiding Officer: ${headerInfo.presidingOfficer}`);
-    if (headerInfo.secretary) headerParts.push(`Secretary: ${headerInfo.secretary}`);
-
     try {
-      // Expand committee reports section into individual items per selected report
+      // Build items array from enabled sections
       const items = [];
       for (const sec of enabled) {
         if (sec.key === 'committee_reports' && sec.selectedReportIds?.length > 0) {
@@ -294,34 +452,45 @@ export default function OrderOfBusinessPage() {
             items.push({
               title: rep ? `Committee Report: ${rep.ordinance.title}` : sec.title,
               item_type: 'Committee Reports',
-              related_document_type: 'ordinance',
+              related_document_type: rep?.type === 'resolution' ? 'resolution' : 'ordinance',
               related_document_id: ordId,
               duration_minutes: sec.duration_minutes ? parseInt(sec.duration_minutes, 10) : null,
               notes: rep ? `Committee: ${rep.committeeReport.committee_name} | Recommendation: ${rep.committeeReport.recommendation}` : sec.notes,
-              session_id: selectedSessionId || null,
             });
           }
         } else {
-          const notes =
-            sec.key === 'call_to_order' && headerParts.length
-              ? [headerParts.join('\n'), sec.notes].filter(Boolean).join('\n\n')
-              : sec.notes;
           items.push({
             title: sec.title,
             item_type: sec.item_type,
             duration_minutes: sec.duration_minutes ? parseInt(sec.duration_minutes, 10) : null,
-            notes: notes || null,
-            session_id: selectedSessionId || null,
+            notes: sec.notes || null,
           });
         }
       }
 
-      await api.post('/order-of-business/batch', { items });
+      const payload = {
+        document: {
+          title: headerInfo.sessionTitle,
+          date: headerInfo.date || null,
+          time: headerInfo.time || null,
+          venue: headerInfo.venue || null,
+          presiding_officer: headerInfo.presidingOfficer || null,
+          secretary: headerInfo.secretary || null,
+          session_id: selectedSessionId || null,
+        },
+        items,
+      };
+
+      if (editingDocId) {
+        await api.put(`/order-of-business/documents/${editingDocId}`, payload);
+      } else {
+        await api.post('/order-of-business/documents', payload);
+      }
+
       resetForm();
-      fetchUnassigned();
-      fetchOobSessions();
+      fetchOobDocuments();
     } catch {
-      setError('Failed to create order of business.');
+      setError(editingDocId ? 'Failed to update order of business.' : 'Failed to create order of business.');
     } finally {
       setSaving(false);
     }
@@ -368,53 +537,108 @@ export default function OrderOfBusinessPage() {
       {/* ── OOB Tab ──────────────────────────────────────────────── */}
       {activeTab === 'oob' ? (
         <div>
-          {/* ── Compiled OOB List (primary view) ─────────────────── */}
-          {oobSessionsLoading ? (
+          {/* ── Compiled OOB Documents List (primary view) ───────── */}
+          {oobDocsLoading ? (
             <div className="oob-compiled-loading">Loading created agendas...</div>
-          ) : oobSessions.length > 0 ? (
+          ) : oobDocuments.length > 0 ? (
             <div className="oob-compiled-section">
-              <h4 className="oob-compiled-title">📂 Created Order of Business</h4>
-              <ul className="oob-compiled-list">
-                {oobSessions.map((s) => (
-                  <li key={s.id} className={`oob-compiled-item${expandedSessionId === String(s.id) ? ' expanded' : ''}`}>
-                    <div className="oob-compiled-row">
+              <div className="oob-compiled-header">
+                <h4 className="oob-compiled-title">📂 Created Order of Business</h4>
+                <div className="oob-doc-filters" role="tablist" aria-label="Filter order of business documents">
+                  <button className={documentFilter === 'active' ? 'oob-doc-filter active' : 'oob-doc-filter'} onClick={() => setDocumentFilter('active')}>
+                    Active ({documentCounts.active})
+                  </button>
+                  <button className={documentFilter === 'past' ? 'oob-doc-filter active' : 'oob-doc-filter'} onClick={() => setDocumentFilter('past')}>
+                    Past ({documentCounts.past})
+                  </button>
+                  <button className={documentFilter === 'archived' ? 'oob-doc-filter active' : 'oob-doc-filter'} onClick={() => setDocumentFilter('archived')}>
+                    Archived ({documentCounts.archived})
+                  </button>
+                  <button className={documentFilter === 'all' ? 'oob-doc-filter active' : 'oob-doc-filter'} onClick={() => setDocumentFilter('all')}>
+                    All ({documentCounts.all})
+                  </button>
+                </div>
+              </div>
+              {filteredDocuments.length === 0 ? (
+                <div className="oob-page-empty">No order of business documents match this filter.</div>
+              ) : (
+              <ol className="committee-reports-list">
+                {filteredDocuments.map((doc) => {
+                  const archived = isArchivedDocument(doc);
+                  const past = isPastDocument(doc);
+
+                  return (
+                  <li key={doc.id} className="committee-report-item">
+                    <div className="cr-header">
                       <button
-                        className="oob-compiled-name"
-                        onClick={() => setExpandedSessionId(expandedSessionId === String(s.id) ? null : String(s.id))}
+                        className="cr-title oob-compiled-name-btn"
+                        onClick={() => setExpandedDocId(expandedDocId === doc.id ? null : doc.id)}
                         title="Click to view/edit items"
                       >
-                        <span className="oob-compiled-expand-icon">{expandedSessionId === String(s.id) ? '▼' : '▶'}</span>
-                        <span className="oob-compiled-session-title">{s.title}</span>
-                        <span className="oob-compiled-count">{s.item_count} item{s.item_count !== 1 ? 's' : ''}</span>
+                        <span className="oob-compiled-expand-icon">{expandedDocId === doc.id ? '▼' : '▶'}</span>
+                        {doc.title}
                       </button>
-                      <div className="oob-compiled-actions">
-                        <button
-                          className="oob-compiled-btn oob-compiled-btn-pdf"
-                          onClick={() => handleDownloadPdf(s.id)}
-                          title="Download PDF"
-                        >
-                          📄 PDF
-                        </button>
-                        {canManage && (
-                          <button
-                            className="oob-compiled-btn oob-compiled-btn-delete"
-                            onClick={() => handleDeleteOobBySession(s.id, s.title)}
-                            disabled={deletingSessionId === s.id}
-                            title="Delete all items for this session"
-                          >
-                            {deletingSessionId === s.id ? '…' : '🗑️ Delete'}
-                          </button>
-                        )}
+                      <div className="oob-doc-badges">
+                        <span className="oob-item-type-badge">{doc.item_count} item{doc.item_count !== 1 ? 's' : ''}</span>
+                        {past && <span className="oob-item-type-badge oob-doc-badge-past">Past</span>}
+                        {archived && <span className="oob-item-type-badge oob-doc-badge-archived">Archived</span>}
                       </div>
                     </div>
-                    {expandedSessionId === String(s.id) && (
+                    <div className="cr-meta">
+                      {doc.date && <span><strong>Date:</strong> {new Date(doc.date).toLocaleDateString()}</span>}
+                      {doc.venue && <span><strong>Venue:</strong> {doc.venue}</span>}
+                      {doc.presiding_officer && <span><strong>Presiding Officer:</strong> {doc.presiding_officer}</span>}
+                      {doc.secretary && <span><strong>Secretary:</strong> {doc.secretary}</span>}
+                      <span className="oob-item-type-badge">{doc.status}</span>
+                    </div>
+                    <div className="oob-compiled-actions">
+                      <button
+                        className="oob-compiled-btn oob-compiled-btn-pdf"
+                        onClick={() => handleDownloadPdf(doc.id)}
+                        title="Download PDF"
+                      >
+                        📄 Download PDF
+                      </button>
+                      {canManage && (
+                        <>
+                          {(past || archived) && (
+                            <button
+                              className="oob-compiled-btn oob-compiled-btn-archive"
+                              onClick={() => handleArchiveDocument(doc, archived ? 'Draft' : 'Archived')}
+                              disabled={archivingDocId === doc.id}
+                              title={archived ? 'Restore this order of business' : 'Archive this past order of business'}
+                            >
+                              {archivingDocId === doc.id ? '…' : archived ? '↩ Restore' : '🗄 Archive'}
+                            </button>
+                          )}
+                          <button
+                            className="oob-compiled-btn oob-compiled-btn-edit"
+                            onClick={() => handleEditDocument(doc.id)}
+                            title="Edit this order of business"
+                          >
+                            ✏️ Edit
+                          </button>
+                          <button
+                            className="oob-compiled-btn oob-compiled-btn-delete"
+                            onClick={() => handleDeleteDocument(doc.id, doc.title)}
+                            disabled={deletingDocId === doc.id}
+                            title="Delete this order of business"
+                          >
+                            {deletingDocId === doc.id ? '…' : '🗑️ Delete'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                    {expandedDocId === doc.id && doc.session_id && (
                       <div className="oob-compiled-panel">
-                        <OrderOfBusinessPanel sessionId={String(s.id)} />
+                        <OrderOfBusinessPanel sessionId={String(doc.session_id)} />
                       </div>
                     )}
                   </li>
-                ))}
-              </ul>
+                  );
+                })}
+              </ol>
+              )}
             </div>
           ) : (
             !unassignedItems.length && !unassignedLoading && (
@@ -433,7 +657,7 @@ export default function OrderOfBusinessPage() {
 
           {canManage && showCreateForm && (
             <div className="oob-create-form-wrapper">
-              <h4 className="oob-create-form-title">Create Order of Business</h4>
+              <h4 className="oob-create-form-title">{editingDocId ? 'Edit Order of Business' : 'Create Order of Business'}</h4>
               <form className="oob-create-form" onSubmit={handleCreateSubmit}>
 
                 {/* ▸ Header Information */}
@@ -511,7 +735,7 @@ export default function OrderOfBusinessPage() {
                                 ) : (
                                   <div className="oob-cr-checkbox-list">
                                     {committeeReports.map(rep => (
-                                      <label key={rep.committeeReport.id} className="oob-cr-checkbox-item">
+                                      <label key={`${rep.type || 'ordinance'}-${rep.committeeReport.id}`} className="oob-cr-checkbox-item">
                                         <input
                                           type="checkbox"
                                           checked={(sec.selectedReportIds || []).includes(rep.ordinance.id)}
@@ -523,6 +747,7 @@ export default function OrderOfBusinessPage() {
                                             {rep.committeeReport.recommendation}
                                           </span>
                                           <span className="oob-cr-committee-name">{rep.committeeReport.committee_name}</span>
+                                          <span className="oob-item-type-badge">{rep.type === 'resolution' ? 'Resolution' : 'Ordinance'}</span>
                                         </span>
                                       </label>
                                     ))}
@@ -545,7 +770,12 @@ export default function OrderOfBusinessPage() {
                 <div className="oob-form-actions">
                   <button type="button" className="oob-btn-cancel" onClick={resetForm}>Cancel</button>
                   <button type="submit" className="oob-btn-submit" disabled={saving || sections.every(s => !s.enabled)}>
-                    {saving ? 'Creating…' : `Create Agenda (${sections.filter(s => s.enabled).length + ((crSection?.selectedReportIds?.length || 1) - 1)} items)`}
+                    {saving
+                      ? (editingDocId ? 'Saving…' : 'Creating…')
+                      : (editingDocId
+                          ? `Save Changes (${sections.filter(s => s.enabled).length + ((crSection?.selectedReportIds?.length || 1) - 1)} items)`
+                          : `Create Agenda (${sections.filter(s => s.enabled).length + ((crSection?.selectedReportIds?.length || 1) - 1)} items)`)
+                    }
                   </button>
                 </div>
               </form>
@@ -591,10 +821,11 @@ export default function OrderOfBusinessPage() {
           ) : (
             <ol className="committee-reports-list">
               {committeeReports.map(rep => (
-                <li key={rep.committeeReport.id} className="committee-report-item">
+                <li key={`${rep.type || 'ordinance'}-${rep.committeeReport.id}`} className="committee-report-item">
                   <div className="cr-header">
-                    <span className="cr-title">{rep.ordinance?.title || 'Ordinance'}</span>
+                    <span className="cr-title">{rep.ordinance?.title || (rep.type === 'resolution' ? 'Resolution' : 'Ordinance')}</span>
                     <span className={'cr-recommendation rec-' + (rep.committeeReport.recommendation || '').toLowerCase()}>{rep.committeeReport.recommendation}</span>
+                    <span className="oob-item-type-badge">{rep.type === 'resolution' ? 'Resolution' : 'Ordinance'}</span>
                   </div>
                   <div className="cr-meta">
                     <span><strong>Committee:</strong> {rep.committeeReport.committee_name}</span>
@@ -602,7 +833,8 @@ export default function OrderOfBusinessPage() {
                     {rep.committeeReport.meeting_date && <span><strong>Meeting date:</strong> {new Date(rep.committeeReport.meeting_date).toLocaleDateString()}</span>}
                   </div>
                   {rep.committeeReport.report_content && <div className="cr-content"><strong>Report:</strong> <p>{rep.committeeReport.report_content}</p></div>}
-                  {rep.ordinance?.ordinance_number && <div className="cr-ord-num">Ordinance No: {rep.ordinance.ordinance_number}</div>}
+                  {rep.type !== 'resolution' && rep.ordinance?.ordinance_number && <div className="cr-ord-num">Ordinance No: {rep.ordinance.ordinance_number}</div>}
+                  {rep.type === 'resolution' && rep.ordinance?.resolution_number && <div className="cr-ord-num">Resolution No: {rep.ordinance.resolution_number}</div>}
                 </li>
               ))}
             </ol>

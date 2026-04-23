@@ -3,6 +3,7 @@
  */
 const pool = require('../db');
 const Ordinance = require('../models/Ordinance');
+const Vote = require('../models/Vote');
 const AuditLog = require('../models/AuditLog');
 const { createNotification } = require('../utils/notifications');
 const { getIO } = require('../socket');
@@ -370,6 +371,7 @@ exports.changeStatus = async (id, status, notes, userId, userRole) => {
     const ordinance = ordinanceResult.rows[0];
     await Ordinance.insertWorkflowAction(client, id, 'STATUS_CHANGE', status, userId, notes || '');
 
+    if (status === 'Submitted') await Ordinance.setReadingStage(client, id, 'SUBMITTED', 'Submitted');
     if (status === 'Approved') await Ordinance.setApprovedDate(client, id);
     if (status === 'Published') await Ordinance.setPublishedDate(client, id);
 
@@ -606,10 +608,13 @@ exports.assignCommittee = async (id, committeeId, userId, meetingDetails = {}) =
     const existing = await Ordinance.findById(id);
     if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
     const ordinance = existing.rows[0];
-    if (![ 'DRAFT', 'SUBMITTED', null, undefined ].includes((ordinance.reading_stage || '').toUpperCase())) {
+    const stage = (ordinance.reading_stage || '').toUpperCase();
+    if (stage !== 'FIRST_READING') {
       await client.query('ROLLBACK');
-      const e = new Error('Committee assignment requires ordinance to be in DRAFT or SUBMITTED stage'); e.status = 400; throw e;
+      const currentStage = stage || 'DRAFT';
+      const e = new Error(`Committee assignment requires ordinance to be in FIRST_READING stage. Current stage: ${currentStage}`); e.status = 400; throw e;
     }
+    const targetStage = 'COMMITTEE_REVIEW';
 
     // 1. Ensure committee secretary exists (create if needed)
     let committeeSecretaryId = meetingDetails.secretary_user_id;
@@ -621,7 +626,7 @@ exports.assignCommittee = async (id, committeeId, userId, meetingDetails = {}) =
       } else {
         // Create new user with role 'Committee Secretary'
         const insertUser = await client.query(
-          `INSERT INTO users (name, email, role_id, created_at) VALUES ($1, $2, (SELECT id FROM roles WHERE name='Committee Secretary' LIMIT 1), NOW()) RETURNING id`,
+          `INSERT INTO users (name, email, role_id, created_at) VALUES ($1, $2, (SELECT id FROM roles WHERE role_name='Committee Secretary' LIMIT 1), NOW()) RETURNING id`,
           [meetingDetails.secretary_name || 'Committee Secretary', meetingDetails.secretary_email]
         );
         committeeSecretaryId = insertUser.rows[0].id;
@@ -637,16 +642,15 @@ exports.assignCommittee = async (id, committeeId, userId, meetingDetails = {}) =
     }
 
     // 2. Assign committee and set meeting details (store in ordinance or related table as needed)
-    const updated = await Ordinance.assignCommittee(client, id, committeeId, userId);
-    // Optionally, store meeting date/time in a new table or as extra fields (not shown here)
-    // e.g., await Ordinance.setCommitteeMeeting(client, id, meetingDetails.meeting_date, meetingDetails.meeting_time, committeeSecretaryId);
+    const updated = await Ordinance.assignCommittee(client, id, committeeId, userId, targetStage);
 
     await Ordinance.insertWorkflowAction(
-      client, id, 'ASSIGN_COMMITTEE', 'COMMITTEE_REVIEW', userId,
+      client, id, 'ASSIGN_COMMITTEE', targetStage, userId,
       `Assigned to committee ${committeeId}. Meeting: ${meetingDetails.meeting_date || ''} ${meetingDetails.meeting_time || ''}. Committee Secretary: ${committeeSecretaryId || ''}`
     );
     await AuditLog.create(client, userId, 'COMMITTEE_ASSIGNED', `Committee ${committeeId} assigned to "${ordinance.title}"`);
-    await createNotification(ordinance.proposer_id, `Your ordinance "${ordinance.title}" has been assigned to a committee.`);
+    const notifMsg = `Your ordinance "${ordinance.title}" has been assigned to a committee.`;
+    await createNotification(ordinance.proposer_id, notifMsg);
     const io = getIO();
     io.emit('ordinanceCommitteeAssigned', updated.rows[0]);
 
@@ -680,10 +684,11 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     const existing = await Ordinance.findById(id);
     if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
     const ordinance = existing.rows[0];
-    if (ordinance.reading_stage !== 'COMMITTEE_REVIEW' && ordinance.reading_stage !== 'COMMITTEE_REPORT_SUBMITTED') {
+    if (!['COMMITTEE_REVIEW', 'COMMITTEE_REPORT_SUBMITTED'].includes(ordinance.reading_stage)) {
       await client.query('ROLLBACK');
       const e = new Error('Committee report requires ordinance to be in COMMITTEE_REVIEW or COMMITTEE_REPORT_SUBMITTED stage'); e.status = 400; throw e;
     }
+    const reportTargetStage = 'COMMITTEE_REPORT_SUBMITTED';
 
     // Debug logging for permission check
     const committeeId = reportData.committee_id || ordinance.committee_id;
@@ -715,12 +720,12 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     });
 
     await client.query(
-      `UPDATE ordinances SET committee_report_id=$1, reading_stage='COMMITTEE_REPORT_SUBMITTED', updated_at=NOW() WHERE id=$2`,
-      [report.rows[0].id, id]
+      `UPDATE ordinances SET committee_report_id=$1, reading_stage=$3, updated_at=NOW() WHERE id=$2`,
+      [report.rows[0].id, id, reportTargetStage]
     );
     const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
-    await Ordinance.insertWorkflowAction(client, id, 'COMMITTEE_REPORT', 'COMMITTEE_REPORT_SUBMITTED', userId, `Recommendation: ${reportData.recommendation}`);
-    await AuditLog.create(client, userId, 'COMMITTEE_REPORT_SUBMITTED', `Committee report submitted for "${ordinance.title}" and moved to Committee Report Submitted stage`);
+    await Ordinance.insertWorkflowAction(client, id, 'COMMITTEE_REPORT', reportTargetStage, userId, `Recommendation: ${reportData.recommendation}`);
+    await AuditLog.create(client, userId, reportTargetStage, `Committee report submitted for "${ordinance.title}"`);
 
     // Notify proposer
     await createNotification(ordinance.proposer_id, `Committee report submitted for your ordinance "${ordinance.title}". Recommendation: ${reportData.recommendation}`);
@@ -730,12 +735,12 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     for (const user of usersRes.rows) {
       await createNotification(
         user.id,
-        `A committee report was submitted for ordinance "${ordinance.title}". Recommendation: ${reportData.recommendation}`,
+        `Committee report was submitted for ordinance "${ordinance.title}". Recommendation: ${reportData.recommendation}`,
         { type: 'activity', title: 'Committee Report Submitted', relatedId: id, relatedType: 'ordinance' }
       );
     }
 
-    // Notify Secretary for scheduling first reading (real-time)
+    // Notify Secretary for scheduling reading (real-time)
     const io = getIO();
     io.to('Secretary').emit('committeeReportSubmitted', { ordinance: updated.rows[0], report: report.rows[0] });
 
@@ -779,10 +784,10 @@ exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingO
 };
 
 /**
- * Stage 6: Third Reading — final voting.
- * Transitions: SECOND_READING → THIRD_READING_VOTED (or REJECTED if failed)
+ * Stage 6a: Secretary opens electronic voting for third reading.
+ * Transitions: SECOND_READING → THIRD_READING_VOTING
  */
-exports.conductThirdReadingVote = async (id, sessionId, yesCount, noCount, abstainCount, presidingOfficer, userId) => {
+exports.openThirdReadingVote = async (id, sessionId, presidingOfficer, userId) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -792,30 +797,234 @@ exports.conductThirdReadingVote = async (id, sessionId, yesCount, noCount, absta
     const ordinance = existing.rows[0];
     if (ordinance.reading_stage !== 'SECOND_READING') {
       await client.query('ROLLBACK');
-      const e = new Error('Third Reading requires ordinance to be in SECOND_READING stage'); e.status = 400; throw e;
+      const e = new Error('Opening voting requires ordinance to be in SECOND_READING stage'); e.status = 400; throw e;
+    }
+
+    // Check if there's already an active voting session for this ordinance
+    const existingSession = await client.query(
+      `SELECT id FROM voting_sessions WHERE ordinance_id = $1 AND status = 'active'`, [id]
+    );
+    if (existingSession.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('There is already an active voting session for this ordinance'); e.status = 400; throw e;
+    }
+
+    // Create a voting session
+    const vsRes = await client.query(
+      `INSERT INTO voting_sessions (title, description, ordinance_id, question, voting_type, created_by, status, created_at)
+       VALUES ($1, $2, $3, $4, 'yes_no_abstain', $5, 'active', NOW()) RETURNING *`,
+      [
+        `Third Reading Vote: ${ordinance.title}`,
+        `Electronic voting for the third reading of "${ordinance.title}"`,
+        id,
+        `Do you approve the proposed ordinance "${ordinance.title}"?`,
+        userId
+      ]
+    );
+    const votingSession = vsRes.rows[0];
+
+    // Transition ordinance to THIRD_READING_VOTING
+    await client.query(
+      `UPDATE ordinances SET reading_stage='THIRD_READING_VOTING', session_id_third_reading=$1, updated_at=NOW() WHERE id=$2`,
+      [sessionId || null, id]
+    );
+    const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
+
+    await Ordinance.insertWorkflowAction(client, id, 'OPEN_THIRD_READING_VOTE', 'THIRD_READING_VOTING', userId,
+      `Electronic voting opened. Session: ${votingSession.id}`);
+    await AuditLog.create(client, userId, 'OPEN_THIRD_READING_VOTE', `Third reading voting opened for "${ordinance.title}"`);
+
+    // Notify all councilors
+    const councilors = await client.query(
+      `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name = 'Councilor'`
+    );
+    for (const c of councilors.rows) {
+      await createNotification(c.id, `Voting is now open for "${ordinance.title}". Please cast your vote.`);
+    }
+
+    const io = getIO();
+    io.emit('thirdReadingVoteOpened', { ordinance: updated.rows[0], votingSession });
+
+    await client.query('COMMIT');
+    return { ordinance: updated.rows[0], votingSession };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Stage 6b: Councilor casts their vote in the third reading.
+ */
+exports.castThirdReadingVote = async (ordinanceId, voteOption, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(ordinanceId);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'THIRD_READING_VOTING') {
+      await client.query('ROLLBACK');
+      const e = new Error('Voting is not currently open for this ordinance'); e.status = 400; throw e;
+    }
+
+    // Find the active voting session
+    const vsRes = await client.query(
+      `SELECT * FROM voting_sessions WHERE ordinance_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`, [ordinanceId]
+    );
+    if (!vsRes.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('No active voting session found'); e.status = 400; throw e;
+    }
+    const session = vsRes.rows[0];
+
+    // Validate vote option
+    const allowed = ['Yes', 'No', 'Abstain'];
+    if (!allowed.includes(voteOption)) {
+      await client.query('ROLLBACK');
+      const e = new Error(`Invalid vote option. Allowed: ${allowed.join(', ')}`); e.status = 400; throw e;
+    }
+
+    // Check if already voted
+    const existingVote = await client.query(
+      'SELECT id FROM votes WHERE session_id = $1 AND user_id = $2', [session.id, userId]
+    );
+    if (existingVote.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('You have already cast your vote'); e.status = 400; throw e;
+    }
+
+    // Cast the vote
+    await client.query(
+      `INSERT INTO votes (session_id, user_id, vote_option, voted_at) VALUES ($1, $2, $3, NOW()) RETURNING *`,
+      [session.id, userId, voteOption]
+    );
+
+    await AuditLog.create(client, userId, 'CAST_VOTE', `Voted "${voteOption}" on "${ordinance.title}"`);
+
+    // Get updated results
+    const results = await client.query(
+      `SELECT vote_option, COUNT(*)::int as count FROM votes WHERE session_id = $1 GROUP BY vote_option`, [session.id]
+    );
+    const totalVotes = await client.query(
+      'SELECT COUNT(*)::int as total FROM votes WHERE session_id = $1', [session.id]
+    );
+    const totalCouncilors = await client.query(
+      `SELECT COUNT(*)::int as total FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name = 'Councilor'`
+    );
+
+    const io = getIO();
+    io.emit('thirdReadingVoteCast', {
+      ordinance_id: ordinanceId,
+      voting_session_id: session.id,
+      results: results.rows,
+      totalVotes: totalVotes.rows[0].total,
+      totalCouncilors: totalCouncilors.rows[0].total,
+    });
+
+    await client.query('COMMIT');
+    return {
+      results: results.rows,
+      totalVotes: totalVotes.rows[0].total,
+      totalCouncilors: totalCouncilors.rows[0].total,
+    };
+  } catch (err) { await client.query('ROLLBACK'); throw err; } finally { client.release(); }
+};
+
+/**
+ * Get current voting status for an ordinance's third reading.
+ */
+exports.getThirdReadingVotingStatus = async (ordinanceId, userId) => {
+  const vsRes = await pool.query(
+    `SELECT * FROM voting_sessions WHERE ordinance_id = $1 ORDER BY created_at DESC LIMIT 1`, [ordinanceId]
+  );
+  if (!vsRes.rows.length) return { votingSession: null, results: [], userVote: null, totalVotes: 0, totalCouncilors: 0, voters: [] };
+  const session = vsRes.rows[0];
+
+  const [results, userVote, totalVotes, totalCouncilors, voters] = await Promise.all([
+    pool.query(`SELECT vote_option, COUNT(*)::int as count FROM votes WHERE session_id = $1 GROUP BY vote_option`, [session.id]),
+    pool.query('SELECT vote_option FROM votes WHERE session_id = $1 AND user_id = $2', [session.id, userId]),
+    pool.query('SELECT COUNT(*)::int as total FROM votes WHERE session_id = $1', [session.id]),
+    pool.query(`SELECT COUNT(*)::int as total FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name = 'Councilor'`),
+    pool.query(
+      `SELECT u.id, u.name, v.vote_option, v.voted_at FROM votes v JOIN users u ON u.id = v.user_id WHERE v.session_id = $1 ORDER BY v.voted_at`,
+      [session.id]
+    ),
+  ]);
+
+  return {
+    votingSession: session,
+    results: results.rows,
+    userVote: userVote.rows[0]?.vote_option || null,
+    totalVotes: totalVotes.rows[0].total,
+    totalCouncilors: totalCouncilors.rows[0].total,
+    voters: voters.rows,
+  };
+};
+
+/**
+ * Stage 6c: Secretary closes electronic voting and records the result.
+ * Transitions: THIRD_READING_VOTING → THIRD_READING_VOTED (or REJECTED)
+ */
+exports.closeThirdReadingVote = async (id, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
+    const ordinance = existing.rows[0];
+    if (ordinance.reading_stage !== 'THIRD_READING_VOTING') {
+      await client.query('ROLLBACK');
+      const e = new Error('Closing voting requires ordinance to be in THIRD_READING_VOTING stage'); e.status = 400; throw e;
+    }
+
+    // Find the active voting session
+    const vsRes = await client.query(
+      `SELECT * FROM voting_sessions WHERE ordinance_id = $1 AND status = 'active' ORDER BY created_at DESC LIMIT 1`, [id]
+    );
+    if (!vsRes.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('No active voting session found'); e.status = 400; throw e;
+    }
+    const session = vsRes.rows[0];
+
+    // Close the voting session
+    await client.query(`UPDATE voting_sessions SET status = 'closed', closed_at = NOW() WHERE id = $1`, [session.id]);
+
+    // Tally the votes
+    const results = await client.query(
+      `SELECT vote_option, COUNT(*)::int as count FROM votes WHERE session_id = $1 GROUP BY vote_option`, [session.id]
+    );
+    let yesCount = 0, noCount = 0, abstainCount = 0;
+    for (const r of results.rows) {
+      if (r.vote_option === 'Yes') yesCount = r.count;
+      else if (r.vote_option === 'No') noCount = r.count;
+      else if (r.vote_option === 'Abstain') abstainCount = r.count;
     }
 
     const passed = yesCount > noCount;
     const votingResults = { yes_count: yesCount, no_count: noCount, abstain_count: abstainCount, passed, passed_at: new Date() };
 
+    const sessionId = ordinance.session_id_third_reading;
     if (passed) {
       await Ordinance.recordVote(client, id, votingResults, sessionId);
     } else {
       await client.query(
-        `UPDATE ordinances SET voting_results=$1, voted_at=NOW(), session_id_third_reading=$2,
-         reading_stage='REJECTED', status='Rejected', updated_at=NOW() WHERE id=$3`,
-        [JSON.stringify(votingResults), sessionId || null, id]
+        `UPDATE ordinances SET voting_results=$1, voted_at=NOW(),
+         reading_stage='REJECTED', status='Rejected', updated_at=NOW() WHERE id=$2`,
+        [JSON.stringify(votingResults), id]
       );
     }
     const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
-    await Ordinance.insertReadingSession(client, id, sessionId, 3, `Yes:${yesCount} No:${noCount} Abstain:${abstainCount}`, presidingOfficer);
-    await Ordinance.insertWorkflowAction(client, id, 'THIRD_READING_VOTE', passed ? 'THIRD_READING_VOTED' : 'REJECTED', userId,
+
+    await Ordinance.insertReadingSession(client, id, sessionId, 3, `Yes:${yesCount} No:${noCount} Abstain:${abstainCount}`, null);
+    await Ordinance.insertWorkflowAction(client, id, 'CLOSE_THIRD_READING_VOTE', passed ? 'THIRD_READING_VOTED' : 'REJECTED', userId,
       `Yes:${yesCount} No:${noCount} Abstain:${abstainCount} — ${passed ? 'PASSED' : 'FAILED'}`);
-    await AuditLog.create(client, userId, 'THIRD_READING_VOTE', `Third reading vote for "${ordinance.title}": ${passed ? 'Passed' : 'Failed'}`);
+    await AuditLog.create(client, userId, 'CLOSE_THIRD_READING_VOTE', `Third reading vote for "${ordinance.title}": ${passed ? 'Passed' : 'Failed'} (Yes:${yesCount} No:${noCount} Abstain:${abstainCount})`);
     await createNotification(ordinance.proposer_id,
       `Third reading vote for your ordinance "${ordinance.title}" ${passed ? 'PASSED' : 'FAILED'} (Yes:${yesCount} No:${noCount} Abstain:${abstainCount}).`);
+
     const io = getIO();
-    io.emit('ordinanceThirdReadingVoted', { ordinance: updated.rows[0], passed, votingResults });
+    io.emit('thirdReadingVoteClosed', { ordinance: updated.rows[0], passed, votingResults });
 
     await client.query('COMMIT');
     return { ordinance: updated.rows[0], passed, votingResults };
@@ -1009,6 +1218,14 @@ exports.addAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNumbe
 };
 
 /**
+ * Add a resolution to a session agenda.
+ */
+exports.addResolutionAgendaItem = async (sessionId, resolutionId, agendaOrder, readingNumber) => {
+  const result = await Ordinance.upsertResolutionAgendaItem(sessionId, resolutionId, agendaOrder, readingNumber);
+  return result.rows[0];
+};
+
+/**
  * Get all agenda items for a session.
  */
 exports.getSessionAgenda = async (sessionId) => {
@@ -1021,6 +1238,14 @@ exports.getSessionAgenda = async (sessionId) => {
  */
 exports.removeAgendaItem = async (sessionId, ordinanceId) => {
   const result = await Ordinance.removeAgendaItem(sessionId, ordinanceId);
+  return result.rows[0] || null;
+};
+
+/**
+ * Remove a resolution from a session agenda.
+ */
+exports.removeResolutionAgendaItem = async (sessionId, resolutionId) => {
+  const result = await Ordinance.removeResolutionAgendaItem(sessionId, resolutionId);
   return result.rows[0] || null;
 };
 

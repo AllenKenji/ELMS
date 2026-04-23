@@ -1,36 +1,50 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import LocalMeetingRecorder from '../common/LocalMeetingRecorder';
 import '../../styles/OrdinanceWorkflow.css';
+
+function getLatestEndedMeeting(meetings, ordinanceId) {
+  return meetings.find((meeting) => meeting.ordinance_id === ordinanceId && meeting.ended);
+}
+
+function normalizeAttendeesInput(attendeesValue) {
+  if (Array.isArray(attendeesValue)) {
+    return attendeesValue.join(', ');
+  }
+
+  return String(attendeesValue || '').trim();
+}
 
 const STAGES = [
   { key: 'DRAFT', label: '0. Draft', icon: '✏️', desc: 'Councilor is preparing the proposed measure' },
-  { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Councilor submitted to Vice Mayor' },
-  { key: 'COMMITTEE_REVIEW', label: '2. Committee Review', icon: '🔍', desc: 'Referred to committee for deliberation' },
-  { key: 'COMMITTEE_REPORT_SUBMITTED', label: '3. Committee Report', icon: '📋', desc: 'Committee submitted its recommendation' },
-  { key: 'FIRST_READING', label: '4. First Reading', icon: '📖', desc: 'Read aloud in session for the first time' },
-  { key: 'SECOND_READING', label: '5. Second Reading', icon: '📖', desc: 'Deliberated in full session' },
-  { key: 'THIRD_READING_VOTED', label: '6. Third Reading / Vote', icon: '🗳️', desc: 'Final vote taken by full council' },
-  { key: 'APPROVED', label: '7. Executive Approved', icon: '✅', desc: 'Vice Mayor/Mayor approved the measure' },
-  { key: 'POSTED', label: '8. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
-  { key: 'EFFECTIVE', label: '9. In Effect', icon: '⚖️', desc: 'Ordinance is now in full effect' },
+  { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Councilor submitted to Secretary' },
+  { key: 'FIRST_READING', label: '2. First Reading', icon: '📖', desc: 'Read by title in session; referred to committee' },
+  { key: 'COMMITTEE_REVIEW', label: '3. Committee Review', icon: '🔍', desc: 'Committee deliberates and studies the measure' },
+  { key: 'COMMITTEE_REPORT_SUBMITTED', label: '4. Committee Report', icon: '📋', desc: 'Committee submitted its recommendation' },
+  { key: 'SECOND_READING', label: '5. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
+  { key: 'THIRD_READING_VOTING', label: '6. Voting Open', icon: '🗳️', desc: 'Electronic voting is in progress' },
+  { key: 'THIRD_READING_VOTED', label: '7. Third Reading / Vote', icon: '✅', desc: 'Final vote taken by full council' },
+  { key: 'APPROVED', label: '8. Executive Approved', icon: '🏛️', desc: 'Mayor/Vice Mayor approved the measure' },
+  { key: 'POSTED', label: '9. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
+  { key: 'EFFECTIVE', label: '10. In Effect', icon: '⚖️', desc: 'Ordinance is now in full effect' },
 ];
 
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
 
 const ROLE_ACTIONS = {
-  Secretary: ['first-reading', 'second-reading', 'third-reading-vote', 'post-publicly', 'mark-effective'],
-  Admin:     ['assign-committee', 'first-reading', 'second-reading', 'third-reading-vote', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report'],
-  'Vice Mayor':   ['assign-committee'],
-  Councilor: ['submit-to-vice-mayor', 'create-meeting', 'committee-report'],
-  'Committee Secretary': ['create-meeting'],
+  Secretary: ['first-reading', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective'],
+  Admin:     ['assign-committee', 'first-reading', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report'],
+  'Vice Mayor':   ['assign-committee', 'executive-approval', 'executive-rejection'],
+  Councilor: ['submit-to-vice-mayor', 'create-meeting', 'committee-report', 'cast-vote'],
+  'Committee Secretary': ['create-meeting', 'committee-report'],
 };
 
 function canDo(userRole, action) {
   return ROLE_ACTIONS[userRole]?.includes(action) ?? false;
 }
 
-function getAvailableActions(readingStage, userRole, ord, user) {
+function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) {
   // Committee meeting creation: allow if user is chair or secretary of assigned committee during review
   if (readingStage === 'COMMITTEE_REVIEW') {
     const isChair = ord?.committee && ord.committee.chair_id === user?.id;
@@ -46,16 +60,23 @@ function getAvailableActions(readingStage, userRole, ord, user) {
     case 'DRAFT':
       return canDo(userRole, 'submit-to-vice-mayor') ? ['submit-to-vice-mayor'] : [];
     case 'SUBMITTED':
+      return canDo(userRole, 'first-reading') ? ['first-reading'] : [];
+    case 'FIRST_READING':
       return canDo(userRole, 'assign-committee') ? ['assign-committee'] : [];
     case 'COMMITTEE_REPORT_SUBMITTED': {
-      const actions = [];
-      if (canDo(userRole, 'first-reading')) actions.push('first-reading');
-      return actions;
+      const acts = [];
+      if (canDo(userRole, 'committee-report')) acts.push('committee-report');
+      if (workflowStatus?.committeeReport && canDo(userRole, 'second-reading')) acts.push('second-reading');
+      return acts;
     }
-    case 'FIRST_READING':
-      return canDo(userRole, 'second-reading') ? ['second-reading'] : [];
     case 'SECOND_READING':
-      return canDo(userRole, 'third-reading-vote') ? ['third-reading-vote'] : [];
+      return canDo(userRole, 'open-voting') ? ['open-voting'] : [];
+    case 'THIRD_READING_VOTING': {
+      const acts = [];
+      if (canDo(userRole, 'cast-vote')) acts.push('cast-vote');
+      if (canDo(userRole, 'close-voting')) acts.push('close-voting');
+      return acts;
+    }
     case 'THIRD_READING_VOTED': {
       const acts = [];
       if (canDo(userRole, 'executive-approval')) acts.push('executive-approval');
@@ -74,10 +95,12 @@ function getAvailableActions(readingStage, userRole, ord, user) {
 const ACTION_LABELS = {
   'submit-to-vice-mayor': { emoji: '📤', label: 'Submit to Vice Mayor' },
   'first-reading':       { emoji: '📖', label: 'Record First Reading' },
-  'assign-committee':    { emoji: '🔍', label: 'Assign to Committee' },
+  'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
   'second-reading':      { emoji: '📖', label: 'Record Second Reading' },
-  'third-reading-vote':  { emoji: '🗳️', label: 'Record Third Reading Vote' },
+  'open-voting':         { emoji: '🗳️', label: 'Open Voting' },
+  'cast-vote':           { emoji: '✋', label: 'Cast Your Vote' },
+  'close-voting':        { emoji: '🔒', label: 'Close Voting & Tally' },
   'executive-approval':  { emoji: '✅', label: 'Executive Approval' },
   'executive-rejection': { emoji: '❌', label: 'Executive Rejection' },
   'post-publicly':       { emoji: '📢', label: 'Post Publicly' },
@@ -85,7 +108,7 @@ const ACTION_LABELS = {
   'create-meeting':      { emoji: '📅', label: 'Create Meeting' },
 };
 
-export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpdate, onMeetingCreated }) {
+export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMeetings = [], onStatusUpdate, onMeetingCreated }) {
   const { user } = useAuth();
 
   const [workflowStatus, setWorkflowStatus] = useState(null);
@@ -96,6 +119,17 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
   const [submitting, setSubmitting] = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [form, setForm] = useState({});
+  const [votingStatus, setVotingStatus] = useState(null);
+  const [votingLoading, setVotingLoading] = useState(false);
+
+  const fetchVotingStatus = useCallback(async () => {
+    try {
+      setVotingLoading(true);
+      const res = await api.get(`/ordinances/${ordinanceId}/voting-status`);
+      setVotingStatus(res.data);
+    } catch { setVotingStatus(null); }
+    finally { setVotingLoading(false); }
+  }, [ordinanceId]);
 
   const fetchData = useCallback(async () => {
     try {
@@ -110,8 +144,9 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
       setSessions(sessRes.data || []);
       setCommittees(commRes.data || []);
     } catch (err) {
-      setError('Failed to load workflow data.');
-      console.error(err);
+      const msg = err.response?.data?.error || err.message || 'Unknown error';
+      setError(`Failed to load workflow data: ${msg}`);
+      console.error('Workflow fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -119,22 +154,51 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // Fetch voting status when stage is voting-related
+  useEffect(() => {
+    const stage = workflowStatus?.ordinance?.reading_stage;
+    if (stage === 'THIRD_READING_VOTING' || stage === 'THIRD_READING_VOTED') {
+      fetchVotingStatus();
+    }
+  }, [workflowStatus?.ordinance?.reading_stage, fetchVotingStatus]);
+
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  const handleActionClick = (action) => { setActiveAction(action); setForm({}); setError(''); };
+  const handleActionClick = (action) => {
+    setError('');
+
+    if (action === 'committee-report') {
+      const endedMeeting = getLatestEndedMeeting(committeeMeetings, ordinanceId);
+      setForm({
+        recommendation: '',
+        report_content: '',
+        meeting_date: endedMeeting?.meeting_date || '',
+        meeting_minutes: endedMeeting?.meeting_minutes || endedMeeting?.meeting_transcript || '',
+        attendees: normalizeAttendeesInput(endedMeeting?.meeting_attendees),
+      });
+      setActiveAction(action);
+      return;
+    }
+
+    setActiveAction(action);
+    setForm({});
+  };
 
   const handleSubmitAction = async () => {
     setSubmitting(true);
     setError('');
     try {
       let body = {};
+      let selfHandled = false; // true if the branch makes its own API call
+
       if (activeAction === 'submit-to-vice-mayor') {
         body = { comment: form.comment };
       } else if (activeAction === 'first-reading' || activeAction === 'second-reading') {
         body = { session_id: form.session_id || null, discussion_notes: form.discussion_notes, presiding_officer: form.presiding_officer || null };
       } else if (activeAction === 'assign-committee') {
-        if (!form.committee_id) { setError('Please select a committee.'); setSubmitting(false); return; }
-        body = { committee_id: form.committee_id };
+        const committeeId = form.committee_id || ord?.committee_id;
+        if (!committeeId) { setError('Please select a committee.'); setSubmitting(false); return; }
+        body = { committee_id: committeeId };
       } else if (activeAction === 'committee-report') {
         if (!form.recommendation) { setError('Please select a recommendation.'); setSubmitting(false); return; }
         const committeeId = ord?.committee_id;
@@ -143,6 +207,8 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
           setSubmitting(false);
           return;
         }
+        const endedMeeting = getLatestEndedMeeting(committeeMeetings, ordinanceId);
+
         // Extract from ended committee meeting if available
         let meeting_date = form.meeting_date || null;
         let meeting_minutes = form.meeting_minutes || '';
@@ -153,18 +219,15 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
           attendees = form.attendees.split(',').map(a => a.trim()).filter(Boolean);
         }
 
-        // Try to extract from ended committee meeting
-        if (window.committeeMeetings && Array.isArray(window.committeeMeetings)) {
-          const endedMeeting = window.committeeMeetings.find(m => m.ordinance_id === ordinanceId && m.ended);
-          if (endedMeeting) {
-            meeting_date = endedMeeting.meeting_date || meeting_date;
-            meeting_minutes = endedMeeting.meeting_minutes || meeting_minutes;
-            if (endedMeeting.attendees) {
-              if (Array.isArray(endedMeeting.attendees)) {
-                attendees = endedMeeting.attendees;
-              } else if (typeof endedMeeting.attendees === 'string') {
-                attendees = endedMeeting.attendees.split(',').map(a => a.trim()).filter(Boolean);
-              }
+        if (endedMeeting) {
+          meeting_date = endedMeeting.meeting_date || meeting_date;
+          meeting_minutes = endedMeeting.meeting_minutes || endedMeeting.meeting_transcript || meeting_minutes;
+          const endedMeetingAttendees = endedMeeting.meeting_attendees;
+          if (endedMeetingAttendees) {
+            if (Array.isArray(endedMeetingAttendees)) {
+              attendees = endedMeetingAttendees;
+            } else if (typeof endedMeetingAttendees === 'string') {
+              attendees = endedMeetingAttendees.split(',').map(a => a.trim()).filter(Boolean);
             }
           }
         }
@@ -179,9 +242,10 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
         };
 
         await api.post(`/ordinances/${ordinanceId}/committee-report`, body);
+        selfHandled = true;
         
-      } else if (activeAction === 'third-reading-vote') {
-        body = { session_id: form.session_id || null, yes_count: Number(form.yes_count) || 0, no_count: Number(form.no_count) || 0, abstain_count: Number(form.abstain_count) || 0, presiding_officer: form.presiding_officer || null };
+      } else if (activeAction === 'open-voting') {
+        body = { session_id: form.session_id || null };
       } else if (activeAction === 'executive-approval') {
         body = { approval_remarks: form.approval_remarks };
       } else if (activeAction === 'executive-rejection') {
@@ -193,6 +257,9 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
         body = { effective_date: form.effective_date || null };
       } else if (activeAction === 'create-meeting') {
         const committeeId = ord?.committee_id;
+        const meetingMode = form.meeting_mode || 'online';
+        const meetingLink = (form.meeting_link || '').trim();
+        const meetingLocation = (form.meeting_location || '').trim();
 
         if (!committeeId) {
           setError('Committee not assigned yet.');
@@ -206,16 +273,36 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
           return;
         }
 
+        if ((meetingMode === 'online' || meetingMode === 'both') && !meetingLink) {
+          setError('Meeting link is required for online or hybrid meetings.');
+          setSubmitting(false);
+          return;
+        }
+
+        if ((meetingMode === 'place' || meetingMode === 'both') && !meetingLocation) {
+          setError('Meeting place is required for place or hybrid meetings.');
+          setSubmitting(false);
+          return;
+        }
+
         await api.post(`/committees/${committeeId}/meetings`, {
           title: form.meeting_title,
           meeting_date: form.meeting_date,
           meeting_time: form.meeting_time || '',
           ordinance_id: ordinanceId,
+          meetingLink: meetingLink,
+          meeting_mode: meetingMode,
+          meeting_location: meetingLocation,
         });
-        if (onMeetingCreated) onMeetingCreated();
-      } else {
+        selfHandled = true;
+        await Promise.resolve(onMeetingCreated?.());
+      }
+
+      // Make the generic API call for actions that only prepared body
+      if (!selfHandled) {
         await api.post(`/ordinances/${ordinanceId}/${activeAction}`, body);
       }
+
       setActiveAction(null);
       setForm({});
       await fetchData();
@@ -273,6 +360,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
   const ord = workflowStatus?.ordinance || ordinance;
   const readingStage = ord?.reading_stage;
   const isRejected = readingStage === 'REJECTED';
+  const activeCommitteeMeetings = committeeMeetings.filter((meeting) => !meeting.ended);
   // Debug logs for chair/committee action visibility
   // console.log('User:', user);
   // console.log('Ordinance committee:', ord?.committee);
@@ -281,7 +369,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
   // Case-insensitive stage matching (handle null/undefined)
   const normalizedStage = readingStage ? String(readingStage).trim().toUpperCase() : undefined;
   const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === normalizedStage));
-  const availableActions = isRejected ? [] : getAvailableActions(normalizedStage, user?.role, ord, user);
+  const availableActions = isRejected ? [] : getAvailableActions(normalizedStage, user?.role, ord, user, workflowStatus);
         
   const currentStageDef = STAGES.find(s => s.key === normalizedStage);
 
@@ -304,7 +392,10 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
               <div key={stage.key} className={["lw-step", done ? "done" : "", current ? "current" : ""].filter(Boolean).join(" ")}>
                 <div className="lw-circle">{done && !current ? "✓" : stage.icon}</div>
                 <div className="lw-label">
-                  <span className="lw-stage-name">{stage.label}</span>
+                  <div className="lw-stage-meta">
+                    <span className="lw-step-index">{idx}</span>
+                    <span className="lw-stage-name">{stage.label}</span>
+                  </div>
                   <span className="lw-stage-desc">{stage.desc}</span>
                 </div>
                 {idx < STAGES.length - 1 && <div className={["lw-connector", (done && !current) ? "done" : ""].filter(Boolean).join(" ")} />}
@@ -329,11 +420,11 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
         {activeAction === 'assign-committee' && (
           <div className="status-modal-overlay">
             <div className="status-modal">
-              <h3>Assign Committee</h3>
-              <p>Select a committee to assign to this ordinance.</p>
+              <h3>Refer to Committee</h3>
+              <p>Select a committee to study and deliberate on this ordinance.</p>
               <div className="form-group">
                 <label>Committee <span className="required">*</span></label>
-                <select value={form.committee_id || ''} onChange={e => setField('committee_id', e.target.value)} disabled={submitting}>
+                <select value={form.committee_id || ord?.committee_id || ''} onChange={e => setField('committee_id', e.target.value)} disabled={submitting}>
                   <option value="">Select Committee</option>
                   {committees.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
@@ -341,7 +432,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
                 </select>
               </div>
               <div className="modal-actions">
-                <button onClick={handleSubmitAction} className="btn btn-primary" disabled={submitting}>Assign Committee</button>
+                <button onClick={handleSubmitAction} className="btn btn-primary" disabled={submitting}>Refer to Committee</button>
                 <button onClick={() => setActiveAction(null)} className="btn btn-secondary" disabled={submitting}>Cancel</button>
               </div>
             </div>
@@ -416,8 +507,135 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
         </section>
       )}
 
-      {/* Voting Results */}
-      {ord?.voting_results && (
+      {/* Electronic Voting Panel — shown when voting is open */}
+      {(normalizedStage === 'THIRD_READING_VOTING' || (normalizedStage === 'THIRD_READING_VOTED' && votingStatus?.votingSession)) && (
+        <section className="workflow-section">
+          <h3>🗳️ {normalizedStage === 'THIRD_READING_VOTING' ? 'Live Voting — Third Reading' : 'Voting Results — Third Reading'}</h3>
+          {votingLoading ? (
+            <p>Loading voting data...</p>
+          ) : votingStatus ? (
+            <div className="lw-electronic-voting">
+              {/* Vote Tally */}
+              <div className="lw-vote-tally">
+                <div className="lw-vote-tally-item yes">
+                  <span className="lw-vote-tally-label">✅ Yes</span>
+                  <span className="lw-vote-tally-count">{votingStatus.results?.find(r => r.vote_option === 'Yes')?.count || 0}</span>
+                </div>
+                <div className="lw-vote-tally-item no">
+                  <span className="lw-vote-tally-label">❌ No</span>
+                  <span className="lw-vote-tally-count">{votingStatus.results?.find(r => r.vote_option === 'No')?.count || 0}</span>
+                </div>
+                <div className="lw-vote-tally-item abstain">
+                  <span className="lw-vote-tally-label">➖ Abstain</span>
+                  <span className="lw-vote-tally-count">{votingStatus.results?.find(r => r.vote_option === 'Abstain')?.count || 0}</span>
+                </div>
+                <div className="lw-vote-tally-item total">
+                  <span className="lw-vote-tally-label">Total Votes</span>
+                  <span className="lw-vote-tally-count">{votingStatus.totalVotes || 0} / {votingStatus.totalCouncilors || 0}</span>
+                </div>
+              </div>
+
+              {/* Cast Vote — Councilors only, when voting is active */}
+              {normalizedStage === 'THIRD_READING_VOTING' && user?.role === 'Councilor' && (
+                <div className="lw-cast-vote">
+                  {votingStatus.userVote ? (
+                    <div className="lw-already-voted">
+                      <p>You voted: <strong>{votingStatus.userVote}</strong></p>
+                    </div>
+                  ) : (
+                    <div className="lw-vote-buttons">
+                      <p style={{ marginBottom: '0.5rem', fontWeight: 500 }}>Cast your vote:</p>
+                      {['Yes', 'No', 'Abstain'].map(option => (
+                        <button
+                          key={option}
+                          className={`lw-action-btn lw-vote-${option.toLowerCase()}`}
+                          disabled={submitting}
+                          onClick={async () => {
+                            if (!window.confirm(`Are you sure you want to vote "${option}"? This cannot be changed.`)) return;
+                            setSubmitting(true);
+                            setError('');
+                            try {
+                              await api.post(`/ordinances/${ordinanceId}/cast-vote`, { vote_option: option });
+                              await fetchVotingStatus();
+                            } catch (err) {
+                              setError(err.response?.data?.error || 'Failed to cast vote');
+                            } finally {
+                              setSubmitting(false);
+                            }
+                          }}
+                        >
+                          {option === 'Yes' ? '✅' : option === 'No' ? '❌' : '➖'} {option}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Close Voting — Secretary/Admin only */}
+              {normalizedStage === 'THIRD_READING_VOTING' && ['Secretary', 'Admin'].includes(user?.role) && (
+                <div className="lw-close-voting" style={{ marginTop: '1rem' }}>
+                  <button
+                    className="lw-action-btn lw-close-voting-btn"
+                    disabled={submitting}
+                    onClick={async () => {
+                      if (!window.confirm('Close voting and tally results? This cannot be undone.')) return;
+                      setSubmitting(true);
+                      setError('');
+                      try {
+                        await api.post(`/ordinances/${ordinanceId}/close-voting`);
+                        setActiveAction(null);
+                        await fetchData();
+                        await fetchVotingStatus();
+                        onStatusUpdate?.();
+                      } catch (err) {
+                        setError(err.response?.data?.error || 'Failed to close voting');
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                  >
+                    🔒 Close Voting &amp; Tally Results
+                  </button>
+                </div>
+              )}
+
+              {/* Individual Votes */}
+              {votingStatus.voters?.length > 0 && (
+                <div className="lw-voters-list" style={{ marginTop: '1rem' }}>
+                  <h4>Individual Votes</h4>
+                  <table className="lw-voters-table">
+                    <thead>
+                      <tr><th>Councilor</th><th>Vote</th><th>Time</th></tr>
+                    </thead>
+                    <tbody>
+                      {votingStatus.voters.map(v => (
+                        <tr key={v.id}>
+                          <td>{v.name}</td>
+                          <td><span className={`lw-vote-badge ${v.vote_option.toLowerCase()}`}>{v.vote_option}</span></td>
+                          <td>{new Date(v.voted_at).toLocaleTimeString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Final result (shown after voting is closed) */}
+              {votingStatus.votingSession?.status === 'closed' && ord?.voting_results && (
+                <div className={["lw-vote-results", ord.voting_results.passed ? "passed" : "failed"].join(" ")} style={{ marginTop: '1rem' }}>
+                  <span className="lw-vote-result-label">{ord.voting_results.passed ? "✅ PASSED" : "❌ FAILED"}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="no-data">No voting data available</p>
+          )}
+        </section>
+      )}
+
+      {/* Voting Results (for stages after voting, when no active session) */}
+      {ord?.voting_results && normalizedStage !== 'THIRD_READING_VOTING' && !votingStatus?.votingSession && (
         <section className="workflow-section">
           <h3>🗳️ Voting Results</h3>
           <div className={["lw-vote-results", ord.voting_results.passed ? "passed" : "failed"].join(" ")}>
@@ -455,7 +673,6 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
             <button
               className="lw-action-btn lw-assign-committee"
               onClick={() => handleActionClick('assign-committee')}
-              disabled={!!ord?.committee_id}
             >
               {ACTION_LABELS['assign-committee']?.emoji} {ACTION_LABELS['assign-committee']?.label}
             </button>
@@ -494,12 +711,12 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
               {ACTION_LABELS['second-reading']?.emoji} {ACTION_LABELS['second-reading']?.label}
             </button>
           )}
-          {availableActions.includes('third-reading-vote') && (
+          {availableActions.includes('open-voting') && (
             <button
-              className="lw-action-btn lw-third-reading-vote"
-              onClick={() => handleActionClick('third-reading-vote')}
+              className="lw-action-btn lw-open-voting"
+              onClick={() => handleActionClick('open-voting')}
             >
-              {ACTION_LABELS['third-reading-vote']?.emoji} {ACTION_LABELS['third-reading-vote']?.label}
+              {ACTION_LABELS['open-voting']?.emoji} {ACTION_LABELS['open-voting']?.label}
             </button>
           )}
           {availableActions.includes('executive-approval') && (
@@ -580,6 +797,60 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
                 <label>Meeting Time</label>
                 <input type="time" value={form.meeting_time || ''} onChange={e => setField('meeting_time', e.target.value)} disabled={submitting} />
               </div>
+              <div className="form-group">
+                <label>Where <span className="required">*</span></label>
+                <select value={form.meeting_mode || 'online'} onChange={e => setField('meeting_mode', e.target.value)} disabled={submitting}>
+                  <option value="online">Online</option>
+                  <option value="place">Place</option>
+                  <option value="both">Both</option>
+                </select>
+              </div>
+              {(form.meeting_mode || 'online') !== 'place' && (
+                <div className="form-group">
+                  <label>Meeting Link {(form.meeting_mode || 'online') !== 'place' && <span className="required">*</span>}</label>
+                  <input type="url" value={form.meeting_link || ''} onChange={e => setField('meeting_link', e.target.value)} disabled={submitting} placeholder="e.g. https://meet.google.com/abc-defg-hij" />
+                </div>
+              )}
+              {(form.meeting_mode || 'online') !== 'online' && (
+                <div className="form-group">
+                  <label>Meeting Place <span className="required">*</span></label>
+                  <input type="text" value={form.meeting_location || ''} onChange={e => setField('meeting_location', e.target.value)} disabled={submitting} placeholder="e.g. Session Hall, Committee Room A" />
+                </div>
+              )}
+              <div className="form-group">
+                <p style={{ margin: 0, color: '#666', fontSize: '0.95em' }}>
+                  Choose whether this meeting is online, in-person, or both.
+                </p>
+              </div>
+              <div className="lw-recorder-stack">
+                <h4>Recording Controls</h4>
+                {activeCommitteeMeetings.length > 0 ? (
+                  activeCommitteeMeetings.map((meeting) => (
+                    <div key={meeting.id} className="lw-recorder-card">
+                      <div className="lw-recorder-card-header">
+                        <strong>{meeting.title}</strong>
+                        <span>
+                          {meeting.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No date'}
+                          {meeting.meeting_time ? ` at ${meeting.meeting_time}` : ''}
+                        </span>
+                      </div>
+                      <LocalMeetingRecorder
+                        meetingTitle={meeting.title}
+                        committeeId={meeting.committee_id}
+                        meetingId={meeting.id}
+                        recordingUrl={meeting.recording_url}
+                        recordingUploadedAt={meeting.recording_uploaded_at}
+                        recordingUploadedByName={meeting.recording_uploaded_by_name}
+                        onUploadComplete={onMeetingCreated}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <p className="lw-recorder-empty">
+                    Create a meeting first, then reopen this action to record and upload it from the workflow tab.
+                  </p>
+                )}
+              </div>
               <div className="modal-actions">
                 <button onClick={handleSubmitAction} className="btn btn-primary" disabled={submitting}>Create Meeting</button>
                 <button onClick={() => setActiveAction(null)} className="btn btn-secondary" disabled={submitting}>Cancel</button>
@@ -636,32 +907,19 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, onStatusUpda
 
               {activeAction === "committee-report" && renderCommitteeReportFields()}
 
-              {activeAction === "third-reading-vote" && (
-                <>
-                  <div className="form-group">
-                    <label>Session (optional)</label>
-                    <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
-                      <option value="">— Select session —</option>
-                      {sessions.map(s => (
-                        <option key={s.id} value={s.id}>{s.title} — {new Date(s.date).toLocaleDateString()}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="lw-vote-inputs">
-                    <div className="form-group">
-                      <label>Yes votes</label>
-                      <input type="number" min="0" value={form.yes_count || 0} onChange={e => setField("yes_count", e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                      <label>No votes</label>
-                      <input type="number" min="0" value={form.no_count || 0} onChange={e => setField("no_count", e.target.value)} />
-                    </div>
-                    <div className="form-group">
-                      <label>Abstain</label>
-                      <input type="number" min="0" value={form.abstain_count || 0} onChange={e => setField("abstain_count", e.target.value)} />
-                    </div>
-                  </div>
-                </>
+              {activeAction === "open-voting" && (
+                <div className="form-group">
+                  <label>Session (optional)</label>
+                  <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
+                    <option value="">— Select session —</option>
+                    {sessions.map(s => (
+                      <option key={s.id} value={s.id}>{s.title} — {new Date(s.date).toLocaleDateString()}</option>
+                    ))}
+                  </select>
+                  <p style={{ marginTop: '0.5rem', color: '#666', fontSize: '0.9em' }}>
+                    This will open electronic voting. Councilors will be notified and can cast their votes (Yes / No / Abstain).
+                  </p>
+                </div>
               )}
 
               {activeAction === "executive-approval" && (

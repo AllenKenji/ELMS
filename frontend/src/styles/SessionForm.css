@@ -341,6 +341,37 @@
   margin-bottom: 2rem;
 }
 
+/* OOB Document Selector */
+.oob-doc-selector {
+  background: #fffbea;
+  border: 1px solid #f0d060;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.oob-doc-selector label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+}
+
+.oob-doc-selector select {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+}
+
+.oob-doc-selector .form-hint {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  color: #888;
+}
+
 .agenda-builder-header {
   margin-bottom: 1rem;
 }

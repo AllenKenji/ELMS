@@ -2,6 +2,7 @@
  * OrderOfBusiness Service - Business logic for order of business operations.
  */
 const OrderOfBusiness = require('../models/OrderOfBusiness');
+const OobDocument = require('../models/OrderOfBusinessDocument');
 const AuditLog = require('../models/AuditLog');
 const { getIO } = require('../socket');
 const pool = require('../db');
@@ -236,4 +237,200 @@ exports.updateStatus = async (id, status, userId) => {
 
   broadcastUpdate(item.session_id, { item });
   return item;
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   OOB Document-level operations
+   ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * List all OOB documents.
+ */
+exports.getDocuments = async () => {
+  const result = await OobDocument.findAll();
+  return result.rows;
+};
+
+/**
+ * Get a single OOB document with its items.
+ */
+exports.getDocumentById = async (id) => {
+  const docResult = await OobDocument.findById(id);
+  ensureFound(docResult.rows, 'Order of Business document not found');
+  const doc = docResult.rows[0];
+  const itemsResult = await OobDocument.getItems(id);
+  doc.items = itemsResult.rows;
+  return doc;
+};
+
+/**
+ * Create a document + batch-create its agenda items in one transaction.
+ */
+exports.createDocument = async (docData, items, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const docResult = await client.query(
+      `INSERT INTO order_of_business_documents
+         (session_id, title, date, time, venue, presiding_officer, secretary, status, created_by, created_at, updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,'Draft',$8,NOW(),NOW())
+       RETURNING *`,
+      [
+        docData.session_id || null,
+        docData.title,
+        docData.date || null,
+        docData.time || null,
+        docData.venue || null,
+        docData.presiding_officer || null,
+        docData.secretary || null,
+        userId,
+      ]
+    );
+    const doc = docResult.rows[0];
+
+    const created = [];
+    let nextNum = 1;
+    for (const item of items) {
+      const result = await client.query(
+        `INSERT INTO order_of_business
+           (session_id, document_id, item_number, title, item_type, related_document_id, related_document_type,
+            duration_minutes, priority, status, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+         RETURNING *`,
+        [
+          docData.session_id || null,
+          doc.id,
+          nextNum++,
+          item.title,
+          item.item_type || 'Other',
+          item.related_document_id || null,
+          item.related_document_type || null,
+          item.duration_minutes || null,
+          item.priority || 0,
+          item.status || 'Scheduled',
+          item.notes || null,
+        ]
+      );
+      created.push(result.rows[0]);
+    }
+
+    await client.query('COMMIT');
+
+    await AuditLog.create(null, userId, 'OOB_DOCUMENT_CREATE',
+      `Order of Business "${doc.title}" created with ${created.length} items`);
+
+    if (docData.session_id) {
+      broadcastUpdate(docData.session_id, { document: doc, items: created });
+    }
+
+    doc.items = created;
+    return doc;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Update an OOB document's metadata.
+ */
+exports.updateDocument = async (id, data, userId) => {
+  const existing = await OobDocument.findById(id);
+  ensureFound(existing.rows, 'Order of Business document not found');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Update header fields
+    const docResult = await client.query(
+      `UPDATE order_of_business_documents
+          SET title             = COALESCE($1, title),
+              date              = $2,
+              time              = $3,
+              venue             = $4,
+              presiding_officer = $5,
+              secretary         = $6,
+              status            = COALESCE($7, status),
+              session_id        = $8,
+              updated_at        = NOW()
+        WHERE id = $9
+        RETURNING *`,
+      [
+        data.document?.title || data.title,
+        data.document?.date || data.date || null,
+        data.document?.time || data.time || null,
+        data.document?.venue || data.venue || null,
+        data.document?.presiding_officer || data.presiding_officer || null,
+        data.document?.secretary || data.secretary || null,
+        data.document?.status || data.status || null,
+        data.document?.session_id || data.session_id || null,
+        id,
+      ]
+    );
+    const doc = docResult.rows[0];
+
+    // Replace items if provided
+    if (Array.isArray(data.items)) {
+      await client.query('DELETE FROM order_of_business WHERE document_id = $1', [id]);
+      let nextNum = 1;
+      for (const item of data.items) {
+        await client.query(
+          `INSERT INTO order_of_business
+             (session_id, document_id, title, item_type, item_number,
+              duration_minutes, notes, related_document_type, related_document_id, status, created_at, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',NOW(),NOW())`,
+          [
+            doc.session_id || null,
+            id,
+            item.title,
+            item.item_type || 'Other Matters',
+            nextNum++,
+            item.duration_minutes || null,
+            item.notes || null,
+            item.related_document_type || null,
+            item.related_document_id || null,
+          ]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
+
+    await AuditLog.create(null, userId, 'OOB_DOCUMENT_UPDATE',
+      `Order of Business "${doc.title}" updated`);
+
+    // Return doc with items
+    const itemsResult = await OobDocument.getItems(id);
+    doc.items = itemsResult.rows;
+    return doc;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Delete an OOB document (cascades to items).
+ */
+exports.deleteDocument = async (id, userId) => {
+  const existing = await OobDocument.findById(id);
+  ensureFound(existing.rows, 'Order of Business document not found');
+
+  const doc = existing.rows[0];
+  await OobDocument.deleteById(id);
+
+  await AuditLog.create(null, userId, 'OOB_DOCUMENT_DELETE',
+    `Order of Business "${doc.title}" deleted`);
+
+  if (doc.session_id) {
+    broadcastUpdate(doc.session_id, { deletedDocument: id });
+  }
+
+  return doc;
 };

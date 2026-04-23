@@ -4,6 +4,7 @@ import api from '../../api/api';
 import OrdinanceForm from '../Ordinances/OrdinanceForm';
 import ResolutionForm from '../Resolutions/ResolutionForm';
 import OrdinanceDetails from '../Ordinances/OrdinanceDetails';
+import ResolutionDetails from '../Resolutions/ResolutionDetails';
 import RichTextContent from '../common/RichTextContent';
 import '../../styles/ProposedMeasuresPage.css';
 
@@ -251,6 +252,18 @@ export default function ProposedMeasuresPage() {
   const uniqueStatuses = [...new Set(measures.map((m) => m.status))].sort();
 
   if (viewingMeasure) {
+    if (viewingMeasure.itemType === 'Resolution') {
+      return (
+        <ResolutionDetails
+          resolutionId={viewingMeasure.id}
+          onClose={() => {
+            setViewingMeasure(null);
+            fetchMeasures();
+          }}
+          onStatusChange={fetchMeasures}
+        />
+      );
+    }
     return (
       <OrdinanceDetails
         ordinanceId={viewingMeasure.id}
@@ -730,15 +743,13 @@ export default function ProposedMeasuresPage() {
                   </div>
 
                   <div className="measure-actions">
-                    {measure.itemType === 'Ordinance' && (
-                      <button
-                        onClick={() => setViewingMeasure(measure)}
-                        className="btn-action btn-view"
-                        aria-label={`View details for ${measure.title}`}
-                      >
-                        👁️ View Details
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setViewingMeasure(measure)}
+                      className="btn-action btn-view"
+                      aria-label={`View details for ${measure.title}`}
+                    >
+                      👁️ View Details
+                    </button>
                     {canDelete && (
                       <button
                         onClick={() => handleDeleteMeasure(measure)}

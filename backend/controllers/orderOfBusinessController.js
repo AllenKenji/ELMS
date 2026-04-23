@@ -224,3 +224,109 @@ exports.assignToSession = async (req, res) => {
     res.status(500).json({ error: 'Error assigning items to session' });
   }
 };
+
+/* ═══════════════════════════════════════════════════════════════════
+   OOB Document endpoints
+   ═══════════════════════════════════════════════════════════════════ */
+
+/**
+ * List all OOB documents.
+ * GET /order-of-business/documents
+ */
+exports.getDocuments = async (req, res) => {
+  try {
+    const docs = await orderOfBusinessService.getDocuments();
+    res.json(docs);
+  } catch (err) {
+    console.error('Get OOB documents error:', err);
+    res.status(500).json({ error: 'Error fetching order of business documents' });
+  }
+};
+
+/**
+ * Get a single OOB document with items.
+ * GET /order-of-business/documents/:id
+ */
+exports.getDocumentById = async (req, res) => {
+  try {
+    const doc = await orderOfBusinessService.getDocumentById(req.params.id);
+    res.json(doc);
+  } catch (err) {
+    console.error('Get OOB document error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error fetching order of business document' });
+  }
+};
+
+/**
+ * Create an OOB document with items.
+ * POST /order-of-business/documents
+ */
+exports.createDocument = async (req, res) => {
+  try {
+    const { document: docData, items } = req.body;
+    if (!docData || !docData.title) {
+      return res.status(400).json({ error: 'document.title is required' });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'items array is required and must not be empty' });
+    }
+    const doc = await orderOfBusinessService.createDocument(docData, items, req.user.id);
+    res.status(201).json(doc);
+  } catch (err) {
+    console.error('Create OOB document error:', err);
+    if (err.code === '23514' || err.code === '22P02') {
+      return res.status(400).json({ error: err.detail || 'Invalid order of business data.' });
+    }
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error creating order of business document' });
+  }
+};
+
+/**
+ * Update an OOB document metadata.
+ * PUT /order-of-business/documents/:id
+ */
+exports.updateDocument = async (req, res) => {
+  try {
+    const doc = await orderOfBusinessService.updateDocument(req.params.id, req.body, req.user.id);
+    res.json(doc);
+  } catch (err) {
+    console.error('Update OOB document error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error updating order of business document' });
+  }
+};
+
+/**
+ * Delete an OOB document (cascades items).
+ * DELETE /order-of-business/documents/:id
+ */
+exports.deleteDocument = async (req, res) => {
+  try {
+    const doc = await orderOfBusinessService.deleteDocument(req.params.id, req.user.id);
+    res.json({ message: `Order of Business "${doc.title}" deleted successfully` });
+  } catch (err) {
+    console.error('Delete OOB document error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error deleting order of business document' });
+  }
+};
+
+/**
+ * Generate PDF for an OOB document.
+ * GET /order-of-business/documents/:id/generate-pdf
+ */
+exports.generateDocumentPdf = async (req, res) => {
+  try {
+    const doc = await orderOfBusinessService.getDocumentById(req.params.id);
+    const filename = `order-of-business-${doc.id}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    generateOrderOfBusinessPdf(doc, doc.items, res);
+  } catch (err) {
+    console.error('Generate OOB document PDF error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error generating PDF' });
+  }
+};

@@ -185,6 +185,11 @@
   letter-spacing: 0.5px;
 }
 
+.minutes-badge-strong {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .badge-generated {
   background: #e8f5e9;
   color: #2e7d32;
@@ -200,11 +205,37 @@
   color: #6b7280;
 }
 
+.transcript-completed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.transcript-pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.transcript-failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.transcript-none {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
 /* Action Buttons */
 .minutes-actions {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+}
+
+.minutes-status-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 
 .btn-icon {
@@ -519,6 +550,58 @@
   gap: 1.25rem;
 }
 
+.minutes-recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.minutes-recording-card {
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.minutes-recording-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.minutes-recording-meta {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.88rem;
+}
+
+.minutes-recording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.btn-recording-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.minutes-recording-error {
+  margin: 0.75rem 0 0;
+  color: #b91c1c;
+  font-size: 0.88rem;
+}
+
+.minutes-recording-transcript {
+  margin-top: 0.85rem;
+  max-height: 220px;
+}
+
 .detail-header {
   display: flex;
   justify-content: space-between;
@@ -595,6 +678,63 @@
   border: 1px solid #e5e7eb;
   border-radius: 6px;
   padding: 1rem;
+}
+
+.recording-section {
+  background: #f8fbff;
+  border-color: #d7e6fb;
+}
+
+.minutes-recordings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.minutes-recording-card {
+  background: #fff;
+  border: 1px solid #dde7f3;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+
+.minutes-recording-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.minutes-recording-meta {
+  margin: 0.45rem 0 0.7rem;
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.minutes-recording-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
+}
+
+.btn-recording-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.minutes-recording-transcript {
+  margin-top: 0.6rem;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.minutes-recording-error {
+  margin: 0.35rem 0 0;
+  color: #b42318;
+  font-size: 0.84rem;
 }
 
 .detail-section h4 {

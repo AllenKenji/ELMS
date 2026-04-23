@@ -36,7 +36,7 @@ export const useStats = () => {
           totalOrdinances: ordinances.length,
           draftOrdinances: ordinances.filter(o => o.status === 'Draft').length,
           submittedOrdinances: ordinances.filter(o => o.status === 'Submitted').length,
-          approvedOrdinances: ordinances.filter(o => o.status === 'Approved').length,
+          approvedOrdinances: ordinances.filter(o => ['Approved', 'Published'].includes(o.status)).length,
           publishedOrdinances: ordinances.filter(o => o.status === 'Published').length,
           totalSessions: sessions.length,
           upcomingSessions,

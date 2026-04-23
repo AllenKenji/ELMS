@@ -133,6 +133,29 @@ exports.addParticipant = async (req, res) => {
 };
 
 /**
+ * Auto-populate participants from an OOB document.
+ * POST /sessions/:id/participants/from-oob
+ */
+exports.addParticipantsFromOob = async (req, res) => {
+  try {
+    const { oob_document_id } = req.body;
+    if (!oob_document_id) {
+      return res.status(400).json({ error: 'oob_document_id is required' });
+    }
+    const result = await sessionService.addParticipantsFromOobDocument(
+      req.params.id,
+      oob_document_id,
+      req.user.id
+    );
+    res.json(result);
+  } catch (err) {
+    console.error('Auto-add participants from OOB error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error auto-adding participants' });
+  }
+};
+
+/**
  * Update a participant's attendance status.
  * PUT /sessions/:id/participants/:userId
  */
@@ -162,5 +185,30 @@ exports.getMinutes = async (req, res) => {
   } catch (err) {
     console.error('Get session minutes error:', err);
     res.status(500).json({ error: 'Error fetching meeting minutes for session' });
+  }
+};
+
+/**
+ * Upload a session recording and attach it to a session minutes record.
+ * POST /sessions/:id/recording
+ */
+exports.uploadRecording = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'A recording file is required.' });
+    }
+
+    const minutesRecord = await sessionService.saveSessionRecording(
+      req.params.id,
+      req.file,
+      req.user.id,
+      req.body.minutes_id || null
+    );
+    res.json(minutesRecord);
+  } catch (err) {
+    console.error('Upload session recording error:', err);
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error uploading session recording' });
   }
 };

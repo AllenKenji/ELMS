@@ -7,7 +7,7 @@ const ctrl = require('../controllers/orderOfBusinessController');
 
 const oobLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { status: 'fail', message: 'Too many requests, please try again later.' },
@@ -25,6 +25,14 @@ router.get('/unassigned', oobLimiter, authenticateToken, ctrl.getUnassigned);
 
 // Assign OOB items to a session
 router.post('/assign-session', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.assignToSession);
+
+// ─── OOB Document routes ────────────────────────────────────────
+router.get('/documents', oobLimiter, authenticateToken, ctrl.getDocuments);
+router.post('/documents', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.createDocument);
+router.get('/documents/:id', oobLimiter, authenticateToken, ctrl.getDocumentById);
+router.get('/documents/:id/generate-pdf', oobLimiter, authenticateToken, ctrl.generateDocumentPdf);
+router.put('/documents/:id', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.updateDocument);
+router.delete('/documents/:id', oobLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ctrl.deleteDocument);
 
 // Get all sessions that have OOB items (compiled list)
 router.get('/sessions-with-oob', oobLimiter, authenticateToken, ctrl.getSessionsWithOob);

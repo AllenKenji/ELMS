@@ -263,16 +263,16 @@ exports.generatePdf = async (req, res) => {
 
 // ─── Three-Readings Legislative Workflow Handlers ─────────────────────────────
 
-/** POST /ordinances/:id/submit-to-secretary */
-exports.submitToSecretary = async (req, res) => {
+/** POST /ordinances/:id/submit-to-vice-mayor */
+exports.submitToViceMayor = async (req, res) => {
   try {
-    const result = await ordinanceService.submitToSecretary(req.params.id, req.body.comment, req.user.id);
+    const result = await ordinanceService.submitToViceMayor(req.params.id, req.body.comment, req.user.id);
     res.json(result);
   } catch (err) {
-    console.error('Submit to secretary error:', err);
+    console.error('Submit to vice mayor error:', err);
     if (err.status === 404) return res.status(404).json({ error: err.message });
     if (err.status === 400) return res.status(400).json({ error: err.message });
-    res.status(500).json({ error: 'Error submitting to secretary' });
+    res.status(500).json({ error: 'Error submitting to vice mayor' });
   }
 };
 
@@ -351,23 +351,59 @@ exports.secondReading = async (req, res) => {
   }
 };
 
-/** POST /ordinances/:id/third-reading-vote */
-exports.thirdReadingVote = async (req, res) => {
+/** POST /ordinances/:id/open-voting */
+exports.openThirdReadingVote = async (req, res) => {
   try {
-    const { session_id, yes_count, no_count, abstain_count, presiding_officer } = req.body;
-    const result = await ordinanceService.conductThirdReadingVote(
-      req.params.id, session_id,
-      parseInt(yes_count, 10) || 0,
-      parseInt(no_count, 10) || 0,
-      parseInt(abstain_count, 10) || 0,
-      presiding_officer, req.user.id
+    const { session_id, presiding_officer } = req.body;
+    const result = await ordinanceService.openThirdReadingVote(
+      req.params.id, session_id, presiding_officer, req.user.id
     );
     res.json(result);
   } catch (err) {
-    console.error('Third reading vote error:', err);
+    console.error('Open third reading vote error:', err);
     if (err.status === 404) return res.status(404).json({ error: err.message });
     if (err.status === 400) return res.status(400).json({ error: err.message });
-    res.status(500).json({ error: 'Error recording third reading vote' });
+    res.status(500).json({ error: 'Error opening voting' });
+  }
+};
+
+/** POST /ordinances/:id/cast-vote */
+exports.castThirdReadingVote = async (req, res) => {
+  try {
+    const { vote_option } = req.body;
+    const result = await ordinanceService.castThirdReadingVote(
+      req.params.id, vote_option, req.user.id
+    );
+    res.json(result);
+  } catch (err) {
+    console.error('Cast vote error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error casting vote' });
+  }
+};
+
+/** GET /ordinances/:id/voting-status */
+exports.getThirdReadingVotingStatus = async (req, res) => {
+  try {
+    const result = await ordinanceService.getThirdReadingVotingStatus(req.params.id, req.user.id);
+    res.json(result);
+  } catch (err) {
+    console.error('Get voting status error:', err);
+    res.status(500).json({ error: 'Error fetching voting status' });
+  }
+};
+
+/** POST /ordinances/:id/close-voting */
+exports.closeThirdReadingVote = async (req, res) => {
+  try {
+    const result = await ordinanceService.closeThirdReadingVote(req.params.id, req.user.id);
+    res.json(result);
+  } catch (err) {
+    console.error('Close third reading vote error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error closing voting' });
   }
 };
 
@@ -447,9 +483,16 @@ exports.getWorkflowStatus = async (req, res) => {
 /** POST /sessions/:id/add-agenda-item */
 exports.addAgendaItem = async (req, res) => {
   try {
-    const { ordinance_id, agenda_order, reading_number } = req.body;
-    if (!ordinance_id) return res.status(400).json({ error: 'ordinance_id is required' });
-    const result = await ordinanceService.addAgendaItem(req.params.id, ordinance_id, agenda_order, reading_number);
+    const { ordinance_id, resolution_id, agenda_order, reading_number } = req.body;
+    if (!ordinance_id && !resolution_id) {
+      return res.status(400).json({ error: 'ordinance_id or resolution_id is required' });
+    }
+    let result;
+    if (resolution_id) {
+      result = await ordinanceService.addResolutionAgendaItem(req.params.id, resolution_id, agenda_order, reading_number);
+    } else {
+      result = await ordinanceService.addAgendaItem(req.params.id, ordinance_id, agenda_order, reading_number);
+    }
     res.json(result);
   } catch (err) {
     console.error('Add agenda item error:', err);
@@ -476,6 +519,18 @@ exports.removeAgendaItem = async (req, res) => {
     res.json({ message: 'Agenda item removed', item: result });
   } catch (err) {
     console.error('Remove agenda item error:', err);
+    res.status(500).json({ error: 'Error removing agenda item' });
+  }
+};
+
+/** DELETE /sessions/:id/agenda-item/resolution/:resolutionId */
+exports.removeResolutionAgendaItem = async (req, res) => {
+  try {
+    const result = await ordinanceService.removeResolutionAgendaItem(req.params.id, req.params.resolutionId);
+    if (!result) return res.status(404).json({ error: 'Agenda item not found' });
+    res.json({ message: 'Agenda item removed', item: result });
+  } catch (err) {
+    console.error('Remove resolution agenda item error:', err);
     res.status(500).json({ error: 'Error removing agenda item' });
   }
 };

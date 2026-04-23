@@ -10,7 +10,7 @@ const upload = require('../middleware/upload');
 
 const workflowLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 60,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { status: 'fail', message: 'Too many requests, please try again later.' },
@@ -36,12 +36,15 @@ router.get('/:id/sessions', workflowLimiter, authenticateToken, ordinanceControl
 // ─── Three-Readings Legislative Workflow ──────────────────────────────────────
 router.get('/:id/workflow-status', workflowLimiter, authenticateToken, ordinanceController.getWorkflowStatus);
 router.get('/:id/committee-report', workflowLimiter, authenticateToken, ordinanceController.getCommitteeReport);
-router.post('/:id/submit-to-secretary',  workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Admin'), ordinanceController.submitToSecretary);
+router.post('/:id/submit-to-vice-mayor',  workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Admin'), ordinanceController.submitToViceMayor);
 router.post('/:id/first-reading',        workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.firstReading);
-router.post('/:id/assign-committee',     workflowLimiter, authenticateToken, authorizeRoles('Vice Mayor', 'Admin'), ordinanceController.assignCommittee);
+router.post('/:id/assign-committee',     workflowLimiter, authenticateToken, authorizeRoles('Vice Mayor', 'Secretary', 'Admin'), ordinanceController.assignCommittee);
 router.post('/:id/committee-report',     workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Committee Secretary', 'Admin'), ordinanceController.committeeReport);
 router.post('/:id/second-reading',       workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.secondReading);
-router.post('/:id/third-reading-vote',   workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.thirdReadingVote);
+router.post('/:id/open-voting',          workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.openThirdReadingVote);
+router.post('/:id/cast-vote',            workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Secretary', 'Admin'), ordinanceController.castThirdReadingVote);
+router.get('/:id/voting-status',         workflowLimiter, authenticateToken, ordinanceController.getThirdReadingVotingStatus);
+router.post('/:id/close-voting',         workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.closeThirdReadingVote);
 router.post('/:id/executive-approval',   workflowLimiter, authenticateToken, authorizeRoles('Vice Mayor', 'Admin'), ordinanceController.executiveApproval);
 router.post('/:id/executive-rejection',  workflowLimiter, authenticateToken, authorizeRoles('Vice Mayor', 'Admin'), ordinanceController.executiveRejection);
 router.post('/:id/post-publicly',        workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.postPublicly);

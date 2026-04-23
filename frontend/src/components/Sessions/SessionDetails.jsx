@@ -3,6 +3,7 @@ import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import SessionAgendaPanel from './SessionAgendaPanel';
 import OrderOfBusinessPanel from './OrderOfBusinessPanel';
+import LocalMeetingRecorder from '../common/LocalMeetingRecorder';
 import RichTextContent from '../common/RichTextContent';
 import '../../styles/SessionDetails.css';
 
@@ -13,11 +14,62 @@ const SESSION_STATUS = {
   'Cancelled': '#e74c3c',
 };
 
+function formatDuration(totalMinutes) {
+  const minutes = Number(totalMinutes || 0);
+  if (!minutes) {
+    return null;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  if (hours && remainder) {
+    return `${hours} hour${hours === 1 ? '' : 's'} ${remainder} minute${remainder === 1 ? '' : 's'}`;
+  }
+
+  if (hours) {
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+
+  return `${remainder} minute${remainder === 1 ? '' : 's'}`;
+}
+
+function formatTimeRange(dateValue, totalMinutes) {
+  if (!dateValue) {
+    return 'Not specified';
+  }
+
+  const start = new Date(dateValue);
+  if (Number.isNaN(start.getTime())) {
+    return 'Not specified';
+  }
+
+  const startText = start.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const minutes = Number(totalMinutes || 0);
+  if (!minutes) {
+    return startText;
+  }
+
+  const end = new Date(start.getTime() + minutes * 60000);
+  const endText = end.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return `${startText} - ${endText}`;
+}
+
 export default function SessionDetails({ sessionId, onClose, onEdit, onDelete }) {
   const { user } = useAuth();
   const [session, setSession] = useState(null);
   const [ordinances, setOrdinances] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [sessionMinutes, setSessionMinutes] = useState([]);
+  const [selectedMinutesId, setSelectedMinutesId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('details');
@@ -47,6 +99,13 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
         setParticipants(participantsRes.data || []);
       } catch {
         setParticipants([]);
+      }
+
+      try {
+        const minutesRes = await api.get(`/sessions/${sessionId}/minutes`);
+        setSessionMinutes(minutesRes.data || []);
+      } catch {
+        setSessionMinutes([]);
       }
     } catch (err) {
       setError('Failed to load session details.');
@@ -92,6 +151,19 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
     return ['Admin', 'Secretary'].includes(user?.role);
   };
 
+  const canRecordSession = () => {
+    return ['Admin', 'Secretary', 'Vice Mayor', 'Councilor'].includes(user?.role);
+  };
+
+  const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;
+  const latestRecording = latestRecordedMinutes?.recordings?.[0] || null;
+
+  useEffect(() => {
+    if (!selectedMinutesId && sessionMinutes.length > 0) {
+      setSelectedMinutesId(String(sessionMinutes[0].id));
+    }
+  }, [selectedMinutesId, sessionMinutes]);
+
   if (loading) {
     return (
       <div className="session-details-modal">
@@ -116,6 +188,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
 
   const status = getSessionStatus();
   const sessionDateTime = new Date(session.date);
+  const totalDuration = formatDuration(session.total_oob_minutes);
 
   return (
     <div className="session-details-modal">
@@ -187,11 +260,16 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
             <div>
               <span className="info-label">Time</span>
               <span className="info-value">
-                {sessionDateTime.toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {formatTimeRange(session.date, session.total_oob_minutes)}
               </span>
+            </div>
+          </div>
+
+          <div className="info-item">
+            <span className="info-icon">⏱️</span>
+            <div>
+              <span className="info-label">Estimated Duration</span>
+              <span className="info-value">{totalDuration || 'Not set from Order of Business'}</span>
             </div>
           </div>
 
@@ -231,6 +309,12 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
             onClick={() => setActiveTab('agenda')}
           >
             📜 Agenda
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'recording' ? 'active' : ''}`}
+            onClick={() => setActiveTab('recording')}
+          >
+            🎥 Recording
           </button>
           <button
             className={`tab-button ${activeTab === 'ordinances' ? 'active' : ''}`}
@@ -275,11 +359,12 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
-                      })} at {sessionDateTime.toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      })} at {formatTimeRange(session.date, session.total_oob_minutes)}
                     </span>
+                  </div>
+                  <div className="detail-item">
+                    <label>Estimated Duration:</label>
+                    <span>{totalDuration || 'Not set from Order of Business'}</span>
                   </div>
                   <div className="detail-item">
                     <label>Location:</label>
@@ -310,6 +395,100 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                     </div>
                   </section>
                 )}
+
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'recording' && (
+            <div className="tab-pane recording-pane">
+              <div className="details-grid">
+                {canRecordSession() && (
+                  <section className="detail-section full-width">
+                    <h3>🎥 Session Recording</h3>
+                    <p className="session-recording-hint">
+                      Record this session in the browser, save it locally, and upload the server copy to the attached session minutes record.
+                    </p>
+                    <div className="session-recording-target-row">
+                      <label htmlFor="sessionRecordingMinutes">Attach new recordings to</label>
+                      <select
+                        id="sessionRecordingMinutes"
+                        value={selectedMinutesId}
+                        onChange={(event) => setSelectedMinutesId(event.target.value)}
+                        className="session-recording-target-select"
+                      >
+                        {sessionMinutes.length === 0 ? (
+                          <option value="">Auto-create new session minutes</option>
+                        ) : (
+                          <>
+                            <option value="">Latest session minutes</option>
+                            {sessionMinutes.map((minutes) => (
+                              <option key={minutes.id} value={minutes.id}>
+                                {minutes.title}
+                              </option>
+                            ))}
+                          </>
+                        )}
+                      </select>
+                    </div>
+                    <LocalMeetingRecorder
+                      meetingTitle={session.title}
+                      subjectLabel="session"
+                      uploadUrl={`/sessions/${sessionId}/recording`}
+                      uploadFields={{ minutes_id: selectedMinutesId }}
+                      recordingUrl={latestRecording?.recording_url}
+                      recordingUploadedAt={latestRecording?.recording_uploaded_at}
+                      recordingUploadedByName={latestRecording?.recording_uploaded_by_name}
+                      onUploadComplete={(uploadedMinutes) => {
+                        setSessionMinutes((prev) => {
+                          const rest = prev.filter((item) => item.id !== uploadedMinutes.id);
+                          return [uploadedMinutes, ...rest];
+                        });
+                      }}
+                    />
+                  </section>
+                )}
+
+                <section className="detail-section full-width">
+                  <h3>📝 Attached Session Minutes</h3>
+                  {sessionMinutes.length > 0 ? (
+                    <div className="session-recording-minutes-list">
+                      {sessionMinutes.map((minutes) => (
+                        <div key={minutes.id} className="session-recording-minutes-card">
+                          <div className="session-recording-minutes-head">
+                            <strong>{minutes.title}</strong>
+                            <span className="status-badge" style={{ backgroundColor: '#4a90e2' }}>{minutes.status || 'Draft'}</span>
+                          </div>
+                          <div className="session-recording-meta-row">
+                            <span>📅 {minutes.meeting_date ? new Date(minutes.meeting_date).toLocaleDateString() : 'No meeting date'}</span>
+                            <span>🕒 {new Date(minutes.created_at).toLocaleString()}</span>
+                            <span>🎥 {(minutes.recordings || []).length} recording(s)</span>
+                          </div>
+                          {(minutes.recordings || []).length > 0 ? (
+                            <div className="session-recording-multi-list">
+                              {minutes.recordings.map((recording) => (
+                                <div key={recording.id} className="session-recording-saved-block">
+                                  <span className="session-recording-saved-label">Saved Recording</span>
+                                  <a href={`${api.defaults.baseURL}${recording.recording_url}`} target="_blank" rel="noopener noreferrer" className="session-recording-saved-link">
+                                    {recording.recording_original_name || `Open uploaded recording ${recording.id}`}
+                                  </a>
+                                  <p className="session-recording-saved-meta">
+                                    {recording.recording_uploaded_by_name ? `Uploaded by ${recording.recording_uploaded_by_name}` : 'Uploaded'}
+                                    {recording.recording_uploaded_at ? ` on ${new Date(recording.recording_uploaded_at).toLocaleString()}` : ''}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="session-recording-empty-link">No recording attached yet.</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="session-recording-empty-link">No session minutes record exists yet. The first recording upload will create one automatically.</p>
+                  )}
+                </section>
               </div>
             </div>
           )}

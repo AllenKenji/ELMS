@@ -3,7 +3,18 @@ let io;
 
 function init(server) {
   const { Server } = require('socket.io');
-  io = new Server(server, { cors: { origin: '*' } });
+  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  io = new Server(server, {
+    cors: {
+      origin: allowedOrigins,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+      credentials: true,
+    },
+  });
 
   io.on('connection', (socket) => {
     console.log('User connected:', socket.id);

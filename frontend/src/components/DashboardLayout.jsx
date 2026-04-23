@@ -3,7 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import NotificationBell from './NotificationBell';
 import '../styles/DashboardLayout.css'; 
-import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaVoteYea, FaLayerGroup, FaChartBar, FaCalendarAlt, FaEdit, FaInbox, FaRobot } from 'react-icons/fa';
+import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaLayerGroup, FaChartBar, FaCalendarAlt, FaEdit, FaInbox, FaRobot } from 'react-icons/fa';
 
 export default function DashboardLayout() {
   const { logout, user } = useAuth();
@@ -33,7 +33,6 @@ export default function DashboardLayout() {
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
       { path: '/dashboard/order-of-business', label: 'Order of Business', icon: <FaClipboardList /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
-      { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
@@ -52,7 +51,6 @@ export default function DashboardLayout() {
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
       { path: '/dashboard/order-of-business', label: 'Order of Business', icon: <FaClipboardList /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
-      { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
@@ -68,7 +66,6 @@ export default function DashboardLayout() {
       { path: '/dashboard/sessions', label: 'Sessions', icon: <FaClipboardList /> },
       { path: '/dashboard/order-of-business', label: 'Order of Business', icon: <FaClipboardList /> },
       { path: '/dashboard/committees', label: 'Committees', icon: <FaLayerGroup /> },
-      { path: '/dashboard/voting', label: 'Voting', icon: <FaVoteYea /> },
       { path: '/dashboard/ordinances', label: 'Ordinances', icon: <FaFileAlt /> },
       { path: '/dashboard/resolutions', label: 'Resolutions', icon: <FaFileSignature /> },
       { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },

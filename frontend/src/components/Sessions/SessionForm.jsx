@@ -47,7 +47,8 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
   const canManageAgenda = ['Admin', 'Secretary'].includes(user?.role);
   const [agendaItems, setAgendaItems] = useState([]);
   const [availableOrdinances, setAvailableOrdinances] = useState([]);
-  const [selectedOrdinanceId, setSelectedOrdinanceId] = useState('');
+  const [availableResolutions, setAvailableResolutions] = useState([]);
+  const [selectedMeasureKey, setSelectedMeasureKey] = useState('');
   const [readingNumber, setReadingNumber] = useState('');
   const [showAgendaAdd, setShowAgendaAdd] = useState(false);
   const [agendaError, setAgendaError] = useState('');
@@ -55,6 +56,10 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
   // Unassigned OOB items state
   const [unassignedOob, setUnassignedOob] = useState([]);
   const [selectedOobIds, setSelectedOobIds] = useState(new Set());
+
+  // OOB Documents state (for auto-filling session)
+  const [oobDocuments, setOobDocuments] = useState([]);
+  const [selectedOobDocId, setSelectedOobDocId] = useState('');
 
   useEffect(() => {
     setFormData(normalizeSessionFormData(initialData));
@@ -65,6 +70,9 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       api.get('/ordinances')
         .then(res => setAvailableOrdinances(res.data || []))
         .catch(() => setAvailableOrdinances([]));
+      api.get('/resolutions')
+        .then(res => setAvailableResolutions(res.data || []))
+        .catch(() => setAvailableResolutions([]));
       // Fetch unassigned OOB items
       api.get('/order-of-business/unassigned')
         .then(res => {
@@ -74,22 +82,61 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
           setSelectedOobIds(new Set(items.map(i => i.id)));
         })
         .catch(() => setUnassignedOob([]));
+      // Fetch OOB documents for auto-fill
+      api.get('/order-of-business/documents')
+        .then(res => setOobDocuments(res.data || []))
+        .catch(() => setOobDocuments([]));
     }
   }, [sessionId, canManageAgenda]);
 
-  const agendaOrdinanceIds = new Set(agendaItems.map(i => String(i.ordinance_id)));
+  const agendaOrdinanceIds = new Set(agendaItems.filter(i => i.item_type === 'Ordinance').map(i => String(i.measure_id)));
+  const agendaResolutionIds = new Set(agendaItems.filter(i => i.item_type === 'Resolution').map(i => String(i.measure_id)));
   const unscheduledOrdinances = availableOrdinances.filter(
     o => !agendaOrdinanceIds.has(String(o.id))
   );
+  const unscheduledResolutions = availableResolutions.filter(
+    r => !agendaResolutionIds.has(String(r.id))
+  );
+  // Combine into a single list with prefixed keys
+  const availableMeasures = [
+    ...unscheduledOrdinances.map(o => ({ ...o, _key: `ord-${o.id}`, _type: 'Ordinance', _number: o.ordinance_number })),
+    ...unscheduledResolutions.map(r => ({ ...r, _key: `res-${r.id}`, _type: 'Resolution', _number: r.resolution_number })),
+  ];
+
+  const handleSelectOobDocument = async (docId) => {
+    setSelectedOobDocId(docId);
+    if (!docId) return;
+    try {
+      const res = await api.get(`/order-of-business/documents/${docId}`);
+      const doc = res.data;
+      // Auto-fill session form fields from the OOB document
+      setFormData(prev => ({
+        ...prev,
+        title: doc.title || prev.title,
+        date: doc.date ? new Date(doc.date).toISOString().split('T')[0] : prev.date,
+        time: doc.time ? doc.time.slice(0, 5) : prev.time,
+        location: doc.venue || prev.location,
+      }));
+      // Build agenda text from the document's items
+      if (doc.items && doc.items.length > 0) {
+        const agendaText = doc.items
+          .map((item, i) => `${item.item_number ?? i + 1}. ${item.title}`)
+          .join('\n');
+        setFormData(prev => ({
+          ...prev,
+          agenda: prev.agenda && prev.agenda.length > 20 ? prev.agenda : agendaText,
+        }));
+      }
+      setFormErrors({});
+    } catch {
+      // Silently fail — user can still fill manually
+    }
+  };
 
   const handleAddAgendaItem = () => {
-    if (!selectedOrdinanceId) return;
-    const ordinance = availableOrdinances.find(o => String(o.id) === String(selectedOrdinanceId));
-    if (!ordinance) return;
-    if (agendaOrdinanceIds.has(String(selectedOrdinanceId))) {
-      setAgendaError('This ordinance is already on the agenda.');
-      return;
-    }
+    if (!selectedMeasureKey) return;
+    const measure = availableMeasures.find(m => m._key === selectedMeasureKey);
+    if (!measure) return;
     const parsedReading = readingNumber ? parseInt(readingNumber, 10) : null;
     if (parsedReading !== null && (parsedReading < 1 || parsedReading > MAX_READING_NUMBER)) {
       setAgendaError(`Reading number must be between 1 and ${MAX_READING_NUMBER}.`);
@@ -99,22 +146,23 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
     setAgendaItems(prev => [
       ...prev,
       {
-        ordinance_id: ordinance.id,
-        title: ordinance.title,
-        ordinance_number: ordinance.ordinance_number,
-        description: ordinance.description,
+        item_type: measure._type,
+        measure_id: measure.id,
+        title: measure.title,
+        measure_number: measure._number,
+        description: measure.description,
         reading_number: parsedReading,
         agenda_order: prev.length + 1,
       },
     ]);
-    setSelectedOrdinanceId('');
+    setSelectedMeasureKey('');
     setReadingNumber('');
     setShowAgendaAdd(false);
   };
 
-  const handleRemoveAgendaItem = (ordinanceId) => {
+  const handleRemoveAgendaItem = (itemType, measureId) => {
     setAgendaItems(prev => {
-      const updated = prev.filter(i => String(i.ordinance_id) !== String(ordinanceId));
+      const updated = prev.filter(i => !(i.item_type === itemType && String(i.measure_id) === String(measureId)));
       return updated.map((item, idx) => ({ ...item, agenda_order: idx + 1 }));
     });
     setAgendaError('');
@@ -256,19 +304,35 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
           const failedItems = [];
           for (const item of agendaItems) {
             try {
-              await api.post(`/sessions/${newSessionId}/add-agenda-item`, {
-                ordinance_id: item.ordinance_id,
+              const payload = {
                 agenda_order: item.agenda_order,
                 reading_number: item.reading_number || null,
-              });
+              };
+              if (item.item_type === 'Resolution') {
+                payload.resolution_id = item.measure_id;
+              } else {
+                payload.ordinance_id = item.measure_id;
+              }
+              await api.post(`/sessions/${newSessionId}/add-agenda-item`, payload);
             } catch {
-              failedItems.push(item.title || `Ordinance #${item.ordinance_id}`);
+              failedItems.push(item.title || `${item.item_type} #${item.measure_id}`);
             }
           }
           if (failedItems.length > 0) {
             setError(
               `Session created, but some agenda items could not be added: ${failedItems.join(', ')}. You can add them later from the session details page.`
             );
+          }
+        }
+
+        // Auto-add participants from OOB document (presiding officer, secretary, committee members)
+        if (newSessionId && selectedOobDocId) {
+          try {
+            await api.post(`/sessions/${newSessionId}/participants/from-oob`, {
+              oob_document_id: selectedOobDocId,
+            });
+          } catch {
+            // Non-blocking — participants can be added manually later
           }
         }
 
@@ -299,7 +363,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
     setError('');
     setSuccess('');
     setAgendaItems([]);
-    setSelectedOrdinanceId('');
+    setSelectedMeasureKey('');
     setReadingNumber('');
     setShowAgendaAdd(false);
     setAgendaError('');
@@ -331,6 +395,27 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
             </button>
           )}
         </div>
+
+        {/* OOB Document Selector – auto-fill session from existing Order of Business */}
+        {!sessionId && canManageAgenda && oobDocuments.length > 0 && (
+          <div className="oob-doc-selector">
+            <label htmlFor="oobDocSelect">📋 Fill from Order of Business</label>
+            <select
+              id="oobDocSelect"
+              value={selectedOobDocId}
+              onChange={(e) => handleSelectOobDocument(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">— Select an Order of Business to auto-fill —</option>
+              {oobDocuments.map(doc => (
+                <option key={doc.id} value={doc.id}>
+                  {doc.title}{doc.date ? ` (${new Date(doc.date).toLocaleDateString()})` : ''} — {doc.item_count} item{doc.item_count !== 1 ? 's' : ''}
+                </option>
+              ))}
+            </select>
+            <p className="form-hint">Selecting an Order of Business will auto-fill the session title, date, time, location, and agenda.</p>
+          </div>
+        )}
 
         {/* Alert Messages */}
         {error && (
@@ -531,21 +616,22 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
             {agendaItems.length === 0 ? (
               <div className="agenda-builder-empty">
                 <span className="agenda-builder-empty-icon">📄</span>
-                <p>No ordinances added yet. Use the button below to add proposed measures.</p>
+                <p>No proposed measures added yet. Use the button below to add ordinances or resolutions.</p>
               </div>
             ) : (
               <ol className="agenda-builder-list">
                 {agendaItems.map((item, index) => (
-                  <li key={item.ordinance_id} className="agenda-builder-item">
+                  <li key={`${item.item_type}-${item.measure_id}`} className="agenda-builder-item">
                     <div className="agenda-builder-item-order">{item.agenda_order}</div>
                     <div className="agenda-builder-item-body">
                       <div className="agenda-builder-item-title">
-                        {item.title || 'Untitled Ordinance'}
+                        {item.title || 'Untitled Measure'}
                       </div>
                       <div className="agenda-builder-item-meta">
-                        {item.ordinance_number && (
+                        <span className="agenda-builder-meta-tag">{item.item_type}</span>
+                        {item.measure_number && (
                           <span className="agenda-builder-meta-tag">
-                            No. {item.ordinance_number}
+                            No. {item.measure_number}
                           </span>
                         )}
                         {item.reading_number && (
@@ -579,9 +665,9 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
                       <button
                         type="button"
                         className="agenda-builder-btn agenda-builder-btn-remove"
-                        onClick={() => handleRemoveAgendaItem(item.ordinance_id)}
+                        onClick={() => handleRemoveAgendaItem(item.item_type, item.measure_id)}
                         title="Remove from agenda"
-                        aria-label="Remove ordinance from agenda"
+                        aria-label="Remove measure from agenda"
                       >
                         ✕
                       </button>
@@ -596,16 +682,33 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
                 <div className="agenda-builder-add-form">
                   <div className="agenda-builder-form-row">
                     <select
-                      value={selectedOrdinanceId}
-                      onChange={e => setSelectedOrdinanceId(e.target.value)}
+                      value={selectedMeasureKey}
+                      onChange={e => setSelectedMeasureKey(e.target.value)}
                       className="agenda-builder-select"
                     >
-                      <option value="">— Select an ordinance —</option>
-                      {unscheduledOrdinances.map(o => (
-                        <option key={o.id} value={o.id}>
-                          {o.title}{o.ordinance_number ? ` (No. ${o.ordinance_number})` : ''}
-                        </option>
-                      ))}
+                      <option value="">— Select a proposed measure —</option>
+                      {availableMeasures.length > 0 && (
+                        <>
+                          {unscheduledOrdinances.length > 0 && (
+                            <optgroup label="Ordinances">
+                              {availableMeasures.filter(m => m._type === 'Ordinance').map(m => (
+                                <option key={m._key} value={m._key}>
+                                  {m.title}{m._number ? ` (No. ${m._number})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                          {unscheduledResolutions.length > 0 && (
+                            <optgroup label="Resolutions">
+                              {availableMeasures.filter(m => m._type === 'Resolution').map(m => (
+                                <option key={m._key} value={m._key}>
+                                  {m.title}{m._number ? ` (No. ${m._number})` : ''}
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      )}
                     </select>
                     <input
                       type="number"
@@ -623,7 +726,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
                       className="agenda-builder-btn-cancel"
                       onClick={() => {
                         setShowAgendaAdd(false);
-                        setSelectedOrdinanceId('');
+                        setSelectedMeasureKey('');
                         setReadingNumber('');
                         setAgendaError('');
                       }}
@@ -634,7 +737,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
                       type="button"
                       className="agenda-builder-btn-submit"
                       onClick={handleAddAgendaItem}
-                      disabled={!selectedOrdinanceId}
+                      disabled={!selectedMeasureKey}
                     >
                       Add to Agenda
                     </button>
@@ -645,9 +748,9 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
                   type="button"
                   className="agenda-builder-btn-add"
                   onClick={() => setShowAgendaAdd(true)}
-                  disabled={unscheduledOrdinances.length === 0}
+                  disabled={availableMeasures.length === 0}
                 >
-                  ➕ Add Ordinance to Agenda
+                  ➕ Add Proposed Measure to Agenda
                 </button>
               )}
             </div>

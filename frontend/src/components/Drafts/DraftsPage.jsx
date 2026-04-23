@@ -19,6 +19,8 @@ export default function DraftsPage() {
   const [actionMsg, setActionMsg] = useState('');
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [selectedFormType, setSelectedFormType] = useState(null);
+  const [proposingDraft, setProposingDraft] = useState(null);
+  const [proposingInitialData, setProposingInitialData] = useState(null);
 
   const canCreate = ['Admin', 'Councilor', 'Vice Mayor'].includes(user?.role ?? '');
 
@@ -61,19 +63,42 @@ export default function DraftsPage() {
 
   const handleSubmit = async (draft) => {
     try {
+      setError('');
+      const detailEndpoint = draft.itemType === 'Ordinance'
+        ? `/ordinances/${draft.id}`
+        : `/resolutions/${draft.id}`;
+      const detailRes = await api.get(detailEndpoint);
+      const detail = detailRes?.data || draft;
+
       if (draft.itemType === 'Ordinance') {
-        await api.post(`/ordinances/${draft.id}/submit-to-secretary`, {
-          comment: 'Submitted from Drafts page',
+        setProposingInitialData({
+          title: detail.title || '',
+          ordinance_number: '',
+          description: detail.description || '',
+          content: detail.content || '',
+          co_authors: detail.co_authors || '',
+          whereas_clauses: detail.whereas_clauses || '',
+          effectivity_clause: detail.effectivity_clause || '',
+          attachments: detail.attachments || [],
+          remarks: detail.remarks || '',
         });
       } else {
-        await api.patch(`/resolutions/${draft.id}/status`, { status: 'Submitted' });
+        setProposingInitialData({
+          title: detail.title || '',
+          resolution_number: '',
+          description: detail.description || '',
+          content: detail.content || '',
+          co_authors: detail.co_authors || '',
+          whereas_clauses: detail.whereas_clauses || '',
+          effectivity_clause: detail.effectivity_clause || '',
+          attachments: detail.attachments || [],
+          remarks: detail.remarks || '',
+        });
       }
-
-      showActionMessage(`✅ "${draft.title}" is now in Proposed Measures.`);
-      fetchDrafts();
+      setProposingDraft(draft);
     } catch (err) {
-      setError(err?.message || 'Failed to use draft as a proposed measure. Please try again.');
-      console.error('Error submitting draft:', err);
+      setError(err?.response?.data?.error || 'Failed to load draft details. Please try again.');
+      console.error('Error preparing draft for submission:', err);
     }
   };
 
@@ -114,6 +139,45 @@ export default function DraftsPage() {
     ordinances: drafts.filter((d) => d.itemType === 'Ordinance').length,
     resolutions: drafts.filter((d) => d.itemType === 'Resolution').length,
   };
+
+  if (proposingDraft) {
+    if (proposingDraft.itemType === 'Ordinance') {
+      return (
+        <OrdinanceForm
+          autoSubmitAfterCreate
+          initialStatusOnCreate="Submitted"
+          initialData={proposingInitialData}
+          onSuccess={() => {
+            setProposingDraft(null);
+            setProposingInitialData(null);
+            fetchDrafts();
+            showActionMessage('✅ New proposed measure created. Original draft is unchanged.');
+          }}
+          onCancel={() => {
+            setProposingDraft(null);
+            setProposingInitialData(null);
+          }}
+        />
+      );
+    } else {
+      return (
+        <ResolutionForm
+          initialStatusOnCreate="Submitted"
+          initialData={proposingInitialData}
+          onSuccess={() => {
+            setProposingDraft(null);
+            setProposingInitialData(null);
+            fetchDrafts();
+            showActionMessage('✅ New proposed measure created. Original draft is unchanged.');
+          }}
+          onCancel={() => {
+            setProposingDraft(null);
+            setProposingInitialData(null);
+          }}
+        />
+      );
+    }
+  }
 
   if (editingDraft) {
     if (editingDraft.itemType === 'Ordinance') {

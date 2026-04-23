@@ -1,8 +1,10 @@
 import axios from 'axios';
 import { jwtDecode } from 'jwt-decode';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000',
+  baseURL: API_BASE_URL,
 });
 
 // Attach the access token to every request automatically
@@ -86,5 +88,6 @@ function extractErrorMessage(status) {
   return messages[status] || 'An unexpected error occurred.';
 }
 
+export { API_BASE_URL };
 export default api;
 

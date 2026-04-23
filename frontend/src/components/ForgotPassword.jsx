@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import "../styles/ForgotPassword.css";
+import { API_BASE_URL } from '../api/api';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -15,7 +16,7 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      const res = await axios.post('http://localhost:5000/auth/forgot-password', {
+      const res = await axios.post(`${API_BASE_URL}/auth/forgot-password`, {
         email,
       });
 

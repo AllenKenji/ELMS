@@ -56,6 +56,61 @@
   padding: 1rem 0;
 }
 
+.oob-compiled-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.oob-doc-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.oob-doc-filter {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.oob-doc-filter:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.oob-doc-filter.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.oob-doc-badges {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.oob-doc-badge-past {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.oob-doc-badge-archived {
+  background: #e2e8f0;
+  color: #334155;
+}
+
 /* Tabs */
 .oob-tabs {
   display: flex;
@@ -232,6 +287,16 @@
 
 .oob-btn-remove-unassigned:hover {
   background: #fecaca;
+}
+
+.oob-compiled-btn-archive {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.oob-compiled-btn-archive:hover:not(:disabled) {
+  background: #ffedd5;
 }
 
 /* Modal */
@@ -540,50 +605,22 @@
   padding: 1rem 0;
 }
 
-.oob-compiled-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.oob-compiled-item {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #f8fafc;
-  overflow: hidden;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.oob-compiled-item.expanded {
-  border-color: #93c5fd;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
-}
-
-.oob-compiled-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.65rem 1rem;
-}
-
-.oob-compiled-name {
-  display: flex;
+.oob-compiled-name-btn {
+  display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   background: none;
   border: none;
   cursor: pointer;
   padding: 0;
-  flex: 1;
-  min-width: 0;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #1e293b;
   text-align: left;
+  transition: color 0.15s;
 }
 
-.oob-compiled-name:hover .oob-compiled-session-title {
+.oob-compiled-name-btn:hover {
   color: #1e40af;
 }
 
@@ -594,37 +631,17 @@
   width: 14px;
 }
 
-.oob-compiled-session-title {
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #1e293b;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  transition: color 0.15s;
-}
-
-.oob-compiled-count {
-  font-size: 0.78rem;
-  color: #64748b;
-  background: #e2e8f0;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
 .oob-compiled-actions {
   display: flex;
-  gap: 0.4rem;
-  flex-shrink: 0;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
 }
 
 .oob-compiled-btn {
-  padding: 0.35rem 0.75rem;
+  padding: 0.4rem 0.85rem;
   border: none;
-  border-radius: 5px;
-  font-size: 0.82rem;
+  border-radius: 6px;
+  font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, opacity 0.15s;
@@ -638,6 +655,15 @@
 
 .oob-compiled-btn-pdf:hover {
   background: #bfdbfe;
+}
+
+.oob-compiled-btn-edit {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.oob-compiled-btn-edit:hover {
+  background: #fde68a;
 }
 
 .oob-compiled-btn-delete {
@@ -656,6 +682,6 @@
 
 .oob-compiled-panel {
   border-top: 1px solid #e2e8f0;
-  padding: 0.75rem;
-  background: #fff;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
 }

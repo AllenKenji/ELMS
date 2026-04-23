@@ -36,6 +36,23 @@ exports.generate = async (req, res) => {
 };
 
 /**
+ * Transcribe an uploaded session recording into the linked minutes record.
+ * POST /minutes/:id/recordings/:recordingId/transcribe
+ */
+exports.transcribeRecording = async (req, res) => {
+  try {
+    const minutes = await minutesService.transcribeRecording(req.params.id, req.params.recordingId, req.user.id);
+    res.json(minutes);
+  } catch (err) {
+    console.error('Minutes recording transcription error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 502) return res.status(502).json({ error: err.message });
+    if (err.status === 503) return res.status(503).json({ error: err.message });
+    res.status(500).json({ error: 'Error transcribing session recording' });
+  }
+};
+
+/**
  * Get all meeting minutes with pagination and filtering.
  * GET /minutes
  */

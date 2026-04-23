@@ -8,7 +8,7 @@ const minutesController = require('../controllers/minutesController');
 // Rate limit for general minutes API usage
 const minutesLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100,
+  max: 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { status: 'fail', message: 'Too many requests, please try again later.' },
@@ -25,6 +25,7 @@ const generateLimiter = rateLimit({
 
 router.post('/', minutesLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.create);
 router.post('/:id/generate', generateLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.generate);
+router.post('/:id/recordings/:recordingId/transcribe', generateLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.transcribeRecording);
 router.get('/', minutesLimiter, authenticateToken, minutesController.getAll);
 router.get('/:id', minutesLimiter, authenticateToken, minutesController.getById);
 router.get('/:id/export/text', minutesLimiter, authenticateToken, minutesController.exportText);

@@ -1,13 +1,14 @@
 // hooks/useSocket.js
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import { API_BASE_URL } from '../api/api';
 
 export default function useSocket(role) {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     // Create socket connection inside effect
-    const socket = io('http://localhost:5000'); // adjust to your backend URL
+    const socket = io(import.meta.env.VITE_SOCKET_URL || API_BASE_URL);
 
     // Join role-specific room
     if (role) {

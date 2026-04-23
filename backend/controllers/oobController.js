@@ -11,3 +11,13 @@ exports.getOrdinancesWithCommitteeReports = async (req, res) => {
     res.status(500).json({ error: 'Error fetching ordinances with committee reports' });
   }
 };
+
+exports.getResolutionsWithCommitteeReports = async (req, res) => {
+  try {
+    const resolutions = await oobService.getResolutionsWithCommitteeReportsSubmitted();
+    res.json(resolutions);
+  } catch (err) {
+    console.error('Get resolutions with committee reports error:', err);
+    res.status(500).json({ error: 'Error fetching resolutions with committee reports' });
+  }
+};

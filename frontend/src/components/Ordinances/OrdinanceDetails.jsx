@@ -4,7 +4,10 @@ import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import OrdinanceWorkflow from './OrdinanceWorkflow';
 import CommitteeSelect from '../Committees/CommitteeSelect';
+import LocalMeetingRecorder from '../common/LocalMeetingRecorder';
 import '../../styles/OrdinanceDetails.css';
+
+const API_BASE_URL = (api.defaults.baseURL || '').replace(/\/+$/, '');
 
 const STATUS_COLORS = {
   'Draft': '#95a5a6',
@@ -50,6 +53,14 @@ const STATUS_SEQUENCE = [
   'Published',
 ];
 
+const SECRETARY_STATUS_OPTIONS = {
+  Draft: ['Submitted'],
+  Submitted: ['Under Review'],
+  'Under Review': [],
+  Approved: [],
+  Published: [],
+};
+
 export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange }) {
   const { user } = useAuth();
   const [ordinance, setOrdinance] = useState(null);
@@ -73,6 +84,8 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
   const [meetingSubmitting, setMeetingSubmitting] = useState(false);
   const [meetingError, setMeetingError] = useState('');
   const [meetingLink, setMeetingLink] = useState('');
+  const [meetingMode, setMeetingMode] = useState('online');
+  const [meetingLocation, setMeetingLocation] = useState('');
   const committeeId = ordinance?.committee_id;
   const ordinanceIdRef = ordinance?.id;
 
@@ -83,11 +96,12 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
       return role === 'admin' || role === 'secretary';
     };
 
-    // Can assign committee if user is admin/vice mayor and no committee assigned yet
+    // Can assign committee if user is admin/vice mayor, no committee is assigned,
+    // and the ordinance is already in the stage accepted by the backend workflow.
     const canAssignCommittee = () => {
       const role = user?.role?.toLowerCase();
-      // Only allow if no committee assigned
-      return (role === 'admin' || role === 'vice mayor') && !ordinance?.committee_id;
+      const stage = String(ordinance?.reading_stage || '').toUpperCase();
+      return (role === 'admin' || role === 'vice mayor') && !ordinance?.committee_id && stage === 'FIRST_READING';
     };
 
     // Handler for status change modal
@@ -185,6 +199,8 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
       setMeetingTitle('');
       setMeetingDate2('');
       setMeetingTime2('');
+      setMeetingMode('online');
+      setMeetingLocation('');
       setMeetingError('');
     };
 
@@ -198,8 +214,16 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
         return setMeetingError('No committee assigned.');
       }
 
-      if (!meetingTitle || !meetingDate2 || !meetingLink) {
-        return setMeetingError('Meeting title, date, and link are required.');
+      if (!meetingTitle || !meetingDate2) {
+        return setMeetingError('Meeting title and date are required.');
+      }
+
+      if ((meetingMode === 'online' || meetingMode === 'both') && !meetingLink.trim()) {
+        return setMeetingError('Meeting link is required for online or hybrid meetings.');
+      }
+
+      if ((meetingMode === 'place' || meetingMode === 'both') && !meetingLocation.trim()) {
+        return setMeetingError('Meeting place is required for place or hybrid meetings.');
       }
 
       setMeetingSubmitting(true);
@@ -210,7 +234,9 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
           meeting_date: meetingDate2,
           meeting_time: meetingTime2 || '',
           ordinance_id: ordinanceIdRef,
-          meetingLink: meetingLink,
+          meetingLink: meetingLink.trim(),
+          meeting_mode: meetingMode,
+          meeting_location: meetingLocation.trim(),
         });
 
         // --- Reset + Close ---
@@ -245,6 +271,12 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
       setAssignError("");
       setAssigning(true);
       try {
+        const stage = String(ordinance?.reading_stage || '').toUpperCase();
+        if (stage !== 'FIRST_READING') {
+          setAssignError('Committee can only be assigned after First Reading.');
+          setAssigning(false);
+          return;
+        }
         if (!selectedCommitteeId) {
           setAssignError("Please select a committee.");
           setAssigning(false);
@@ -321,7 +353,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
 
   const handleDownloadFile = async (fileUrl, fileName) => {
     try {
-      const response = await api.get(fileUrl.replace('http://localhost:5000', ''), {
+      const response = await api.get(fileUrl.replace(API_BASE_URL, ''), {
         responseType: 'blob',
       });
 
@@ -359,6 +391,11 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
   };
 
   const getNextStatuses = () => {
+    const role = user?.role?.toLowerCase();
+    if (role === 'secretary') {
+      return SECRETARY_STATUS_OPTIONS[ordinance?.status] || [];
+    }
+
     const currentIndex = STATUS_SEQUENCE.indexOf(ordinance?.status);
     if (currentIndex === -1) return [];
     return STATUS_SEQUENCE.slice(currentIndex + 1);
@@ -536,7 +573,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                     <ul className="detail-list">
                       {ordinance.attachments.map((att, idx) => {
                         // If it's a file path (starts with /uploads/), show as download link
-                        const BASE_URL = 'http://localhost:5000'; // or use env
+                        const BASE_URL = API_BASE_URL;
 
                         return (
                           <li key={idx}>
@@ -745,8 +782,27 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                                 <input type="time" value={meetingTime2} onChange={e => setMeetingTime2(e.target.value)} disabled={meetingSubmitting} />
                               </div>
                               <div className="form-group">
-                                <label>Meeting Link <span className="required">*</span></label>
-                                <input type="text" value={meetingLink} onChange={e => setMeetingLink(e.target.value)} disabled={meetingSubmitting} placeholder="Paste Google Meet or Zoom link here" />
+                                <label>Where <span className="required">*</span></label>
+                                <select value={meetingMode} onChange={e => setMeetingMode(e.target.value)} disabled={meetingSubmitting}>
+                                  <option value="online">Online</option>
+                                  <option value="place">Place</option>
+                                  <option value="both">Both</option>
+                                </select>
+                              </div>
+                              {meetingMode !== 'place' && (
+                                <div className="form-group">
+                                  <label>Meeting Link <span className="required">*</span></label>
+                                  <input type="text" value={meetingLink} onChange={e => setMeetingLink(e.target.value)} disabled={meetingSubmitting} placeholder="Paste Google Meet or Zoom link here" />
+                                </div>
+                              )}
+                              {meetingMode !== 'online' && (
+                                <div className="form-group">
+                                  <label>Meeting Place <span className="required">*</span></label>
+                                  <input type="text" value={meetingLocation} onChange={e => setMeetingLocation(e.target.value)} disabled={meetingSubmitting} placeholder="e.g. Session Hall, Committee Room A" />
+                                </div>
+                              )}
+                              <div className="form-group">
+                                <p style={{ margin: 0, color: '#666', fontSize: '0.95em' }}>Choose whether this meeting is online, in-person, or both.</p>
                               </div>
                               <div className="modal-actions">
                                 <button onClick={handleCreateMeeting} className="btn btn-primary" disabled={meetingSubmitting}>Create Meeting</button>
@@ -835,73 +891,105 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                     }
                     return (
                       <li key={meeting.id} className="committee-meeting-item">
-                        <strong>{meeting.title}</strong>
-                        {meeting.meeting_date && (
-                          <span className="committee-meeting-date">
-                            {' — '}
-                            {new Date(meeting.meeting_date).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                          </span>
-                        )}
-                        {meeting.meeting_time && (
-                          <span className="committee-meeting-time">
-                            {' at '}{meeting.meeting_time}
-                          </span>
-                        )}
-                        {meeting.meeting_link && joinEnabled && (
-                          <span className="committee-meeting-link" style={{ marginLeft: 8 }}>
+                        <div className="committee-meeting-main">
+                          <div className="committee-meeting-header-row">
+                            <strong>{meeting.title}</strong>
+                            {meeting.ended && (
+                              <span className="meeting-ended-label">Meeting Ended</span>
+                            )}
+                          </div>
+                          <div className="committee-meeting-schedule">
+                            {meeting.meeting_date && (
+                              <span className="committee-meeting-date">
+                                {new Date(meeting.meeting_date).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                })}
+                              </span>
+                            )}
+                            {meeting.meeting_time && (
+                              <span className="committee-meeting-time">
+                                at {meeting.meeting_time}
+                              </span>
+                            )}
+                          </div>
+                          <div className="committee-meeting-venue-block">
+                            <div className="committee-meeting-venue-row">
+                              <span className="committee-meeting-venue-label">Format</span>
+                              <span className={`committee-meeting-mode ${(meeting.meeting_mode || 'online').toLowerCase()}`}>
+                                {meeting.meeting_mode === 'both' ? 'Online + Place' : meeting.meeting_mode === 'place' ? 'Place' : 'Online'}
+                              </span>
+                            </div>
+                            {meeting.meeting_location && (
+                              <div className="committee-meeting-venue-row">
+                                <span className="committee-meeting-venue-label">Place</span>
+                                <span className="committee-meeting-venue-value">{meeting.meeting_location}</span>
+                              </div>
+                            )}
+                            {meeting.meeting_link && (
+                              <div className="committee-meeting-venue-row">
+                                <span className="committee-meeting-venue-label">Online</span>
+                                <span className="committee-meeting-venue-value">Meeting link available</span>
+                              </div>
+                            )}
+                            {meeting.secretary_name && (
+                              <div className="committee-meeting-venue-row">
+                                <span className="committee-meeting-venue-label">Secretary</span>
+                                <span className="committee-meeting-venue-value">{meeting.secretary_name}</span>
+                              </div>
+                            )}
+                          </div>
+                          {!meeting.ended && (
+                            <LocalMeetingRecorder
+                              meetingTitle={meeting.title}
+                              committeeId={meeting.committee_id}
+                              meetingId={meeting.id}
+                              recordingUrl={meeting.recording_url}
+                              recordingUploadedAt={meeting.recording_uploaded_at}
+                              recordingUploadedByName={meeting.recording_uploaded_by_name}
+                              onUploadComplete={fetchCommitteeMeetings}
+                            />
+                          )}
+                        </div>
+                        <div className="committee-meeting-actions">
+                          {meeting.meeting_link && !meeting.ended && (
                             <button
                               className="btn btn-success btn-join-meeting"
                               onClick={() => window.open(meeting.meeting_link, '_blank', 'noopener,noreferrer')}
                             >
                               Join Meeting
                             </button>
-                          </span>
-                        )}
-                        {meeting.ended && (
-                          <span className="meeting-ended-label" style={{ marginLeft: 8, color: '#e74c3c', fontWeight: 500 }}>
-                            Meeting Ended
-                          </span>
-                        )}
-                        {canEndMeeting && !meeting.ended && joinEnabled && (
-                          <button
-                            className="btn btn-warning btn-end-meeting"
-                            style={{ marginLeft: 8 }}
-                            onClick={async () => {
-                              if (window.confirm('End this meeting? This will disable the join link for all participants.')) {
-                                try {
-                                  await api.patch(`/committees/${meeting.committee_id}/meetings/${meeting.id}/end`);
-                                  toast.success('Meeting ended');
-                                  await fetchCommitteeMeetings();
-                                  // Refresh ordinance details to update workflow stage
-                                  await fetchOrdinanceDetails();
-                                } catch (err) {
-                                  console.error('End meeting error:', err);
-                                  toast.error('Failed to end meeting');
+                          )}
+                          {canEndMeeting && !meeting.ended && (
+                            <button
+                              className="btn btn-warning btn-end-meeting"
+                              onClick={async () => {
+                                if (window.confirm('End this meeting? This will disable the join link for all participants.')) {
+                                  try {
+                                    await api.patch(`/committees/${meeting.committee_id}/meetings/${meeting.id}/end`);
+                                    toast.success('Meeting ended');
+                                    await fetchCommitteeMeetings();
+                                    await fetchOrdinanceDetails();
+                                  } catch (err) {
+                                    console.error('End meeting error:', err);
+                                    toast.error('Failed to end meeting');
+                                  }
                                 }
-                              }
-                            }}
-                          >
-                            End Meeting
-                          </button>
-                        )}
-                        {meeting.secretary_name && (
-                          <span className="committee-meeting-secretary">
-                            {' | Secretary: '}{meeting.secretary_name}
-                          </span>
-                        )}
-                        {canDeleteMeeting() && (
-                          <button
-                            className="btn btn-danger btn-delete-meeting"
-                            style={{ marginLeft: 12 }}
-                            onClick={() => handleDeleteMeeting(meeting.id)}
-                          >
-                            Delete
-                          </button>
-                        )}
+                              }}
+                            >
+                              End Meeting
+                            </button>
+                          )}
+                          {canDeleteMeeting() && (
+                            <button
+                              className="btn btn-danger btn-delete-meeting"
+                              onClick={() => handleDeleteMeeting(meeting.id)}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
@@ -1052,6 +1140,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
               <OrdinanceWorkflow
                 ordinanceId={ordinanceId}
                 ordinance={ordinance}
+                committeeMeetings={committeeMeetings}
                 onStatusUpdate={() => {
                   fetchOrdinanceDetails();
                   fetchWorkflowHistory();

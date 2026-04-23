@@ -1,3 +1,6 @@
+const fs = require('fs/promises');
+const path = require('path');
+
 // End a meeting (set ended=true)
 exports.endMeeting = async (committeeId, meetingId, userId) => {
   const client = await pool.connect();
@@ -16,13 +19,21 @@ exports.endMeeting = async (committeeId, meetingId, userId) => {
     await AuditLog.create(client, userId, 'MEETING_ENDED', `Meeting ID ${meetingId} ended`);
 
     // Check if all meetings for this ordinance are ended
-    const ordRes = await client.query('SELECT ordinance_id FROM committee_meetings WHERE id = $1', [meetingId]);
+    const ordRes = await client.query('SELECT ordinance_id, resolution_id FROM committee_meetings WHERE id = $1', [meetingId]);
     const ordinanceId = ordRes.rows[0]?.ordinance_id;
+    const resolutionId = ordRes.rows[0]?.resolution_id;
     if (ordinanceId) {
       const openMeetings = await client.query('SELECT COUNT(*) FROM committee_meetings WHERE ordinance_id = $1 AND ended = FALSE', [ordinanceId]);
       if (parseInt(openMeetings.rows[0].count, 10) === 0) {
         // Move ordinance to committee report stage
         await require('../models/Ordinance').setReadingStage(client, ordinanceId, 'COMMITTEE_REPORT_SUBMITTED');
+      }
+    }
+    if (resolutionId) {
+      const openMeetings = await client.query('SELECT COUNT(*) FROM committee_meetings WHERE resolution_id = $1 AND ended = FALSE', [resolutionId]);
+      if (parseInt(openMeetings.rows[0].count, 10) === 0) {
+        // Move resolution to committee report stage
+        await require('../models/Resolution').setReadingStage(client, resolutionId, 'COMMITTEE_REPORT_SUBMITTED');
       }
     }
 
@@ -50,12 +61,55 @@ const { getIO } = require('../socket');
 
 // === Constants ===
 const VALID_MEMBER_ROLES = ['Chair', 'Member', 'Secretary', 'Committee Secretary'];
+const RECORDING_UPLOAD_PREFIX = '/uploads/committee-recordings/';
 
 // === Helpers ===
 function generateMeetingLink() {
   // In production, integrate with Google/Zoom API
   const random = Math.random().toString(36).substring(2, 10);
   return `https://meet.google.com/${random}`;
+}
+
+function normalizeMeetingMode(mode, meetingLink, meetingLocation) {
+  const normalizedMode = String(mode || '').trim().toLowerCase();
+  if (['online', 'place', 'both'].includes(normalizedMode)) {
+    return normalizedMode;
+  }
+
+  const hasLink = Boolean(String(meetingLink || '').trim());
+  const hasLocation = Boolean(String(meetingLocation || '').trim());
+
+  if (hasLink && hasLocation) return 'both';
+  if (hasLocation) return 'place';
+  return 'online';
+}
+
+function buildMeetingWhereText(meetingMode, meetingLink, meetingLocation) {
+  if (meetingMode === 'both') {
+    return `Location: ${meetingLocation}. Online link: ${meetingLink}`;
+  }
+  if (meetingMode === 'place') {
+    return `Location: ${meetingLocation}`;
+  }
+  return `Online link: ${meetingLink}`;
+}
+
+function resolveUploadAbsolutePath(relativePath) {
+  if (!relativePath || !String(relativePath).startsWith(RECORDING_UPLOAD_PREFIX)) {
+    return null;
+  }
+
+  const relativeFilePath = String(relativePath).replace(/^\/uploads\//, 'uploads/');
+  return path.join(__dirname, '..', relativeFilePath);
+}
+
+async function deleteMeetingRecordingFile(relativePath) {
+  const absolutePath = resolveUploadAbsolutePath(relativePath);
+  if (!absolutePath) {
+    return;
+  }
+
+  await fs.unlink(absolutePath).catch(() => {});
 }
 
 // === Meeting Operations ===
@@ -66,12 +120,34 @@ exports.deleteMeeting = async (committeeId, meetingId, userId) => {
     err.status = 404;
     throw err;
   }
+
+  await deleteMeetingRecordingFile(result.rows[0].recording_url);
 };
 
-exports.createMeeting = async (committeeId, { title, meeting_date, meeting_time, ordinance_id, meetingLink }, userId) => {
+exports.createMeeting = async (
+  committeeId,
+  { title, meeting_date, meeting_time, ordinance_id, resolution_id, meetingLink, meeting_mode, meeting_location },
+  userId
+) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+
+    const normalizedMeetingLink = String(meetingLink || '').trim();
+    const normalizedMeetingLocation = String(meeting_location || '').trim();
+    const normalizedMeetingMode = normalizeMeetingMode(meeting_mode, normalizedMeetingLink, normalizedMeetingLocation);
+
+    if ((normalizedMeetingMode === 'online' || normalizedMeetingMode === 'both') && !normalizedMeetingLink) {
+      const err = new Error('An online meeting link is required for online or hybrid meetings');
+      err.status = 400;
+      throw err;
+    }
+
+    if ((normalizedMeetingMode === 'place' || normalizedMeetingMode === 'both') && !normalizedMeetingLocation) {
+      const err = new Error('A meeting place is required for place or hybrid meetings');
+      err.status = 400;
+      throw err;
+    }
 
     const minutesRes = await CommitteeMinutes.create(
       title,
@@ -85,15 +161,27 @@ exports.createMeeting = async (committeeId, { title, meeting_date, meeting_time,
 
     const result = await client.query(
       `INSERT INTO committee_meetings 
-       (title, meeting_date, meeting_time, committee_id, ordinance_id, created_by, status, meeting_link, minutes_id, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, 'Draft', $7, $8, NOW(), NOW()) RETURNING *`,
-      [title, meeting_date, meeting_time || null, committeeId, ordinance_id || null, userId, meetingLink, minutesId]
+       (title, meeting_date, meeting_time, committee_id, ordinance_id, resolution_id, created_by, status, meeting_link, meeting_mode, meeting_location, minutes_id, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'Draft', $8, $9, $10, $11, NOW(), NOW()) RETURNING *`,
+      [
+        title,
+        meeting_date,
+        meeting_time || null,
+        committeeId,
+        ordinance_id || null,
+        resolution_id || null,
+        userId,
+        normalizedMeetingLink || null,
+        normalizedMeetingMode,
+        normalizedMeetingLocation || null,
+        minutesId,
+      ]
     );
     const meeting = result.rows[0];
 
     const membersRes = await Committee.findMembers(committeeId);
     const members = membersRes.rows;
-    const notifyMsg = `A new committee meeting has been scheduled: "${title}" on ${meeting_date}${meeting_time ? ' at ' + meeting_time : ''}. Meeting link: ${meetingLink}`;
+    const notifyMsg = `A new committee meeting has been scheduled: "${title}" on ${meeting_date}${meeting_time ? ' at ' + meeting_time : ''}. ${buildMeetingWhereText(normalizedMeetingMode, normalizedMeetingLink, normalizedMeetingLocation)}`;
 
     for (const member of members) {
       await createNotification(member.user_id, notifyMsg, {
@@ -116,10 +204,76 @@ exports.createMeeting = async (committeeId, { title, meeting_date, meeting_time,
 
 exports.getCommitteeMeetings = async (committeeId) => {
   const result = await pool.query(
-    'SELECT * FROM committee_meetings WHERE committee_id = $1 ORDER BY meeting_date DESC',
+    `SELECT cm.*, uploader.name AS recording_uploaded_by_name,
+            minutes.generated_minutes AS meeting_minutes,
+            minutes.transcript AS meeting_transcript,
+            COALESCE(minutes.attendees, minutes.participants) AS meeting_attendees
+     FROM committee_meetings cm
+     LEFT JOIN users uploader ON uploader.id = cm.recording_uploaded_by
+     LEFT JOIN committee_minutes minutes ON minutes.id = cm.minutes_id
+     WHERE cm.committee_id = $1
+     ORDER BY cm.meeting_date DESC, cm.created_at DESC`,
     [committeeId]
   );
   return result.rows;
+};
+
+exports.saveMeetingRecording = async (committeeId, meetingId, file, userId) => {
+  const relativePath = file ? `${RECORDING_UPLOAD_PREFIX}${file.filename}` : null;
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const existingMeetingResult = await client.query(
+      'SELECT id, recording_url FROM committee_meetings WHERE id = $1 AND committee_id = $2 FOR UPDATE',
+      [meetingId, committeeId]
+    );
+
+    if (existingMeetingResult.rows.length === 0) {
+      const err = new Error('Meeting not found');
+      err.status = 404;
+      throw err;
+    }
+
+    const previousRecordingUrl = existingMeetingResult.rows[0].recording_url;
+
+    await client.query(
+      `UPDATE committee_meetings
+       SET recording_url = $1,
+           recording_original_name = $2,
+           recording_uploaded_at = NOW(),
+           recording_uploaded_by = $3,
+           updated_at = NOW()
+       WHERE id = $4 AND committee_id = $5`,
+      [relativePath, file?.originalname || null, userId, meetingId, committeeId]
+    );
+
+    await AuditLog.create(client, userId, 'MEETING_RECORDING_UPLOADED', `Recording uploaded for meeting ID ${meetingId}`);
+    await client.query('COMMIT');
+
+    if (previousRecordingUrl && previousRecordingUrl !== relativePath) {
+      await deleteMeetingRecordingFile(previousRecordingUrl);
+    }
+
+    const meetingResult = await pool.query(
+      `SELECT cm.*, uploader.name AS recording_uploaded_by_name
+       FROM committee_meetings cm
+       LEFT JOIN users uploader ON uploader.id = cm.recording_uploaded_by
+       WHERE cm.id = $1`,
+      [meetingId]
+    );
+
+    return meetingResult.rows[0] || null;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (relativePath) {
+      await deleteMeetingRecordingFile(relativePath);
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 // === Committee Operations ===

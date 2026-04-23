@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import api from '../api/api';
+import api, { API_BASE_URL } from '../api/api';
 
 export default function useMinutes() {
   const [minutes, setMinutes] = useState([]);
@@ -60,6 +60,12 @@ export default function useMinutes() {
     return res.data;
   };
 
+  const transcribeRecording = async (id, recordingId) => {
+    const res = await api.post(`/minutes/${id}/recordings/${recordingId}/transcribe`);
+    setMinutes((prev) => prev.map((m) => (m.id === id ? res.data : m)));
+    return res.data;
+  };
+
   const updateMinutes = async (id, updates) => {
     const res = await api.put(`/minutes/${id}`, updates);
     setMinutes((prev) => prev.map((m) => (m.id === id ? res.data : m)));
@@ -78,7 +84,7 @@ export default function useMinutes() {
 
   const exportText = (id) => {
     const token = sessionStorage.getItem('accessToken');
-    const baseURL = api.defaults.baseURL || 'http://localhost:5000';
+    const baseURL = api.defaults.baseURL || API_BASE_URL;
     const url = `${baseURL}/minutes/${id}/export/text`;
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((response) => response.blob())
@@ -113,6 +119,7 @@ export default function useMinutes() {
     fetchMinutes,
     createMinutes,
     generateMinutes,
+    transcribeRecording,
     updateMinutes,
     deleteMinutes,
     getMinutesById,

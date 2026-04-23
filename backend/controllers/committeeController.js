@@ -32,7 +32,16 @@ exports.deleteMeeting = async (req, res) => {
  */
 exports.createMeeting = async (req, res) => {
   try {
-    const { title, meeting_date, meeting_time, ordinance_id, meetingLink } = req.body;
+    const {
+      title,
+      meeting_date,
+      meeting_time,
+      ordinance_id,
+      resolution_id,
+      meetingLink,
+      meeting_mode,
+      meeting_location,
+    } = req.body;
     if (!title || !meeting_date) {
       return res.status(400).json({ error: 'Meeting title and date are required' });
     }
@@ -40,7 +49,7 @@ exports.createMeeting = async (req, res) => {
     // (Authorization middleware can be added in routes)
     const meeting = await require('../services/committeeService').createMeeting(
       req.params.id,
-      { title, meeting_date, meeting_time, ordinance_id, meetingLink },
+      { title, meeting_date, meeting_time, ordinance_id, resolution_id, meetingLink, meeting_mode, meeting_location },
       req.user.id
     );
     // Expose meeting_link and minutes_id in the response
@@ -51,7 +60,34 @@ exports.createMeeting = async (req, res) => {
     });
   } catch (err) {
     console.error('Create committee meeting error:', err);
+    if (err.status === 400) return res.status(400).json({ error: err.message });
     res.status(500).json({ error: 'Error creating committee meeting' });
+  }
+};
+
+/**
+ * Upload a committee meeting recording.
+ * POST /committees/:id/meetings/:meetingId/recording
+ */
+exports.uploadMeetingRecording = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'A recording file is required.' });
+    }
+
+    const meeting = await require('../services/committeeService').saveMeetingRecording(
+      req.params.id,
+      req.params.meetingId,
+      req.file,
+      req.user.id
+    );
+
+    res.status(201).json(meeting);
+  } catch (err) {
+    console.error('Upload committee meeting recording error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error uploading committee meeting recording' });
   }
 };
 /**

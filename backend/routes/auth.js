@@ -9,7 +9,7 @@ const { registerSchema, loginSchema, refreshTokenSchema } = require('../validato
 // Strict rate limit for authentication endpoints to prevent brute-force attacks
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { status: 'fail', message: 'Too many requests, please try again later.' },

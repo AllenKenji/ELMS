@@ -43,9 +43,12 @@ export default function OrdinanceList() {
       setLoading(true);
       setError('');
       
-      // Fetch ordinances for current user only
-      const res = await api.get(`/ordinances?proposer_id=${user.id}`);
-      setOrdinances((res.data || []).filter((ordinance) => ordinance.status === 'Approved'));
+      // Councilors see only their own; other roles see all
+      const url = user.role === 'Councilor'
+        ? `/ordinances?proposer_id=${user.id}`
+        : '/ordinances';
+      const res = await api.get(url);
+      setOrdinances((res.data || []).filter(o => o.status !== 'Draft'));
     } catch (err) {
       setError('Failed to load ordinances. Please try again.');
       console.error('Error fetching ordinances:', err);
@@ -111,7 +114,7 @@ export default function OrdinanceList() {
   // Statistics
   const stats = {
     total: ordinances.length,
-    approved: ordinances.filter(o => o.status === 'Approved').length,
+    approved: ordinances.filter(o => ['Approved', 'Published'].includes(o.status)).length,
   };
 
   if (loading) {

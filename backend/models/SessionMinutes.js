@@ -3,6 +3,37 @@
  */
 const pool = require('../db');
 
+const RECORDINGS_SELECT = `
+  COALESCE(recordings.recordings, '[]'::json) AS recordings,
+  COALESCE(recordings.recording_count, 0)::int AS recording_count`;
+
+const RECORDINGS_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT
+      json_agg(
+        json_build_object(
+          'id', sr.id,
+          'session_id', sr.session_id,
+          'minutes_id', sr.minutes_id,
+          'recording_url', sr.recording_url,
+          'recording_original_name', sr.recording_original_name,
+          'recording_uploaded_at', sr.recording_uploaded_at,
+          'recording_uploaded_by', sr.recording_uploaded_by,
+          'recording_uploaded_by_name', uploader.name,
+          'transcript', sr.transcript,
+          'transcript_status', sr.transcript_status,
+          'transcript_error', sr.transcript_error,
+          'created_at', sr.created_at,
+          'updated_at', sr.updated_at
+        )
+        ORDER BY sr.recording_uploaded_at DESC, sr.created_at DESC
+      ) AS recordings,
+      COUNT(sr.id) AS recording_count
+    FROM session_recordings sr
+    LEFT JOIN users uploader ON uploader.id = sr.recording_uploaded_by
+    WHERE sr.minutes_id = m.id
+  ) recordings ON TRUE`;
+
 exports.create = async (title, meetingDate, participants, transcript, createdBy, sessionId) => {
   return pool.query(
     `INSERT INTO session_minutes
@@ -33,9 +64,12 @@ exports.findAll = async (status, pageNum, limitNum, safeSort, safeOrder) => {
 
   params.push(limitNum, offset);
   const result = await pool.query(
-    `SELECT m.*, u.name AS created_by_name
+    `SELECT m.*, u.name AS created_by_name, uploader.name AS recording_uploaded_by_name,
+            ${RECORDINGS_SELECT}
      FROM session_minutes m
      LEFT JOIN users u ON u.id = m.created_by
+     LEFT JOIN users uploader ON uploader.id = m.recording_uploaded_by
+     ${RECORDINGS_JOIN}
      ${whereClause}
      ORDER BY ${safeSort} ${safeOrder}
      LIMIT $${params.length - 1} OFFSET $${params.length}`,
@@ -47,9 +81,12 @@ exports.findAll = async (status, pageNum, limitNum, safeSort, safeOrder) => {
 
 exports.findById = async (id) => {
   return pool.query(
-    `SELECT m.*, u.name AS created_by_name
+    `SELECT m.*, u.name AS created_by_name, uploader.name AS recording_uploaded_by_name,
+            ${RECORDINGS_SELECT}
      FROM session_minutes m
      LEFT JOIN users u ON u.id = m.created_by
+     LEFT JOIN users uploader ON uploader.id = m.recording_uploaded_by
+     ${RECORDINGS_JOIN}
      WHERE m.id = $1`,
     [id]
   );
@@ -82,11 +119,54 @@ exports.deleteById = async (id) => {
 
 exports.findBySessionId = async (sessionId) => {
   return pool.query(
-    `SELECT m.*, u.name AS created_by_name
+    `SELECT m.*, u.name AS created_by_name, uploader.name AS recording_uploaded_by_name,
+            ${RECORDINGS_SELECT}
      FROM session_minutes m
      LEFT JOIN users u ON u.id = m.created_by
+     LEFT JOIN users uploader ON uploader.id = m.recording_uploaded_by
+     ${RECORDINGS_JOIN}
      WHERE m.session_id = $1
      ORDER BY m.created_at DESC`,
     [sessionId]
+  );
+};
+
+exports.findLatestBySessionId = async (sessionId, client = pool) => {
+  return client.query(
+    `SELECT m.*, u.name AS created_by_name, uploader.name AS recording_uploaded_by_name,
+            ${RECORDINGS_SELECT}
+     FROM session_minutes m
+     LEFT JOIN users u ON u.id = m.created_by
+     LEFT JOIN users uploader ON uploader.id = m.recording_uploaded_by
+     ${RECORDINGS_JOIN}
+     WHERE m.session_id = $1
+     ORDER BY m.created_at DESC
+     LIMIT 1`,
+    [sessionId]
+  );
+};
+
+exports.setTranscript = async (id, transcript, client = pool) => {
+  return client.query(
+    `UPDATE session_minutes
+     SET transcript = $1,
+         updated_at = NOW()
+     WHERE id = $2
+     RETURNING *`,
+    [transcript || '', id]
+  );
+};
+
+exports.updateRecording = async (id, recordingUrl, recordingOriginalName, recordingUploadedBy, client = pool) => {
+  return client.query(
+    `UPDATE session_minutes
+     SET recording_url = $1,
+         recording_original_name = $2,
+         recording_uploaded_at = NOW(),
+         recording_uploaded_by = $3,
+         updated_at = NOW()
+     WHERE id = $4
+     RETURNING *`,
+    [recordingUrl, recordingOriginalName || null, recordingUploadedBy, id]
   );
 };

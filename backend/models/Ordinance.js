@@ -236,13 +236,13 @@ exports.setReadingStage = async (client, id, readingStage, status) => {
 };
 
 /** Update committee assignment fields on an ordinance. */
-exports.assignCommittee = async (client, id, committeeId, assignedBy) => {
+exports.assignCommittee = async (client, id, committeeId, assignedBy, targetStage = 'COMMITTEE_REVIEW') => {
   return client.query(
     `UPDATE ordinances
      SET committee_id=$1, committee_assignment_date=NOW(), assigned_by=$2,
-         reading_stage='COMMITTEE_REVIEW', status='Under Review', updated_at=NOW()
+         reading_stage=$4, status='Under Review', updated_at=NOW()
      WHERE id=$3 RETURNING *`,
-    [committeeId, assignedBy, id]
+    [committeeId, assignedBy, id, targetStage]
   );
 };
 
@@ -355,20 +355,39 @@ exports.upsertAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNu
   return pool.query(
     `INSERT INTO session_agenda_items (session_id, ordinance_id, agenda_order, reading_number, created_at)
      VALUES ($1,$2,$3,$4,NOW())
-     ON CONFLICT (session_id, ordinance_id) DO UPDATE
+     ON CONFLICT (session_id, ordinance_id) WHERE ordinance_id IS NOT NULL DO UPDATE
        SET agenda_order=$3, reading_number=$4
      RETURNING *`,
     [sessionId, ordinanceId, agendaOrder || 1, readingNumber || null]
   );
 };
 
-/** Get all agenda items for a session (with ordinance details). */
+/** Upsert a resolution agenda item for a session. */
+exports.upsertResolutionAgendaItem = async (sessionId, resolutionId, agendaOrder, readingNumber) => {
+  return pool.query(
+    `INSERT INTO session_agenda_items (session_id, resolution_id, agenda_order, reading_number, created_at)
+     VALUES ($1,$2,$3,$4,NOW())
+     ON CONFLICT (session_id, resolution_id) WHERE resolution_id IS NOT NULL DO UPDATE
+       SET agenda_order=$3, reading_number=$4
+     RETURNING *`,
+    [sessionId, resolutionId, agendaOrder || 1, readingNumber || null]
+  );
+};
+
+/** Get all agenda items for a session (with ordinance and resolution details). */
 exports.findAgendaBySession = async (sessionId) => {
   return pool.query(
-    `SELECT ai.*, o.title, o.ordinance_number, o.reading_stage, o.status,
-            o.proposer_name, o.description
+    `SELECT ai.*,
+            COALESCE(o.title, r.title) AS title,
+            o.ordinance_number, r.resolution_number,
+            COALESCE(o.reading_stage, r.reading_stage) AS reading_stage,
+            COALESCE(o.status, r.status) AS status,
+            COALESCE(o.proposer_name, r.proposer_name) AS proposer_name,
+            COALESCE(o.description, r.description) AS description,
+            CASE WHEN ai.ordinance_id IS NOT NULL THEN 'Ordinance' ELSE 'Resolution' END AS item_type
      FROM session_agenda_items ai
      LEFT JOIN ordinances o ON o.id = ai.ordinance_id
+     LEFT JOIN resolutions r ON r.id = ai.resolution_id
      WHERE ai.session_id=$1
      ORDER BY ai.agenda_order ASC`,
     [sessionId]
@@ -380,6 +399,14 @@ exports.removeAgendaItem = async (sessionId, ordinanceId) => {
   return pool.query(
     'DELETE FROM session_agenda_items WHERE session_id=$1 AND ordinance_id=$2 RETURNING *',
     [sessionId, ordinanceId]
+  );
+};
+
+/** Remove a resolution from a session agenda. */
+exports.removeResolutionAgendaItem = async (sessionId, resolutionId) => {
+  return pool.query(
+    'DELETE FROM session_agenda_items WHERE session_id=$1 AND resolution_id=$2 RETURNING *',
+    [sessionId, resolutionId]
   );
 };
 

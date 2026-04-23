@@ -31,6 +31,7 @@ export default function MinutesList() {
     error,
     createMinutes,
     generateMinutes,
+    transcribeRecording,
     deleteMinutes,
     exportText,
     changePage,
@@ -41,6 +42,7 @@ export default function MinutesList() {
   const [viewingRecord, setViewingRecord] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [generating, setGenerating] = useState(false);
+  const [transcribingRecordingId, setTranscribingRecordingId] = useState(null);
   const [actionError, setActionError] = useState('');
   const [actionSuccess, setActionSuccess] = useState('');
 
@@ -85,6 +87,23 @@ export default function MinutesList() {
     }
   };
 
+  const handleTranscribeRecording = async (minutesId, recordingId) => {
+    setActionError('');
+    setTranscribingRecordingId(recordingId);
+    try {
+      const updated = await transcribeRecording(minutesId, recordingId);
+      if (viewingRecord?.id === minutesId) {
+        setViewingRecord(updated);
+      }
+      setActionSuccess('Recording transcript added to the linked minutes record.');
+      setTimeout(() => setActionSuccess(''), 4000);
+    } catch (err) {
+      setActionError(err.message || 'Failed to transcribe recording.');
+    } finally {
+      setTranscribingRecordingId(null);
+    }
+  };
+
   const handleExportText = (id, e) => {
     if (e) e.stopPropagation();
     exportText(id);
@@ -97,6 +116,21 @@ export default function MinutesList() {
       Archived: 'badge-archived',
     };
     return `minutes-badge ${map[status] || 'badge-draft'}`;
+  };
+
+  const summarizeRecordingStatuses = (record) => {
+    const recordings = Array.isArray(record.recordings) ? record.recordings : [];
+    const summary = recordings.reduce((accumulator, item) => {
+      const key = String(item.transcript_status || 'pending').toLowerCase();
+      accumulator[key] = (accumulator[key] || 0) + 1;
+      return accumulator;
+    }, {});
+
+    return [
+      summary.completed ? { key: 'completed', label: `${summary.completed} transcribed` } : null,
+      summary.pending ? { key: 'pending', label: `${summary.pending} pending` } : null,
+      summary.failed ? { key: 'failed', label: `${summary.failed} failed` } : null,
+    ].filter(Boolean);
   };
 
   return (
@@ -145,7 +179,9 @@ export default function MinutesList() {
               onClose={() => setViewingRecord(null)}
               onExportText={handleExportText}
               onGenerate={handleGenerate}
+              onTranscribeRecording={handleTranscribeRecording}
               generating={generating}
+              transcribingRecordingId={transcribingRecordingId}
             />
           </div>
         </div>
@@ -234,6 +270,8 @@ export default function MinutesList() {
                 <th>Title</th>
                 <th>Meeting Date</th>
                 <th>Status</th>
+                <th>Recordings</th>
+                <th>Transcription</th>
                 <th>Created By</th>
                 <th>Created At</th>
                 <th>Actions</th>
@@ -256,6 +294,18 @@ export default function MinutesList() {
                     <span className={statusBadgeClass(record.status)}>
                       {record.status}
                     </span>
+                  </td>
+                  <td>{record.recording_count || 0}</td>
+                  <td>
+                    <div className="minutes-status-summary">
+                      {summarizeRecordingStatuses(record).length > 0 ? summarizeRecordingStatuses(record).map((item) => (
+                        <span key={item.key} className={`minutes-badge minutes-badge-strong transcript-${item.key}`}>
+                          {item.label}
+                        </span>
+                      )) : (
+                        <span className="minutes-badge minutes-badge-strong transcript-none">No recordings</span>
+                      )}
+                    </div>
                   </td>
                   <td>{record.created_by_name || '—'}</td>
                   <td>{new Date(record.created_at).toLocaleDateString()}</td>

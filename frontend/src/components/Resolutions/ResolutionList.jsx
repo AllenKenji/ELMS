@@ -34,8 +34,8 @@ export default function ResolutionList() {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get('/resolutions?status=Approved');
-      setResolutions(res.data || []);
+      const res = await api.get('/resolutions');
+      setResolutions((res.data || []).filter(r => r.status !== 'Draft'));
     } catch (err) {
       setError('Failed to load resolutions');
       console.error('Error:', err);
@@ -284,14 +284,7 @@ export default function ResolutionList() {
         <ResolutionDetails
           resolutionId={selectedResolution.id}
           onClose={() => setSelectedResolution(null)}
-          onEdit={() => {
-            setEditingResolution(selectedResolution);
-            setShowForm(true);
-          }}
-          onDelete={() => {
-            handleDelete(selectedResolution.id);
-            setSelectedResolution(null);
-          }}
+          onStatusChange={() => fetchResolutions()}
         />
       )}
     </div>

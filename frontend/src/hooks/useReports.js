@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import api from '../api/api';
+import api, { API_BASE_URL } from '../api/api';
 
 export default function useReports() {
   const [reports, setReports] = useState([]);
@@ -74,7 +74,7 @@ export default function useReports() {
 
   const exportCsv = (id) => {
     const token = sessionStorage.getItem('accessToken');
-    const baseURL = api.defaults.baseURL || 'http://localhost:5000';
+    const baseURL = api.defaults.baseURL || API_BASE_URL;
     const url = `${baseURL}/reports/${id}/export/csv`;
     // Create a temporary anchor for download with auth header via fetch
     fetch(url, { headers: { Authorization: `Bearer ${token}` } })

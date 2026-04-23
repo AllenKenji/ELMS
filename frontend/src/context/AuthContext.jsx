@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import axios from 'axios';
 import { Auth } from './auth';
+import { API_BASE_URL } from '../api/api';
 
 function decodeValidUser(token) {
   if (!token) return null;
@@ -72,7 +73,7 @@ export function AuthProvider({ children }) {
 
     const refreshAccessToken = async () => {
       try {
-        const res = await axios.post('http://localhost:5000/auth/refresh', {
+        const res = await axios.post(`${API_BASE_URL}/auth/refresh`, {
           refreshToken,
         });
         const { accessToken: newAccessToken } = res.data;

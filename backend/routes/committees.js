@@ -3,6 +3,7 @@ const router = express.Router();
 const authenticateToken = require('../middleware/auth');
 const authorizeRoles = require('../middleware/roles');
 const Committee = require('../models/Committee');
+const meetingRecordingUpload = require('../middleware/meetingRecordingUpload');
 
 // Custom middleware: allow only Admin or the assigned Chairperson
 async function authorizeAdminOrChair(req, res, next) {
@@ -32,6 +33,7 @@ const committeeController = require('../controllers/committeeController');
 
 router.post('/', authenticateToken, authorizeRoles('Admin', 'Vice Mayor'), committeeController.create);
 router.post('/:id/meetings', authenticateToken, committeeController.createMeeting);
+router.post('/:id/meetings/:meetingId/recording', authenticateToken, meetingRecordingUpload.single('recording_file'), committeeController.uploadMeetingRecording);
 router.get('/:id/meetings', authenticateToken, committeeController.getCommitteeMeetings);
 router.delete('/:id/meetings/:meetingId', authenticateToken, committeeController.deleteMeeting);
 router.patch('/:id/meetings/:meetingId/end', authenticateToken, committeeController.endMeeting);

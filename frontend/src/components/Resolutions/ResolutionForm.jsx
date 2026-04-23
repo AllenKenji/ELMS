@@ -10,13 +10,28 @@ function attachmentsToText(value) {
   return '';
 }
 
+function normalizeCoAuthors(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((author) => {
+        if (author && typeof author === 'object') {
+          return author.id != null ? String(author.id) : '';
+        }
+        return String(author);
+      })
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return value.split(',').map((id) => id.trim()).filter(Boolean);
+  }
+
+  return [];
+}
+
 function normalizeFormData(data) {
   const source = data || {};
-  const coAuthors = Array.isArray(source.co_authors)
-    ? source.co_authors.map((id) => String(id))
-    : typeof source.co_authors === 'string' && source.co_authors.trim()
-      ? source.co_authors.split(',').map((id) => id.trim()).filter(Boolean)
-      : [];
+  const coAuthors = normalizeCoAuthors(source.co_authors);
 
   return {
     title: source.title || '',
@@ -24,9 +39,8 @@ function normalizeFormData(data) {
     description: source.description || '',
     content: source.content || '',
     co_authors: coAuthors,
-    whereas_clauses: source.whereas_clauses || '',
-    effectivity_clause: source.effectivity_clause || '',
     attachments_text: attachmentsToText(source.attachments),
+    attachments_files: [],
     remarks: source.remarks || '',
   };
 }
@@ -42,6 +56,21 @@ function isCouncilorUser(user) {
   const roleName = String(user?.role_name || user?.role || '').toLowerCase();
   if (roleName) return roleName === 'councilor';
   return Number(user?.role_id) === 3;
+}
+
+function handleFileUpload(e, setFormData) {
+  const files = Array.from(e.target.files);
+  setFormData((prev) => ({
+    ...prev,
+    attachments_files: [...prev.attachments_files, ...files],
+  }));
+}
+
+function handleRemoveFile(idx, setFormData) {
+  setFormData((prev) => ({
+    ...prev,
+    attachments_files: prev.attachments_files.filter((_, i) => i !== idx),
+  }));
 }
 
 export default function ResolutionForm({
@@ -100,17 +129,7 @@ export default function ResolutionForm({
       newErrors.content = 'Content must be at least 20 characters';
     }
 
-    if (!Array.isArray(formData.co_authors) || formData.co_authors.length === 0) {
-      newErrors.co_authors = 'Co-authors / sponsors are required';
-    }
 
-    if (!hasMeaningfulRichText(formData.whereas_clauses)) {
-      newErrors.whereas_clauses = 'Whereas clauses are required';
-    }
-
-    if (!hasMeaningfulRichText(formData.effectivity_clause)) {
-      newErrors.effectivity_clause = 'Effectivity clause is required';
-    }
 
     setFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -146,18 +165,28 @@ export default function ResolutionForm({
     }
   };
 
-  const handleCoAuthorsChange = (e) => {
-    const selectedIds = Array.from(e.target.selectedOptions).map((option) => option.value);
+  const availableCouncilors = councilorUsers.filter(
+    (u) => !formData.co_authors.includes(String(u.id))
+  );
+  const selectedAuthors = councilorUsers.filter((u) => formData.co_authors.includes(String(u.id)));
+
+  const handleAddAuthor = (id) => {
     setFormData((prev) => ({
       ...prev,
-      co_authors: selectedIds,
+      co_authors: [...prev.co_authors, String(id)],
     }));
-
     if (formErrors.co_authors) {
-      setFormErrors((prev) => ({
-        ...prev,
-        co_authors: '',
-      }));
+      setFormErrors((prev) => ({ ...prev, co_authors: '' }));
+    }
+  };
+
+  const handleRemoveAuthor = (id) => {
+    setFormData((prev) => ({
+      ...prev,
+      co_authors: prev.co_authors.filter((aid) => aid !== String(id)),
+    }));
+    if (formErrors.co_authors) {
+      setFormErrors((prev) => ({ ...prev, co_authors: '' }));
     }
   };
 
@@ -173,24 +202,28 @@ export default function ResolutionForm({
     setLoading(true);
 
     try {
-      const payload = {
-        title: formData.title.trim(),
-        resolution_number: formData.resolution_number.trim() || null,
-        description: sanitizeRichText(formData.description || ''),
-        content: sanitizeRichText(formData.content || ''),
-        co_authors: formData.co_authors.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0),
-        whereas_clauses: sanitizeRichText(formData.whereas_clauses || ''),
-        effectivity_clause: sanitizeRichText(formData.effectivity_clause || ''),
-        attachments: parseAttachments(formData.attachments_text),
-        remarks: formData.remarks.trim() || null,
-        status: initialStatusOnCreate,
-      };
+      const formPayload = new FormData();
+      formPayload.append('title', formData.title.trim());
+      formPayload.append('resolution_number', formData.resolution_number.trim() || '');
+      formPayload.append('description', sanitizeRichText(formData.description || ''));
+      formPayload.append('content', sanitizeRichText(formData.content || ''));
+      formPayload.append('remarks', formData.remarks.trim() || '');
+      formPayload.append('status', initialStatusOnCreate);
+      formData.co_authors.forEach((id) => formPayload.append('co_authors[]', id));
+      parseAttachments(formData.attachments_text).forEach((att) => formPayload.append('attachments[]', att));
+      if (formData.attachments_files && formData.attachments_files.length > 0) {
+        formData.attachments_files.forEach((file) => formPayload.append('attachments_files', file));
+      }
 
       if (resolutionId) {
-        await api.put(`/resolutions/${resolutionId}`, payload);
+        await api.put(`/resolutions/${resolutionId}`, formPayload, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         setSuccess('Resolution updated successfully!');
       } else {
-        await api.post('/resolutions', payload);
+        await api.post('/resolutions', formPayload, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
         setSuccess('Resolution submitted successfully!');
       }
 
@@ -223,8 +256,6 @@ export default function ResolutionForm({
     title: formData.title.length,
     description: richTextToPlainText(formData.description || '').length,
     content: richTextToPlainText(formData.content || '').length,
-    whereas: richTextToPlainText(formData.whereas_clauses || '').length,
-    effectivity: richTextToPlainText(formData.effectivity_clause || '').length,
   };
 
   return (
@@ -299,26 +330,34 @@ export default function ResolutionForm({
           </div>
 
           <div className="form-group">
-            <label htmlFor="co_authors">
-              Co-authors / Sponsors <span className="required">*</span>
-            </label>
-            <select
-              id="co_authors"
-              name="co_authors"
-              multiple
-              value={formData.co_authors}
-              onChange={handleCoAuthorsChange}
-              className={formErrors.co_authors ? 'input-error' : ''}
-              size={Math.min(Math.max(councilorUsers.length, 4), 8)}
-              required
-            >
-              {councilorUsers.map((councilor) => (
-                <option key={councilor.id} value={String(councilor.id)}>
-                  {councilor.name}
-                </option>
-              ))}
-            </select>
-            <p className="field-helper">Hold Ctrl (or Cmd) to select multiple councilors.</p>
+            <label>Co-authors / Sponsors (Optional)</label>
+            <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 500, marginBottom: 4 }}>Available Councilors</div>
+                <ul style={{ minHeight: 80, border: '1px solid #eee', borderRadius: 4, padding: 8, margin: 0, listStyle: 'none', background: '#fafbfc' }}>
+                  {availableCouncilors.length === 0 && <li style={{ color: '#aaa' }}>No more to add</li>}
+                  {availableCouncilors.map((c) => (
+                    <li key={c.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
+                      <span style={{ flex: 1 }}>{c.name}</span>
+                      <button type="button" className="btn-mini" style={{ marginLeft: 8 }} onClick={() => handleAddAuthor(c.id)} disabled={loading}>Add</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 500, marginBottom: 4 }}>Selected Authors</div>
+                <ul style={{ minHeight: 80, border: '1px solid #eee', borderRadius: 4, padding: 8, margin: 0, listStyle: 'none', background: '#f6f8fa' }}>
+                  {selectedAuthors.length === 0 && <li style={{ color: '#aaa' }}>None selected</li>}
+                  {selectedAuthors.map((c) => (
+                    <li key={c.id} style={{ display: 'flex', alignItems: 'center', marginBottom: 2 }}>
+                      <span style={{ flex: 1 }}>{c.name}</span>
+                      <button type="button" className="btn-mini btn-danger" style={{ marginLeft: 8 }} onClick={() => handleRemoveAuthor(c.id)} disabled={loading}>Remove</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <p className="field-helper">Add or remove councilors as co-authors. Leave empty if none.</p>
             {formErrors.co_authors && (
               <div className="field-hint">
                 <span className="error-text">{formErrors.co_authors}</span>
@@ -371,48 +410,6 @@ export default function ResolutionForm({
           </div>
 
           <div className="form-group">
-            <label htmlFor="whereas_clauses">
-              Whereas Clauses <span className="required">*</span>
-            </label>
-            <RichTextEditor
-              id="whereas_clauses"
-              placeholder="Background, rationale, and legal basis..."
-              value={formData.whereas_clauses}
-              onChange={(value) => handleRichTextChange('whereas_clauses', value)}
-              disabled={loading}
-              ariaInvalid={!!formErrors.whereas_clauses}
-            />
-            <div className="field-hint">
-              {formErrors.whereas_clauses ? (
-                <span className="error-text">{formErrors.whereas_clauses}</span>
-              ) : (
-                <span className="char-count">{characterCount.whereas} characters</span>
-              )}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="effectivity_clause">
-              Effectivity Clause <span className="required">*</span>
-            </label>
-            <RichTextEditor
-              id="effectivity_clause"
-              placeholder="State when this measure takes effect..."
-              value={formData.effectivity_clause}
-              onChange={(value) => handleRichTextChange('effectivity_clause', value)}
-              disabled={loading}
-              ariaInvalid={!!formErrors.effectivity_clause}
-            />
-            <div className="field-hint">
-              {formErrors.effectivity_clause ? (
-                <span className="error-text">{formErrors.effectivity_clause}</span>
-              ) : (
-                <span className="char-count">{characterCount.effectivity} characters</span>
-              )}
-            </div>
-          </div>
-
-          <div className="form-group">
             <label htmlFor="attachments_text">Attachments (Optional)</label>
             <textarea
               id="attachments_text"
@@ -422,6 +419,35 @@ export default function ResolutionForm({
               onChange={handleChange}
               rows="3"
             />
+            <div style={{ marginTop: 8 }}>
+              <input
+                id="attachments_files"
+                type="file"
+                multiple
+                onChange={(e) => handleFileUpload(e, setFormData)}
+                className="file-input"
+                disabled={loading}
+              />
+              <p className="field-helper">You may select multiple files to attach. Supported formats: PDF, DOCX, images, etc.</p>
+              {formData.attachments_files && formData.attachments_files.length > 0 && (
+                <ul style={{ margin: '8px 0 0 0', padding: 0, listStyle: 'none', fontSize: '0.95em' }}>
+                  {formData.attachments_files.map((file, idx) => (
+                    <li key={idx} style={{ color: '#333', display: 'flex', alignItems: 'center' }}>
+                      <span style={{ flex: 1 }}>{file.name}</span>
+                      <button
+                        type="button"
+                        className="btn-mini btn-danger"
+                        style={{ marginLeft: 8 }}
+                        onClick={() => handleRemoveFile(idx, setFormData)}
+                        aria-label={`Remove ${file.name}`}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           {/* Remarks Field */}

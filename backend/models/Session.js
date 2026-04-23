@@ -2,14 +2,17 @@
  * Session Model - Data access layer for legislative session operations.
  */
 const pool = require('../db');
-const MeetingMinutes = require('./MeetingMinutes');
+const SessionMinutes = require('./SessionMinutes');
 
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findAll = async () => {
   return pool.query(
-    `SELECT s.*, u.name as created_by_name
+    `SELECT s.*, u.name as created_by_name,
+            COALESCE(SUM(oob.duration_minutes), 0)::int AS total_oob_minutes
      FROM sessions s
      LEFT JOIN users u ON u.id = s.created_by
+     LEFT JOIN order_of_business oob ON oob.session_id = s.id
+     GROUP BY s.id, u.name
      ORDER BY s.date DESC`
   );
 };
@@ -17,10 +20,13 @@ exports.findAll = async () => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findById = async (id) => {
   return pool.query(
-    `SELECT s.*, u.name as created_by_name
+    `SELECT s.*, u.name as created_by_name,
+            COALESCE(SUM(oob.duration_minutes), 0)::int AS total_oob_minutes
      FROM sessions s
      LEFT JOIN users u ON u.id = s.created_by
-     WHERE s.id = $1`,
+     LEFT JOIN order_of_business oob ON oob.session_id = s.id
+     WHERE s.id = $1
+     GROUP BY s.id, u.name`,
     [id]
   );
 };
@@ -103,5 +109,5 @@ exports.deleteParticipants = async (client, sessionId) => {
 
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findMinutesBySessionId = async (sessionId) => {
-  return MeetingMinutes.findBySessionId(sessionId);
+  return SessionMinutes.findBySessionId(sessionId);
 };
