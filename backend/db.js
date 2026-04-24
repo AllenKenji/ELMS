@@ -8,7 +8,12 @@ const connectionString =
   null;
 
 const poolConfig = connectionString
-  ? { connectionString }
+  ? { 
+      connectionString,
+      ssl: /render\.com/i.test(connectionString) 
+        ? { rejectUnauthorized: false } 
+        : false
+    }
   : {
       user: process.env.DB_USER,
       host: process.env.DB_HOST,
@@ -16,10 +21,6 @@ const poolConfig = connectionString
       password: process.env.DB_PASS,
       port: process.env.DB_PORT,
     };
-
-if (connectionString && /render\.com/i.test(connectionString)) {
-  poolConfig.ssl = { rejectUnauthorized: false };
-}
 
 const pool = new Pool(poolConfig);
 
