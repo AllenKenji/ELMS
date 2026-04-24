@@ -26,6 +26,11 @@ app.use(cors(corsOptions));
 // app.options('/*', cors(corsOptions));
 app.use(express.json());
 
+// Public health endpoint for Render uptime checks.
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Serve uploads folder as static files (must be before any auth middleware)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 

@@ -6,7 +6,7 @@ services:
     plan: free
     buildCommand: npm install
     startCommand: npm start
-    healthCheckPath: /auth/refresh
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
         value: 20
@@ -14,15 +14,9 @@ services:
         value: https://elegislative.lits.com.ph
       - key: PORT
         value: 10000
-      - key: DB_USER
-        sync: false
-      - key: DB_HOST
-        sync: false
-      - key: DB_NAME
-        sync: false
-      - key: DB_PASS
-        sync: false
-      - key: DB_PORT
+      - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
         sync: false
