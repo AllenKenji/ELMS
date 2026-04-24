@@ -2,6 +2,109 @@ const fs = require('fs/promises');
 const path = require('path');
 const pool = require('./db');
 
+async function ensureCoreSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS roles (
+      id SERIAL PRIMARY KEY,
+      role_name VARCHAR(100) NOT NULL UNIQUE
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role_id INTEGER REFERENCES roles(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS sessions (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      date DATE NOT NULL,
+      location TEXT,
+      agenda TEXT,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ordinances (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      ordinance_number VARCHAR(100),
+      description TEXT,
+      content TEXT,
+      remarks TEXT,
+      proposer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      proposer_name VARCHAR(255),
+      status VARCHAR(50) DEFAULT 'Draft',
+      approved_date TIMESTAMP,
+      published_date TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resolutions (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      resolution_number VARCHAR(100),
+      description TEXT,
+      content TEXT,
+      remarks TEXT,
+      proposer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      proposer_name VARCHAR(255),
+      status VARCHAR(50) DEFAULT 'Draft',
+      approved_date TIMESTAMP,
+      published_date TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS session_participants (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      attendance_status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+      added_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (session_id, user_id)
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      details TEXT,
+      timestamp TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    INSERT INTO roles (id, role_name) VALUES
+      (1, 'Admin'),
+      (2, 'Secretary'),
+      (3, 'Councilor'),
+      (4, 'Vice Mayor'),
+      (5, 'Resident'),
+      (6, 'Committee Secretary')
+    ON CONFLICT (id) DO NOTHING;
+  `);
+}
+
 async function ensureLegislativeAgendaSchema() {
   await pool.query(`
     ALTER TABLE ordinances
@@ -182,6 +285,7 @@ async function ensureSessionRecordingsSchema() {
 }
 
 async function bootstrapSchema() {
+  await ensureCoreSchema();
   await ensureProposedMeasureStructureSchema();
   await ensureLegislativeAgendaSchema();
   await ensureOrderOfBusinessSchema();
