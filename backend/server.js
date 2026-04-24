@@ -26,6 +26,14 @@ app.use(cors(corsOptions));
 // app.options('/*', cors(corsOptions));
 app.use(express.json());
 
+app.get('/', (_req, res) => {
+  res.status(200).json({
+    service: 'ELegislative API',
+    status: 'ok',
+    health: '/health'
+  });
+});
+
 // Public health endpoint for Render uptime checks.
 app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
