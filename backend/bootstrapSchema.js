@@ -345,9 +345,231 @@ async function ensureCommitteeSchema() {
   `);
 }
 
+async function ensureLegislativeWorkflowSchema() {
+  await pool.query(`
+    ALTER TABLE ordinances
+      ADD COLUMN IF NOT EXISTS session_id_first_reading  INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS session_id_second_reading INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS session_id_third_reading  INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS committee_id              INTEGER REFERENCES committees(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS committee_assignment_date TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS assigned_by               INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS committee_report_id       INTEGER,
+      ADD COLUMN IF NOT EXISTS voting_results            JSONB,
+      ADD COLUMN IF NOT EXISTS voted_at                  TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS approved_by               INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS approved_at               TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS approval_remarks          TEXT,
+      ADD COLUMN IF NOT EXISTS rejection_reason          TEXT,
+      ADD COLUMN IF NOT EXISTS posted_at                 TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS posting_end_date          DATE,
+      ADD COLUMN IF NOT EXISTS effective_date            DATE;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ordinance_workflow (
+      id SERIAL PRIMARY KEY,
+      ordinance_id INTEGER NOT NULL REFERENCES ordinances(id) ON DELETE CASCADE,
+      action_type VARCHAR(50) NOT NULL,
+      status VARCHAR(50),
+      performed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      comment TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ordinance_approvals (
+      id SERIAL PRIMARY KEY,
+      ordinance_id INTEGER NOT NULL REFERENCES ordinances(id) ON DELETE CASCADE,
+      approver_role VARCHAR(50) NOT NULL,
+      approver_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status VARCHAR(50) DEFAULT 'Pending',
+      approved_at TIMESTAMP,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS committee_reports (
+      id SERIAL PRIMARY KEY,
+      ordinance_id INTEGER NOT NULL REFERENCES ordinances(id) ON DELETE CASCADE,
+      committee_id INTEGER REFERENCES committees(id) ON DELETE SET NULL,
+      submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      submitted_at TIMESTAMP DEFAULT NOW(),
+      recommendation VARCHAR(20) NOT NULL CHECK (recommendation IN ('APPROVE', 'REVISION', 'REJECTION')),
+      report_content TEXT,
+      meeting_date DATE,
+      meeting_minutes TEXT,
+      attendees JSONB
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reading_sessions (
+      id SERIAL PRIMARY KEY,
+      ordinance_id INTEGER NOT NULL REFERENCES ordinances(id) ON DELETE CASCADE,
+      session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      reading_number INTEGER NOT NULL CHECK (reading_number IN (1, 2, 3)),
+      conducted_at TIMESTAMP DEFAULT NOW(),
+      discussion_notes TEXT,
+      amendments_introduced JSONB,
+      presiding_officer INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS posting_records (
+      id SERIAL PRIMARY KEY,
+      ordinance_id INTEGER NOT NULL REFERENCES ordinances(id) ON DELETE CASCADE,
+      posted_at TIMESTAMP DEFAULT NOW(),
+      posted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      posting_duration_days INTEGER DEFAULT 3,
+      posting_location TEXT,
+      effective_date DATE,
+      notes TEXT
+    );
+  `);
+
+  await pool.query(`
+    ALTER TABLE resolutions
+      ADD COLUMN IF NOT EXISTS session_id_first_reading  INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS session_id_second_reading INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS session_id_third_reading  INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS committee_id              INTEGER REFERENCES committees(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS committee_assignment_date TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS assigned_by               INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS committee_report_id       INTEGER,
+      ADD COLUMN IF NOT EXISTS voting_results            JSONB,
+      ADD COLUMN IF NOT EXISTS voted_at                  TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS approved_by               INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      ADD COLUMN IF NOT EXISTS approved_at               TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS approval_remarks          TEXT,
+      ADD COLUMN IF NOT EXISTS rejection_reason          TEXT,
+      ADD COLUMN IF NOT EXISTS posted_at                 TIMESTAMP,
+      ADD COLUMN IF NOT EXISTS posting_end_date          DATE,
+      ADD COLUMN IF NOT EXISTS effective_date            DATE;
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resolution_workflow (
+      id SERIAL PRIMARY KEY,
+      resolution_id INTEGER NOT NULL REFERENCES resolutions(id) ON DELETE CASCADE,
+      action_type VARCHAR(50) NOT NULL,
+      status VARCHAR(50),
+      performed_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      comment TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resolution_approvals (
+      id SERIAL PRIMARY KEY,
+      resolution_id INTEGER NOT NULL REFERENCES resolutions(id) ON DELETE CASCADE,
+      approver_role VARCHAR(50) NOT NULL,
+      approver_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status VARCHAR(50) DEFAULT 'Pending',
+      approved_at TIMESTAMP,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resolution_committee_reports (
+      id SERIAL PRIMARY KEY,
+      resolution_id INTEGER NOT NULL REFERENCES resolutions(id) ON DELETE CASCADE,
+      committee_id INTEGER REFERENCES committees(id) ON DELETE SET NULL,
+      submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      submitted_at TIMESTAMP DEFAULT NOW(),
+      recommendation VARCHAR(20) NOT NULL CHECK (recommendation IN ('APPROVE', 'REVISION', 'REJECTION')),
+      report_content TEXT,
+      meeting_date DATE,
+      meeting_minutes TEXT,
+      attendees JSONB
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resolution_reading_sessions (
+      id SERIAL PRIMARY KEY,
+      resolution_id INTEGER NOT NULL REFERENCES resolutions(id) ON DELETE CASCADE,
+      session_id INTEGER REFERENCES sessions(id) ON DELETE SET NULL,
+      reading_number INTEGER NOT NULL CHECK (reading_number IN (1, 2, 3)),
+      conducted_at TIMESTAMP DEFAULT NOW(),
+      discussion_notes TEXT,
+      amendments_introduced JSONB,
+      presiding_officer INTEGER REFERENCES users(id) ON DELETE SET NULL
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS resolution_posting_records (
+      id SERIAL PRIMARY KEY,
+      resolution_id INTEGER NOT NULL REFERENCES resolutions(id) ON DELETE CASCADE,
+      posted_at TIMESTAMP DEFAULT NOW(),
+      posted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      posting_duration_days INTEGER DEFAULT 3,
+      posting_location TEXT,
+      effective_date DATE,
+      notes TEXT
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_ordinance_workflow_ordinance_id ON ordinance_workflow(ordinance_id);
+    CREATE INDEX IF NOT EXISTS idx_ordinance_workflow_created_at ON ordinance_workflow(created_at);
+    CREATE INDEX IF NOT EXISTS idx_ordinance_approvals_ordinance_id ON ordinance_approvals(ordinance_id);
+    CREATE INDEX IF NOT EXISTS idx_ordinance_approvals_status ON ordinance_approvals(status);
+    CREATE INDEX IF NOT EXISTS idx_committee_reports_ordinance ON committee_reports(ordinance_id);
+    CREATE INDEX IF NOT EXISTS idx_reading_sessions_ordinance ON reading_sessions(ordinance_id);
+    CREATE INDEX IF NOT EXISTS idx_reading_sessions_session ON reading_sessions(session_id);
+    CREATE INDEX IF NOT EXISTS idx_posting_records_ordinance ON posting_records(ordinance_id);
+    CREATE INDEX IF NOT EXISTS idx_resolution_workflow_resolution_id ON resolution_workflow(resolution_id);
+    CREATE INDEX IF NOT EXISTS idx_resolution_workflow_created_at ON resolution_workflow(created_at);
+    CREATE INDEX IF NOT EXISTS idx_resolution_approvals_resolution_id ON resolution_approvals(resolution_id);
+    CREATE INDEX IF NOT EXISTS idx_resolution_approvals_status ON resolution_approvals(status);
+    CREATE INDEX IF NOT EXISTS idx_resolution_committee_reports_resolution ON resolution_committee_reports(resolution_id);
+    CREATE INDEX IF NOT EXISTS idx_resolution_reading_sessions_resolution ON resolution_reading_sessions(resolution_id);
+    CREATE INDEX IF NOT EXISTS idx_resolution_reading_sessions_session ON resolution_reading_sessions(session_id);
+    CREATE INDEX IF NOT EXISTS idx_resolution_posting_records_resolution ON resolution_posting_records(resolution_id);
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'ordinances'
+          AND constraint_name = 'fk_ordinances_committee_report'
+      ) THEN
+        ALTER TABLE ordinances
+          ADD CONSTRAINT fk_ordinances_committee_report
+          FOREIGN KEY (committee_report_id) REFERENCES committee_reports(id) ON DELETE SET NULL;
+      END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'resolutions'
+          AND constraint_name = 'fk_resolutions_committee_report'
+      ) THEN
+        ALTER TABLE resolutions
+          ADD CONSTRAINT fk_resolutions_committee_report
+          FOREIGN KEY (committee_report_id) REFERENCES resolution_committee_reports(id) ON DELETE SET NULL;
+      END IF;
+    END
+    $$;
+  `);
+}
+
 async function bootstrapSchema() {
   await ensureCoreSchema();
   await ensureCommitteeSchema();
+  await ensureLegislativeWorkflowSchema();
   await ensureProposedMeasureStructureSchema();
   await ensureLegislativeAgendaSchema();
   await ensureOrderOfBusinessSchema();
