@@ -1039,15 +1039,29 @@ exports.markEffective = async (id, effectiveDate, userId) => {
  * Get complete workflow status.
  */
 exports.getWorkflowStatus = async (id) => {
-  const [resolutionRes, readings, history] = await Promise.all([
-    Resolution.findById(id),
-    Resolution.findReadingSessions(id),
-    Resolution.findHistory(id),
-  ]);
+  const resolutionRes = await Resolution.findById(id);
 
   if (!resolutionRes.rows.length) {
     const e = new Error('Resolution not found'); e.status = 404; throw e;
   }
+
+  const safeQuery = async (fn, fallbackRows = []) => {
+    try {
+      const result = await fn();
+      return result.rows;
+    } catch (err) {
+      // 42P01: undefined_table (table not created yet in partially bootstrapped/demo DBs)
+      if (err?.code === '42P01') {
+        return fallbackRows;
+      }
+      throw err;
+    }
+  };
+
+  const [readingsRows, historyRows] = await Promise.all([
+    safeQuery(() => Resolution.findReadingSessions(id), []),
+    safeQuery(() => Resolution.findHistory(id), []),
+  ]);
 
   const res = resolutionRes.rows[0];
   let committeeReport = null;
@@ -1062,19 +1076,18 @@ exports.getWorkflowStatus = async (id) => {
   res.committee = committee;
 
   if (res.committee_report_id) {
-    const rpt = await Resolution.findCommitteeReport(id);
-    committeeReport = rpt.rows[0] || null;
+    const reportRows = await safeQuery(() => Resolution.findCommitteeReport(id), []);
+    committeeReport = reportRows[0] || null;
   }
 
-  const posting = await Resolution.findPostingRecords(id);
-  postingRecords = posting.rows;
+  postingRecords = await safeQuery(() => Resolution.findPostingRecords(id), []);
 
   return {
     resolution: res,
-    readings: readings.rows,
+    readings: readingsRows,
     committeeReport,
     postingRecords,
-    history: history.rows,
+    history: historyRows,
   };
 };
 

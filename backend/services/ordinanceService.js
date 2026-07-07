@@ -1182,15 +1182,29 @@ exports.markEffective = async (id, effectiveDate, userId) => {
  * Get complete workflow status including readings, committee report, posting.
  */
 exports.getWorkflowStatus = async (id) => {
-  const [ordinance, readings, history] = await Promise.all([
-    Ordinance.findById(id),
-    Ordinance.findReadingSessions(id),
-    Ordinance.findHistory(id),
-  ]);
+  const ordinance = await Ordinance.findById(id);
 
   if (!ordinance.rows.length) {
     const e = new Error('Ordinance not found'); e.status = 404; throw e;
   }
+
+  const safeQuery = async (fn, fallbackRows = []) => {
+    try {
+      const result = await fn();
+      return result.rows;
+    } catch (err) {
+      // 42P01: undefined_table (table not created yet in partially bootstrapped/demo DBs)
+      if (err?.code === '42P01') {
+        return fallbackRows;
+      }
+      throw err;
+    }
+  };
+
+  const [readingsRows, historyRows] = await Promise.all([
+    safeQuery(() => Ordinance.findReadingSessions(id), []),
+    safeQuery(() => Ordinance.findHistory(id), []),
+  ]);
 
   const ord = ordinance.rows[0];
   let committeeReport = null;
@@ -1206,19 +1220,18 @@ exports.getWorkflowStatus = async (id) => {
   ord.committee = committee;
 
   if (ord.committee_report_id) {
-    const rpt = await Ordinance.findCommitteeReport(id);
-    committeeReport = rpt.rows[0] || null;
+    const reportRows = await safeQuery(() => Ordinance.findCommitteeReport(id), []);
+    committeeReport = reportRows[0] || null;
   }
 
-  const posting = await Ordinance.findPostingRecords(id);
-  postingRecords = posting.rows;
+  postingRecords = await safeQuery(() => Ordinance.findPostingRecords(id), []);
 
   return {
     ordinance: ord,
-    readings: readings.rows,
+    readings: readingsRows,
     committeeReport,
     postingRecords,
-    history: history.rows,
+    history: historyRows,
   };
 };
 
