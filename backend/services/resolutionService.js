@@ -97,6 +97,27 @@ exports.createResolution = async ({
   const resolution = result.rows[0];
 
   await AuditLog.create(null, user.id, 'RESOLUTION_CREATE', `Resolution "${title}" created`);
+  await createNotification(user.id, `Your resolution "${title}" has been created.`);
+
+  // Persist notifications for Secretary users so they can see new measures in the notifications panel.
+  const secretaryUsers = await pool.query(
+    `SELECT u.id
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE r.role_name = 'Secretary'`
+  );
+  for (const secretary of secretaryUsers.rows) {
+    await createNotification(
+      secretary.id,
+      `A new proposed resolution "${title}" was created and is ready for review.`,
+      {
+        type: 'activity',
+        title: 'New Proposed Measure',
+        relatedId: resolution.id,
+        relatedType: 'resolution',
+      }
+    );
+  }
 
   const io = getIO();
   io.emit('resolutionCreated', resolution);

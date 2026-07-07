@@ -133,6 +133,26 @@ exports.createOrdinance = async (data, user) => {
   await AuditLog.create(null, user.id, 'ORDINANCE_CREATE', `Ordinance "${title}" created`);
   await createNotification(user.id, `Your ordinance "${title}" has been created.`);
 
+  // Persist notifications for Secretary users so they can see new measures in the notifications panel.
+  const secretaryUsers = await pool.query(
+    `SELECT u.id
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE r.role_name = 'Secretary'`
+  );
+  for (const secretary of secretaryUsers.rows) {
+    await createNotification(
+      secretary.id,
+      `A new proposed ordinance "${title}" was created and is ready for review.`,
+      {
+        type: 'activity',
+        title: 'New Proposed Measure',
+        relatedId: ordinance.id,
+        relatedType: 'ordinance',
+      }
+    );
+  }
+
   // Notify all Vice Mayors if no committee is assigned
   if (!data.committee_id) {
     // Query all users with the 'Vice Mayor' role
