@@ -13,10 +13,21 @@ function normalizeSessionFormData(data) {
   let normalizedTime = '14:00';
 
   if (source.date) {
-    const parsed = new Date(source.date);
-    if (!Number.isNaN(parsed.getTime())) {
-      normalizedDate = parsed.toISOString().split('T')[0];
-      normalizedTime = parsed.toTimeString().slice(0, 5);
+    const rawDate = String(source.date);
+
+    // Prefer direct string parsing to avoid timezone shifts (e.g. 00:00Z -> 08:00 local).
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+      normalizedDate = rawDate;
+    } else {
+      const datePart = rawDate.split('T')[0];
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        normalizedDate = datePart;
+      }
+
+      const timeMatch = rawDate.match(/T(\d{2}:\d{2})/);
+      if (timeMatch?.[1]) {
+        normalizedTime = timeMatch[1];
+      }
     }
   }
 
@@ -113,7 +124,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       setFormData(prev => ({
         ...prev,
         title: doc.title || prev.title,
-        date: doc.date ? new Date(doc.date).toISOString().split('T')[0] : prev.date,
+        date: doc.date ? String(doc.date).split('T')[0] : prev.date,
         time: doc.time ? doc.time.slice(0, 5) : prev.time,
         location: doc.venue || prev.location,
       }));
