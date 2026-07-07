@@ -246,11 +246,12 @@
   font-weight: 600;
 }
 
-.role-1 { background-color: #e3f2fd; color: #1976d2; } /* Secretary */
-.role-2 { background-color: #f3e5f5; color: #7b1fa2; } /* Councilor */
-/* .role-3 for Captain removed. */
-.role-4 { background-color: #fce4ec; color: #c2185b; } /* Resident */
-.role-5 { background-color: #ffe0b2; color: #d84315; } /* Admin */
+.role-1 { background-color: #ffe0b2; color: #d84315; } /* Admin */
+.role-2 { background-color: #e3f2fd; color: #1976d2; } /* Secretary */
+.role-3 { background-color: #f3e5f5; color: #7b1fa2; } /* Councilor */
+.role-4 { background-color: #e8f5e9; color: #2e7d32; } /* Vice Mayor */
+.role-5 { background-color: #fce4ec; color: #c2185b; } /* Resident */
+.role-6 { background-color: #ede7f6; color: #5e35b1; } /* Committee Secretary */
 
 .actions-cell {
   display: flex;
