@@ -9,6 +9,30 @@ const { getIO } = require('../socket');
 
 const VALID_STATUSES = ['Draft', 'Submitted', 'Under Review', 'Approved', 'Published', 'Rejected'];
 
+function isBlankInput(value) {
+  return value === null || (typeof value === 'string' && value.trim() === '');
+}
+
+function isCouncilorRole(role) {
+  return String(role || '').trim().toLowerCase() === 'councilor';
+}
+
+async function generateNextResolutionNumber() {
+  const year = new Date().getFullYear();
+  const extractPattern = `^RES-${year}-(\\d+)$`;
+  const matchPattern = `^RES-${year}-\\d+$`;
+
+  const { rows } = await pool.query(
+    `SELECT COALESCE(MAX((regexp_match(resolution_number, $1))[1]::int), 0) + 1 AS next_seq
+     FROM resolutions
+     WHERE resolution_number ~ $2`,
+    [extractPattern, matchPattern]
+  );
+
+  const nextSeq = Number(rows[0]?.next_seq || 1);
+  return `RES-${year}-${String(nextSeq).padStart(3, '0')}`;
+}
+
 async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true } = {}) {
   if (!Array.isArray(coAuthorIds) || coAuthorIds.length === 0) {
     if (allowEmpty) return null;
@@ -69,6 +93,10 @@ exports.createResolution = async ({
   attachments,
 }, user) => {
   const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors);
+  let finalResolutionNumber = resolution_number;
+  if (isCouncilorRole(user?.role) && isBlankInput(resolution_number)) {
+    finalResolutionNumber = await generateNextResolutionNumber();
+  }
   const initialStatus = status || 'Draft';
   // Set initial reading_stage based on status
   let initialReadingStage = null;
@@ -81,7 +109,7 @@ exports.createResolution = async ({
   }
   const result = await Resolution.create(
     title,
-    resolution_number,
+    finalResolutionNumber,
     description,
     content,
     remarks,
@@ -223,10 +251,17 @@ exports.updateResolution = async (
     ? undefined
     : await normalizeCouncilorCoAuthors(co_authors);
 
+  let finalResolutionNumber = resolution_number;
+  if (isCouncilorRole(userRole) && existing.rows[0].status === 'Draft' && isBlankInput(resolution_number)) {
+    finalResolutionNumber = isBlankInput(existing.rows[0].resolution_number)
+      ? await generateNextResolutionNumber()
+      : existing.rows[0].resolution_number;
+  }
+
   const result = await Resolution.update(
     id,
     title,
-    resolution_number,
+    finalResolutionNumber,
     description,
     content,
     remarks,

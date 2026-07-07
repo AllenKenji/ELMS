@@ -9,6 +9,30 @@ const AuditLog = require('../models/AuditLog');
 const { createNotification } = require('../utils/notifications');
 const { getIO } = require('../socket');
 
+function isBlankInput(value) {
+  return value === null || (typeof value === 'string' && value.trim() === '');
+}
+
+function isCouncilorRole(role) {
+  return String(role || '').trim().toLowerCase() === 'councilor';
+}
+
+async function generateNextOrdinanceNumber() {
+  const year = new Date().getFullYear();
+  const extractPattern = `^ORD-${year}-(\\d+)$`;
+  const matchPattern = `^ORD-${year}-\\d+$`;
+
+  const { rows } = await pool.query(
+    `SELECT COALESCE(MAX((regexp_match(ordinance_number, $1))[1]::int), 0) + 1 AS next_seq
+     FROM ordinances
+     WHERE ordinance_number ~ $2`,
+    [extractPattern, matchPattern]
+  );
+
+  const nextSeq = Number(rows[0]?.next_seq || 1);
+  return `ORD-${year}-${String(nextSeq).padStart(3, '0')}`;
+}
+
 function parseCoAuthorIds(value) {
   if (!value || typeof value !== 'string') {
     return [];
@@ -107,6 +131,10 @@ exports.createOrdinance = async (data, user) => {
     attachments = [],
   } = data;
   const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors, { allowEmpty: true });
+  let finalOrdinanceNumber = ordinance_number;
+  if (isCouncilorRole(user?.role) && isBlankInput(ordinance_number)) {
+    finalOrdinanceNumber = await generateNextOrdinanceNumber();
+  }
   const initialStatus = status || 'Draft';
   // Set initial reading_stage based on status
   let initialReadingStage = null;
@@ -118,7 +146,7 @@ exports.createOrdinance = async (data, user) => {
     initialReadingStage = 'DRAFT'; // fallback to DRAFT if status is missing or unrecognized
   }
   const result = await Ordinance.create(
-    title, ordinance_number, description, content, remarks,
+    title, finalOrdinanceNumber, description, content, remarks,
     user.id,
     proposer_name || user.name,
     initialStatus,
@@ -256,8 +284,24 @@ exports.updateOrdinance = async (
     effectivity_clause,
     attachments,
   },
-  userId
+  userId,
+  userRole
 ) => {
+  const existing = await Ordinance.findById(id);
+  if (existing.rows.length === 0) {
+    const err = new Error('Ordinance not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const existingOrdinance = existing.rows[0];
+  let finalOrdinanceNumber = ordinance_number;
+  if (isCouncilorRole(userRole) && existingOrdinance.status === 'Draft' && isBlankInput(ordinance_number)) {
+    finalOrdinanceNumber = isBlankInput(existingOrdinance.ordinance_number)
+      ? await generateNextOrdinanceNumber()
+      : existingOrdinance.ordinance_number;
+  }
+
   const normalizedCoAuthors = co_authors === undefined
     ? undefined
     : await normalizeCouncilorCoAuthors(co_authors, { allowEmpty: true });
@@ -265,7 +309,7 @@ exports.updateOrdinance = async (
   const result = await Ordinance.update(
     id,
     title,
-    ordinance_number,
+    finalOrdinanceNumber,
     description,
     content,
     remarks,

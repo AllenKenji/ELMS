@@ -96,7 +96,7 @@ exports.getById = async (req, res) => {
  */
 exports.update = async (req, res) => {
   try {
-    const ordinance = await ordinanceService.updateOrdinance(req.params.id, req.body, req.user.id);
+    const ordinance = await ordinanceService.updateOrdinance(req.params.id, req.body, req.user.id, req.user.role);
     res.json(ordinance);
   } catch (err) {
     console.error('Update ordinance error:', err);
