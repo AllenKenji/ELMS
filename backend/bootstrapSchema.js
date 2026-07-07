@@ -284,8 +284,70 @@ async function ensureSessionRecordingsSchema() {
   `).catch(() => {});
 }
 
+async function ensureCommitteeSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS committees (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      description TEXT,
+      chair_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status VARCHAR(10) NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive')),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS committee_members (
+      id SERIAL PRIMARY KEY,
+      committee_id INTEGER NOT NULL REFERENCES committees(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      role VARCHAR(32) NOT NULL DEFAULT 'Member',
+      joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (committee_id, user_id)
+    );
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'committee_members'
+          AND constraint_name = 'committee_members_role_check'
+      ) THEN
+        ALTER TABLE committee_members DROP CONSTRAINT committee_members_role_check;
+      END IF;
+
+      ALTER TABLE committee_members
+      ADD CONSTRAINT committee_members_role_check
+      CHECK (
+        role::text = ANY (
+          ARRAY[
+            'Chair',
+            'Vice Chair',
+            'Member',
+            'Secretary',
+            'Committee Secretary'
+          ]::text[]
+        )
+      );
+    END
+    $$;
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_committees_status ON committees(status);
+    CREATE INDEX IF NOT EXISTS idx_committees_chair ON committees(chair_id);
+    CREATE INDEX IF NOT EXISTS idx_committee_members_committee ON committee_members(committee_id);
+    CREATE INDEX IF NOT EXISTS idx_committee_members_user ON committee_members(user_id);
+  `);
+}
+
 async function bootstrapSchema() {
   await ensureCoreSchema();
+  await ensureCommitteeSchema();
   await ensureProposedMeasureStructureSchema();
   await ensureLegislativeAgendaSchema();
   await ensureOrderOfBusinessSchema();
