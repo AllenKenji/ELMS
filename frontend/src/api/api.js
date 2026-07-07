@@ -42,7 +42,11 @@ api.interceptors.response.use(
       // Build a normalised error object that callers can rely on
       const normalised = {
         status,
-        message: data?.message || extractErrorMessage(status),
+        message:
+          data?.error ||
+          data?.message ||
+          (typeof data === 'string' ? data : null) ||
+          extractErrorMessage(status),
         details: data?.details || [],
       };
 
