@@ -383,11 +383,27 @@ exports.findAgendaBySession = async (sessionId) => {
             COALESCE(o.reading_stage, r.reading_stage) AS reading_stage,
             COALESCE(o.status, r.status) AS status,
             COALESCE(o.proposer_name, r.proposer_name) AS proposer_name,
+            COALESCE(o.proposer_name, r.proposer_name) AS author_name,
+            COALESCE(oca.co_author_names, rca.co_author_names) AS co_author_names,
             COALESCE(o.description, r.description) AS description,
             CASE WHEN ai.ordinance_id IS NOT NULL THEN 'Ordinance' ELSE 'Resolution' END AS item_type
      FROM session_agenda_items ai
      LEFT JOIN ordinances o ON o.id = ai.ordinance_id
      LEFT JOIN resolutions r ON r.id = ai.resolution_id
+     LEFT JOIN LATERAL (
+       SELECT STRING_AGG(u.name, ', ' ORDER BY u.name) AS co_author_names
+       FROM users u
+       WHERE u.id = ANY(
+         STRING_TO_ARRAY(REGEXP_REPLACE(NULLIF(o.co_authors, ''), '\\s', '', 'g'), ',')::INT[]
+       )
+     ) oca ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT STRING_AGG(u.name, ', ' ORDER BY u.name) AS co_author_names
+       FROM users u
+       WHERE u.id = ANY(
+         STRING_TO_ARRAY(REGEXP_REPLACE(NULLIF(r.co_authors, ''), '\\s', '', 'g'), ',')::INT[]
+       )
+     ) rca ON TRUE
      WHERE ai.session_id=$1
      ORDER BY ai.agenda_order ASC`,
     [sessionId]

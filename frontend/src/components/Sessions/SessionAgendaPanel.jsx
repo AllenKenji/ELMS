@@ -251,7 +251,10 @@ export default function SessionAgendaPanel({ sessionId, readOnly = false }) {
                     </span>
                   )}
                   {item.proposer_name && (
-                    <span className="agenda-meta-tag">👤 {item.proposer_name}</span>
+                    <span className="agenda-meta-tag">👤 Author: {item.author_name || item.proposer_name}</span>
+                  )}
+                  {item.co_author_names && (
+                    <span className="agenda-meta-tag">👥 Co-authors: {item.co_author_names}</span>
                   )}
                 </div>
                 {item.description && (
