@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/useAuth';
 import api from '../api/api';
+import { io } from 'socket.io-client';
+import { API_BASE_URL } from '../api/api';
 import '../styles/NotificationBell.css';
 
 export default function NotificationBell() {
@@ -31,6 +33,28 @@ export default function NotificationBell() {
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
   }, [user]);
+
+  // Subscribe to user-specific notification socket events for instant bell updates.
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const socket = io(import.meta.env.VITE_SOCKET_URL || API_BASE_URL);
+    socket.emit('joinUser', user.id);
+
+    const handleNotificationCreated = (notification) => {
+      if (!notification) return;
+
+      setUnreadCount((prev) => prev + (notification.is_read ? 0 : 1));
+      setNotifications((prev) => [notification, ...prev].slice(0, 100));
+    };
+
+    socket.on('notificationCreated', handleNotificationCreated);
+
+    return () => {
+      socket.off('notificationCreated', handleNotificationCreated);
+      socket.disconnect();
+    };
+  }, [user?.id]);
 
   // Fetch notifications when dropdown opens
   const handleBellClick = async () => {

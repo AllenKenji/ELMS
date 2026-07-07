@@ -24,6 +24,17 @@ function init(server) {
       console.log(`User ${socket.id} joined role room: ${role}`);
     });
 
+    socket.on('joinUser', (userId) => {
+      const normalizedUserId = Number(userId);
+      if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) {
+        return;
+      }
+
+      const userRoom = `user_${normalizedUserId}`;
+      socket.join(userRoom);
+      console.log(`User ${socket.id} joined user room: ${userRoom}`);
+    });
+
     socket.on('disconnect', () => {
       console.log('User disconnected:', socket.id);
     });

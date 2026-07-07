@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import api from '../api/api';
+import { io } from 'socket.io-client';
+import { API_BASE_URL } from '../api/api';
+import { useAuth } from '../context/useAuth';
 import '../styles/NotificationList.css';
 
 const NOTIFICATION_TYPES = [
@@ -12,6 +15,7 @@ const NOTIFICATION_TYPES = [
 ];
 
 export default function NotificationList() {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [filteredNotifications, setFilteredNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +45,25 @@ export default function NotificationList() {
 
     fetchNotifications();
   }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const socket = io(import.meta.env.VITE_SOCKET_URL || API_BASE_URL);
+    socket.emit('joinUser', user.id);
+
+    const handleNotificationCreated = (notification) => {
+      if (!notification) return;
+      setNotifications((prev) => [notification, ...prev]);
+    };
+
+    socket.on('notificationCreated', handleNotificationCreated);
+
+    return () => {
+      socket.off('notificationCreated', handleNotificationCreated);
+      socket.disconnect();
+    };
+  }, [user?.id]);
 
   // Filter and sort
   useEffect(() => {
