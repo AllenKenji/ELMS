@@ -3,10 +3,22 @@
  */
 const pool = require('../db');
 const Ordinance = require('../models/Ordinance');
+const Resolution = require('../models/Resolution');
 const Vote = require('../models/Vote');
 const AuditLog = require('../models/AuditLog');
 const { createNotification } = require('../utils/notifications');
 const { getIO } = require('../socket');
+
+function parseCoAuthorIds(value) {
+  if (!value || typeof value !== 'string') {
+    return [];
+  }
+
+  return value
+    .split(',')
+    .map((id) => Number(id.trim()))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
 
 async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true } = {}) {
   if (coAuthorIds === undefined || coAuthorIds === null) {
@@ -1248,6 +1260,35 @@ exports.getCommitteeReport = async (id) => {
  */
 exports.addAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNumber) => {
   const result = await Ordinance.upsertAgendaItem(sessionId, ordinanceId, agendaOrder, readingNumber);
+
+  const [sessionRes, ordinanceRes] = await Promise.all([
+    pool.query('SELECT title FROM sessions WHERE id = $1', [sessionId]),
+    Ordinance.findById(ordinanceId),
+  ]);
+
+  const sessionTitle = sessionRes.rows[0]?.title || `Session #${sessionId}`;
+  const ordinance = ordinanceRes.rows[0];
+
+  if (ordinance) {
+    const involvedUserIds = new Set([
+      Number(ordinance.proposer_id),
+      ...parseCoAuthorIds(ordinance.co_authors),
+    ].filter((id) => Number.isInteger(id) && id > 0));
+
+    for (const userId of involvedUserIds) {
+      await createNotification(
+        userId,
+        `Your ordinance "${ordinance.title}" has been included in the agenda for "${sessionTitle}".`,
+        {
+          type: 'session',
+          title: 'Scheduled In Session',
+          relatedId: Number(sessionId),
+          relatedType: 'session',
+        }
+      );
+    }
+  }
+
   return result.rows[0];
 };
 
@@ -1256,6 +1297,35 @@ exports.addAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNumbe
  */
 exports.addResolutionAgendaItem = async (sessionId, resolutionId, agendaOrder, readingNumber) => {
   const result = await Ordinance.upsertResolutionAgendaItem(sessionId, resolutionId, agendaOrder, readingNumber);
+
+  const [sessionRes, resolutionRes] = await Promise.all([
+    pool.query('SELECT title FROM sessions WHERE id = $1', [sessionId]),
+    Resolution.findById(resolutionId),
+  ]);
+
+  const sessionTitle = sessionRes.rows[0]?.title || `Session #${sessionId}`;
+  const resolution = resolutionRes.rows[0];
+
+  if (resolution) {
+    const involvedUserIds = new Set([
+      Number(resolution.proposer_id),
+      ...parseCoAuthorIds(resolution.co_authors),
+    ].filter((id) => Number.isInteger(id) && id > 0));
+
+    for (const userId of involvedUserIds) {
+      await createNotification(
+        userId,
+        `Your resolution "${resolution.title}" has been included in the agenda for "${sessionTitle}".`,
+        {
+          type: 'session',
+          title: 'Scheduled In Session',
+          relatedId: Number(sessionId),
+          relatedType: 'session',
+        }
+      );
+    }
+  }
+
   return result.rows[0];
 };
 

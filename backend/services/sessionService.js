@@ -124,6 +124,26 @@ exports.updateSession = async (id, { title, date, location, agenda, notes }, use
   await AuditLog.create(null, userId, 'SESSION_UPDATE', `Session "${title}" updated`);
   await createNotification(userId, `Session "${title}" has been updated.`);
 
+  const participantsResult = await Session.findParticipants(id);
+  const participantIds = new Set(
+    (participantsResult.rows || [])
+      .map((participant) => Number(participant.id))
+      .filter((participantId) => Number.isInteger(participantId) && participantId > 0 && participantId !== Number(userId))
+  );
+
+  for (const participantId of participantIds) {
+    await createNotification(
+      participantId,
+      `Session "${session.title}" has been updated. Please review the latest schedule and agenda.`,
+      {
+        type: 'session',
+        title: 'Session Updated',
+        relatedId: Number(id),
+        relatedType: 'session',
+      }
+    );
+  }
+
   broadcast('sessionUpdated', session);
   return session;
 };
