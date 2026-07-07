@@ -135,9 +135,11 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
   const getSessionStatus = () => {
     if (!session?.date) return 'Unknown';
     const sessionDate = new Date(session.date);
-    const now = new Date();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    sessionDate.setHours(0, 0, 0, 0);
 
-    if (sessionDate < now) {
+    if (sessionDate < today) {
       return 'Completed';
     }
     return 'Upcoming';

@@ -13,7 +13,17 @@ function getSessionDate(session) {
 
 function isCompletedSession(session) {
   const sessionDate = getSessionDate(session);
-  return Boolean(sessionDate && sessionDate < new Date());
+  if (!sessionDate) {
+    return false;
+  }
+
+  // Sessions are stored as DATE in backend (no time). Compare by day only
+  // so a session scheduled for today is not treated as completed at midnight.
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  sessionDate.setHours(0, 0, 0, 0);
+
+  return sessionDate < today;
 }
 
 function formatDuration(totalMinutes) {
