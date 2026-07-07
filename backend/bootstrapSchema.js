@@ -345,6 +345,31 @@ async function ensureCommitteeSchema() {
   `);
 }
 
+async function ensureNotificationsSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      type VARCHAR(50) NOT NULL,
+      title VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      related_id INTEGER,
+      related_type VARCHAR(50),
+      is_read BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      deleted_at TIMESTAMP
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+    CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+    CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
+  `);
+}
+
 async function ensureLegislativeWorkflowSchema() {
   await pool.query(`
     ALTER TABLE ordinances
@@ -569,6 +594,7 @@ async function ensureLegislativeWorkflowSchema() {
 async function bootstrapSchema() {
   await ensureCoreSchema();
   await ensureCommitteeSchema();
+  await ensureNotificationsSchema();
   await ensureLegislativeWorkflowSchema();
   await ensureProposedMeasureStructureSchema();
   await ensureLegislativeAgendaSchema();
