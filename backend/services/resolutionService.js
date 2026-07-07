@@ -487,6 +487,27 @@ exports.submitToViceMayor = async (id, comment, userId) => {
     await Resolution.insertWorkflowAction(client, id, 'SUBMIT_TO_VICE_MAYOR', 'SUBMITTED', userId, comment || '');
     await AuditLog.create(client, userId, 'LEGISLATIVE_SUBMIT', `Resolution "${resolution.title}" submitted to Vice Mayor`);
     await createNotification(userId, `Resolution "${resolution.title}" submitted to Vice Mayor.`);
+
+    // Persist a notification for all Secretary users so they still receive it even when offline.
+    const secretaryUsers = await client.query(
+      `SELECT u.id
+       FROM users u
+       JOIN roles r ON r.id = u.role_id
+       WHERE r.role_name = 'Secretary'`
+    );
+    for (const secretary of secretaryUsers.rows) {
+      await createNotification(
+        secretary.id,
+        `A proposed resolution "${resolution.title}" was submitted by a councilor and is ready for review.`,
+        {
+          type: 'activity',
+          title: 'Proposed Measure Submitted',
+          relatedId: Number(id),
+          relatedType: 'resolution',
+        }
+      );
+    }
+
     const io = getIO();
     io.to('Secretary').emit('resolutionSubmitted', updated.rows[0]);
 
