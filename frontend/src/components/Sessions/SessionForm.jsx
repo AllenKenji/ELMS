@@ -32,11 +32,6 @@ function normalizeSessionFormData(data) {
       if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
         normalizedDate = datePart;
       }
-
-      const timeMatch = rawDate.match(/T(\d{2}:\d{2})/);
-      if (!sourceTime && timeMatch?.[1]) {
-        normalizedTime = timeMatch[1];
-      }
     }
   }
 

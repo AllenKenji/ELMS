@@ -40,8 +40,7 @@ function parseStartTime(dateValue, sessionTime) {
     return explicit;
   }
 
-  const fromDate = String(dateValue || '').match(/T(\d{2}:\d{2})/)?.[1];
-  return fromDate || null;
+  return null;
 }
 
 function formatClock(hhmm) {

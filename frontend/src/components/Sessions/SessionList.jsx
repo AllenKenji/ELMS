@@ -17,11 +17,6 @@ function parseSessionStartHHMM(session) {
     return explicit;
   }
 
-  const fromDate = String(session?.date || '').match(/T(\d{2}:\d{2})/)?.[1];
-  if (fromDate) {
-    return fromDate;
-  }
-
   return null;
 }
 
