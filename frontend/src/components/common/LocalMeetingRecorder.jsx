@@ -115,7 +115,7 @@ export default function LocalMeetingRecorder({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showTipsModal, setShowTipsModal] = useState(false);
-  const [status, setStatus] = useState(`Record the ${subjectLabel} tab/window and microphone directly to this laptop.`);
+  const [status, setStatus] = useState(`Record the ${subjectLabel} window or entire screen directly to this laptop.`);
   const [error, setError] = useState('');
   const [localDownload, setLocalDownload] = useState(null);
   const [chunkStats, setChunkStats] = useState({ count: 0, bytes: 0 });
@@ -278,12 +278,6 @@ export default function LocalMeetingRecorder({
     }
 
     if (mediaRecorder.state !== 'inactive') {
-      try {
-        // Force a final dataavailable event before stopping.
-        mediaRecorder.requestData();
-      } catch {
-        // requestData can fail for some browser states; continue stopping.
-      }
       mediaRecorder.stop();
     }
 
@@ -335,14 +329,9 @@ export default function LocalMeetingRecorder({
       const microphoneAudioTrack = microphoneStream?.getAudioTracks()?.[0] || null;
       const recordingAudioTrack = microphoneAudioTrack || screenAudioTrack || null;
 
-      const recordingStream = screenStream;
-      if (microphoneAudioTrack && !screenStream.getAudioTracks().some((track) => track.id === microphoneAudioTrack.id)) {
-        try {
-          screenStream.addTrack(microphoneAudioTrack);
-        } catch {
-          // Some browsers lock the display capture stream; keep recording video-only if audio cannot be attached.
-        }
-      }
+      // Record from a simple video-first stream because some browsers stall and emit zero chunks
+      // when MediaRecorder is attached to a more complex display+audio capture graph.
+      const recordingStream = new MediaStream([videoTrack]);
 
       const liveBroadcastStream = new MediaStream([
         videoTrack.clone(),
@@ -364,17 +353,8 @@ export default function LocalMeetingRecorder({
       recorder.onstart = () => {
         if (requestDataIntervalRef.current) {
           window.clearInterval(requestDataIntervalRef.current);
+          requestDataIntervalRef.current = null;
         }
-
-        requestDataIntervalRef.current = window.setInterval(() => {
-          if (recorder.state === 'recording') {
-            try {
-              recorder.requestData();
-            } catch {
-              // Ignore transient requestData failures.
-            }
-          }
-        }, 2000);
 
         if (noDataWarningTimeoutRef.current) {
           window.clearTimeout(noDataWarningTimeoutRef.current);
