@@ -226,16 +226,23 @@ export default function LocalMeetingRecorder({
         });
         saveHandleRef.current = handle;
       } catch {
-        setStatus('Save canceled. Recording is still active.');
+        setStatus('Save canceled. Use the Download local copy link below to keep the recording.');
         return null;
       }
     }
 
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-    toast.success('Recording saved to the chosen file path.');
-    return true;
+    try {
+      const writable = await handle.createWritable();
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      await writable.write({ type: 'write', position: 0, data: bytes });
+      await writable.close();
+      toast.success('Recording saved to the chosen file path.');
+      return true;
+    } catch {
+      setStatus('Saving to the selected file path failed. Use the Download local copy link below.');
+      toast.error('Saving to the selected file path failed.');
+      return false;
+    }
   }, [supportsSavePicker]);
 
   const uploadRecordingToServer = useCallback(async (blob, filename) => {
@@ -509,27 +516,8 @@ export default function LocalMeetingRecorder({
       return;
     }
 
-    if (supportsSavePicker && !saveHandleRef.current) {
-      try {
-        const suggestedName = buildRecordingFilename(meetingTitle);
-        saveHandleRef.current = await window.showSaveFilePicker({
-          suggestedName,
-          types: [
-            {
-              description: 'WebM video',
-              accept: { 'video/webm': ['.webm'] },
-            },
-          ],
-        });
-        setStatus('Saving to the selected file path...');
-      } catch {
-        setStatus('Save canceled. Recording continues until you choose Stop & Save again.');
-        return;
-      }
-    }
-
     stopRecording(true);
-  }, [isRecording, meetingTitle, stopRecording, supportsSavePicker]);
+  }, [isRecording, stopRecording]);
 
   return (
     <>
