@@ -64,6 +64,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
+  const microphoneStreamRef = useRef(null);
   const viewerPeerRef = useRef(null);
   const viewerBroadcasterSocketIdRef = useRef(null);
   const broadcasterPeersRef = useRef(new Map());
@@ -130,9 +131,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     if (stopMedia && broadcastModeRef.current === 'manual') {
       stopTracks(localStreamRef.current);
+      stopTracks(microphoneStreamRef.current);
     }
 
     localStreamRef.current = null;
+    microphoneStreamRef.current = null;
     sourceBroadcastStreamRef.current = null;
     broadcastModeRef.current = null;
     setLiveDiagnostics({ publishVideo: false, publishAudio: false, recvVideo: false, recvAudio: false });
@@ -150,12 +153,41 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     setError('');
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
       });
 
+      let microphoneStream = null;
+      try {
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+          video: false,
+        });
+      } catch {
+        // Keep broadcasting even if the microphone cannot be captured.
+      }
+
+      const screenVideoTrack = screenStream.getVideoTracks()[0] || null;
+      if (!screenVideoTrack) {
+        throw new Error('No screen video track was captured.');
+      }
+
+      const preferredAudioTrack =
+        microphoneStream?.getAudioTracks()?.[0] ||
+        screenStream.getAudioTracks()?.[0] ||
+        null;
+
+      const stream = new MediaStream([
+        screenVideoTrack,
+        ...(preferredAudioTrack ? [preferredAudioTrack] : []),
+      ]);
+
       localStreamRef.current = stream;
+      microphoneStreamRef.current = microphoneStream;
       setLiveDiagnostics({
         publishVideo: Boolean(stream.getVideoTracks().length),
         publishAudio: Boolean(stream.getAudioTracks().length),
@@ -163,12 +195,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         recvAudio: false,
       });
       if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+        localVideoRef.current.srcObject = screenStream;
       }
 
-      const firstVideoTrack = stream.getVideoTracks()[0];
-      if (firstVideoTrack) {
-        firstVideoTrack.onended = () => {
+      if (screenVideoTrack) {
+        screenVideoTrack.onended = () => {
           stopBroadcast();
         };
       }
@@ -176,7 +207,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       broadcastModeRef.current = 'manual';
       setIsBroadcasting(true);
       setLiveHostName(String(hostName || '').trim() || 'You');
-      setStatus('You are live. Waiting for participants to connect...');
+      setStatus(stream.getAudioTracks().length > 0 ? 'You are live with audio. Waiting for participants to connect...' : 'You are live, but no audio track was captured. Waiting for participants to connect...');
       socketRef.current.emit('live:publish', { sessionId: normalizedSessionId, hostName });
     } catch (err) {
       setError(err?.message || 'Unable to start live stream.');
