@@ -53,6 +53,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const [isWatching, setIsWatching] = useState(false);
   const [liveHostName, setLiveHostName] = useState('');
   const [liveHostSocketId, setLiveHostSocketId] = useState(null);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [liveDiagnostics, setLiveDiagnostics] = useState({ publishVideo: false, publishAudio: false, recvVideo: false, recvAudio: false });
   const [status, setStatus] = useState('No live stream in progress.');
   const [error, setError] = useState('');
 
@@ -108,6 +110,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       remoteVideoRef.current.srcObject = null;
     }
     remotePlaybackStreamRef.current = null;
+    setLiveDiagnostics((prev) => ({ ...prev, recvVideo: false, recvAudio: false }));
   }, []);
 
   const closeBroadcasterPeers = useCallback(() => {
@@ -132,6 +135,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     localStreamRef.current = null;
     sourceBroadcastStreamRef.current = null;
     broadcastModeRef.current = null;
+    setLiveDiagnostics({ publishVideo: false, publishAudio: false, recvVideo: false, recvAudio: false });
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
     }
@@ -152,6 +156,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       });
 
       localStreamRef.current = stream;
+      setLiveDiagnostics({
+        publishVideo: Boolean(stream.getVideoTracks().length),
+        publishAudio: Boolean(stream.getAudioTracks().length),
+        recvVideo: false,
+        recvAudio: false,
+      });
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
@@ -238,6 +248,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         if (!existingTrack) {
           remotePlaybackStreamRef.current.addTrack(event.track);
         }
+
+        setLiveDiagnostics((prev) => ({
+          ...prev,
+          recvVideo: prev.recvVideo || event.track.kind === 'video',
+          recvAudio: prev.recvAudio || event.track.kind === 'audio',
+        }));
       }
 
       const playbackStream = stream || remotePlaybackStreamRef.current;
@@ -309,6 +325,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     localStreamRef.current = buildOutboundStream(broadcastStream);
     sourceBroadcastStreamRef.current = broadcastStream;
     broadcastModeRef.current = 'external';
+    setLiveDiagnostics({
+      publishVideo: Boolean(localStreamRef.current.getVideoTracks().length),
+      publishAudio: Boolean(localStreamRef.current.getAudioTracks().length),
+      recvVideo: false,
+      recvAudio: false,
+    });
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = broadcastStream;
     }
@@ -333,6 +355,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     socketRef.current = socket;
 
     socket.on('connect', () => {
+      setSocketConnected(true);
       socket.emit('joinSessionLive', normalizedSessionId);
 
       // Recover session state on reconnect.
@@ -343,6 +366,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (isWatchingRef.current) {
         socket.emit('live:viewer-ready', { sessionId: normalizedSessionId });
       }
+    });
+
+    socket.on('disconnect', () => {
+      setSocketConnected(false);
     });
 
     socket.on('live:status', (payload) => {
@@ -365,6 +392,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         }
       } else if (!isBroadcastingRef.current) {
         setStatus('Live stream is active.');
+      }
+
+      if (!active) {
+        setLiveDiagnostics({ publishVideo: false, publishAudio: false, recvVideo: false, recvAudio: false });
       }
     });
 
@@ -509,6 +540,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         <p className="live-session-host">Live started by: {liveHostLabel}</p>
       )}
       {error && <p className="live-session-error">{error}</p>}
+      <p className="live-session-diagnostics">
+        Socket: {socketConnected ? 'connected' : 'disconnected'} · Publish: {liveDiagnostics.publishVideo ? 'video' : 'no video'} / {liveDiagnostics.publishAudio ? 'audio' : 'no audio'} · Receive: {liveDiagnostics.recvVideo ? 'video' : 'no video'} / {liveDiagnostics.recvAudio ? 'audio' : 'no audio'}
+      </p>
 
       {hasExternalBroadcast && canBroadcast && (
         <p className="live-session-status">Local recording is also broadcasting live to participants.</p>
@@ -524,7 +558,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       {!canBroadcast && (
         <div className="live-video-block">
           <label>Live Stream</label>
-          <video ref={remoteVideoRef} autoPlay playsInline controls className="live-video" />
+          <video ref={remoteVideoRef} autoPlay muted playsInline controls className="live-video" />
         </div>
       )}
     </section>

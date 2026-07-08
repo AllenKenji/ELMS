@@ -107,6 +107,7 @@ export default function LocalMeetingRecorder({
   const screenStreamRef = useRef(null);
   const microphoneStreamRef = useRef(null);
   const recordingStreamRef = useRef(null);
+  const fallbackRecordingStreamRef = useRef(null);
   const saveHandleRef = useRef(null);
   const chunksRef = useRef([]);
   const requestDataIntervalRef = useRef(null);
@@ -130,7 +131,7 @@ export default function LocalMeetingRecorder({
   const uploadedRecordingLabel = useMemo(() => formatRecordingDate(recordingUploadedAt), [recordingUploadedAt]);
 
   const cleanupMedia = useCallback(() => {
-    [recordingStreamRef.current, screenStreamRef.current, microphoneStreamRef.current].forEach((stream) => {
+    [recordingStreamRef.current, fallbackRecordingStreamRef.current, screenStreamRef.current, microphoneStreamRef.current].forEach((stream) => {
       stream?.getTracks().forEach((track) => {
         if (track.readyState === 'live') {
           track.stop();
@@ -152,6 +153,7 @@ export default function LocalMeetingRecorder({
     screenStreamRef.current = null;
     microphoneStreamRef.current = null;
     recordingStreamRef.current = null;
+    fallbackRecordingStreamRef.current = null;
     saveHandleRef.current = null;
     chunksRef.current = [];
     setChunkStats({ count: 0, bytes: 0 });
@@ -318,9 +320,16 @@ export default function LocalMeetingRecorder({
         throw new Error('No screen video track was captured.');
       }
 
+      const fallbackRecordingStream = new MediaStream([videoTrack]);
+
       const recordingStream = new MediaStream([
         videoTrack,
         ...(preferredAudioTrack ? [preferredAudioTrack] : []),
+      ]);
+
+      const liveBroadcastStream = new MediaStream([
+        videoTrack.clone(),
+        ...(preferredAudioTrack ? [preferredAudioTrack.clone()] : []),
       ]);
 
       const recorder = mimeType
@@ -421,7 +430,8 @@ export default function LocalMeetingRecorder({
       screenStreamRef.current = screenStream;
       microphoneStreamRef.current = microphoneStream;
       recordingStreamRef.current = recordingStream;
-      onCaptureStarted?.(recordingStream);
+      fallbackRecordingStreamRef.current = fallbackRecordingStream;
+      onCaptureStarted?.(liveBroadcastStream);
 
       recorder.start(1000);
       setIsRecording(true);
