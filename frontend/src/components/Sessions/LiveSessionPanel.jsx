@@ -47,7 +47,7 @@ function preferVp8Codec(pc) {
   transceiver.setCodecPreferences([...vp8, ...nonVp8]);
 }
 
-export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '' }) {
+export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isWatching, setIsWatching] = useState(false);
@@ -111,8 +111,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       remoteVideoRef.current.srcObject = null;
     }
     remotePlaybackStreamRef.current = null;
+    onRemoteStreamChange?.(null);
     setLiveDiagnostics((prev) => ({ ...prev, recvVideo: false, recvAudio: false }));
-  }, []);
+  }, [onRemoteStreamChange]);
 
   const closeBroadcasterPeers = useCallback(() => {
     for (const pc of broadcasterPeersRef.current.values()) {
@@ -294,6 +295,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       }
 
       const playbackStream = stream || remotePlaybackStreamRef.current;
+      onRemoteStreamChange?.(playbackStream || null);
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = playbackStream || null;
         const playPromise = remoteVideoRef.current.play?.();
@@ -312,7 +314,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     };
 
     return pc;
-  }, [closeViewerPeer, normalizedSessionId]);
+  }, [closeViewerPeer, normalizedSessionId, onRemoteStreamChange]);
 
   const startWatching = useCallback(() => {
     if (!socketRef.current || isWatching) return;
@@ -330,12 +332,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   }, [closeViewerPeer, isLive]);
 
   useEffect(() => {
-    if (!isLive || canBroadcast || !socketConnected || isWatchingRef.current) {
+    if (!isLive || isBroadcastingRef.current || !socketConnected || isWatchingRef.current) {
       return;
     }
 
     startWatching();
-  }, [canBroadcast, isLive, socketConnected, startWatching]);
+  }, [isLive, socketConnected, startWatching]);
 
   useEffect(() => {
     if (!canBroadcast || !socketRef.current) {
@@ -599,14 +601,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         <p className="live-session-status">Local recording is also broadcasting live to participants.</p>
       )}
 
-      {canBroadcast && (
+      {(isBroadcasting || hasExternalBroadcast) && (
         <div className="live-video-block">
           <label>Live Preview</label>
           <video ref={localVideoRef} autoPlay muted playsInline className="live-video" />
         </div>
       )}
 
-      {!canBroadcast && (
+      {isWatching && !isBroadcasting && (
         <div className="live-video-block">
           <label>Live Stream</label>
           <video ref={remoteVideoRef} autoPlay muted playsInline controls className="live-video" />

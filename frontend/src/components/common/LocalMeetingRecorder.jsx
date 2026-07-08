@@ -102,6 +102,7 @@ export default function LocalMeetingRecorder({
   meetingId,
   uploadUrl,
   uploadFields,
+  preferredCaptureStream,
   recordingUrl,
   recordingUploadedAt,
   recordingUploadedByName,
@@ -125,6 +126,7 @@ export default function LocalMeetingRecorder({
   const microphoneStreamRef = useRef(null);
   const recordingStreamRef = useRef(null);
   const fallbackRecordingStreamRef = useRef(null);
+  const usesExternalCaptureRef = useRef(false);
   const saveHandleRef = useRef(null);
   const chunksRef = useRef([]);
   const requestDataIntervalRef = useRef(null);
@@ -148,7 +150,12 @@ export default function LocalMeetingRecorder({
   const uploadedRecordingLabel = useMemo(() => formatRecordingDate(recordingUploadedAt), [recordingUploadedAt]);
 
   const cleanupMedia = useCallback(() => {
-    [recordingStreamRef.current, fallbackRecordingStreamRef.current, screenStreamRef.current, microphoneStreamRef.current].forEach((stream) => {
+    const ownedStreams = [fallbackRecordingStreamRef.current, screenStreamRef.current, microphoneStreamRef.current];
+    if (!usesExternalCaptureRef.current) {
+      ownedStreams.unshift(recordingStreamRef.current);
+    }
+
+    ownedStreams.forEach((stream) => {
       stream?.getTracks().forEach((track) => {
         if (track.readyState === 'live') {
           track.stop();
@@ -171,6 +178,7 @@ export default function LocalMeetingRecorder({
     microphoneStreamRef.current = null;
     recordingStreamRef.current = null;
     fallbackRecordingStreamRef.current = null;
+    usesExternalCaptureRef.current = false;
     saveHandleRef.current = null;
     chunksRef.current = [];
     setChunkStats({ count: 0, bytes: 0 });
@@ -301,37 +309,45 @@ export default function LocalMeetingRecorder({
     chunksRef.current = [];
 
     try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true,
-      });
-
+      let screenStream = null;
       let microphoneStream = null;
-      try {
-        microphoneStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-          },
-          video: false,
+      let videoTrack = preferredCaptureStream?.getVideoTracks?.()?.[0] || null;
+      let recordingAudioTrack = preferredCaptureStream?.getAudioTracks?.()?.[0] || null;
+      let recordingStream = null;
+
+      if (videoTrack) {
+        recordingStream = preferredCaptureStream;
+        usesExternalCaptureRef.current = true;
+      } else {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
         });
-      } catch {
-        // Keep recording even if microphone access fails.
-        toast.warning('Microphone access is unavailable. Recording will continue with shared tab/system audio only.');
+
+        try {
+          microphoneStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+            },
+            video: false,
+          });
+        } catch {
+          // Keep recording even if microphone access fails.
+          toast.warning('Microphone access is unavailable. Recording will continue with shared tab/system audio only.');
+        }
+
+        videoTrack = screenStream.getVideoTracks()?.[0] || null;
+        const screenAudioTrack = screenStream.getAudioTracks()?.[0] || null;
+        const microphoneAudioTrack = microphoneStream?.getAudioTracks()?.[0] || null;
+        recordingAudioTrack = microphoneAudioTrack || screenAudioTrack || null;
+        recordingStream = new MediaStream([videoTrack]);
+        usesExternalCaptureRef.current = false;
       }
 
-      const videoTrack = screenStream.getVideoTracks()?.[0] || null;
       if (!videoTrack) {
         throw new Error('No screen video track was captured.');
       }
-
-      const screenAudioTrack = screenStream.getAudioTracks()?.[0] || null;
-      const microphoneAudioTrack = microphoneStream?.getAudioTracks()?.[0] || null;
-      const recordingAudioTrack = microphoneAudioTrack || screenAudioTrack || null;
-
-      // Record from a simple video-first stream because some browsers stall and emit zero chunks
-      // when MediaRecorder is attached to a more complex display+audio capture graph.
-      const recordingStream = new MediaStream([videoTrack]);
 
       const liveBroadcastStream = new MediaStream([
         videoTrack.clone(),
@@ -416,7 +432,7 @@ export default function LocalMeetingRecorder({
         setIsRecording(false);
       };
 
-      const [screenVideoTrack] = screenStream.getVideoTracks();
+      const screenVideoTrack = screenStream?.getVideoTracks?.()?.[0] || null;
       if (screenVideoTrack) {
         screenVideoTrack.onended = () => stopRecording(false);
       }
@@ -430,8 +446,10 @@ export default function LocalMeetingRecorder({
 
       recorder.start(1000);
       setIsRecording(true);
-      setStatus('Recording in progress. Keep this page open until you stop and save.');
-      toast.info(`Choose the ${subjectLabel} tab or window and enable audio in the share dialog.`);
+      setStatus(preferredCaptureStream ? 'Recording the active live stream. Keep this page open until you stop and save.' : 'Recording in progress. Keep this page open until you stop and save.');
+      if (!preferredCaptureStream) {
+        toast.info(`Choose the ${subjectLabel} tab or window and enable audio in the share dialog.`);
+      }
     } catch (recordingError) {
       const message = getRecorderErrorMessage(recordingError);
       setError(message);
@@ -441,7 +459,7 @@ export default function LocalMeetingRecorder({
       cleanupMedia();
       setIsRecording(false);
     }
-  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, stopRecording, subjectLabel, uploadRecordingToServer]);
+  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, stopRecording, subjectLabel, uploadRecordingToServer]);
 
   useEffect(() => {
     onRecordingStateChange?.(isRecording);

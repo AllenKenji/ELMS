@@ -115,6 +115,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   const [deleting, setDeleting] = useState(false);
   const [joining, setJoining] = useState(false);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
+  const [remoteLiveStream, setRemoteLiveStream] = useState(null);
   const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
 
   const handleCloseRequest = useCallback(() => {
@@ -552,6 +553,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                     broadcastStream={liveBroadcastStream}
                     hostName={user?.name || user?.username || user?.email || 'Unknown host'}
                     hostRole={user?.role || ''}
+                    onRemoteStreamChange={setRemoteLiveStream}
                   />
                 )}
 
@@ -588,6 +590,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                       subjectLabel="session"
                       uploadUrl={`/sessions/${sessionId}/recording`}
                       uploadFields={{ minutes_id: selectedMinutesId }}
+                      preferredCaptureStream={remoteLiveStream}
                       recordingUrl={latestRecording?.recording_url}
                       recordingUploadedAt={latestRecording?.recording_uploaded_at}
                       recordingUploadedByName={latestRecording?.recording_uploaded_by_name}
