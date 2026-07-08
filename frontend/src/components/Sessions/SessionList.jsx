@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import RichTextContent from '../common/RichTextContent';
@@ -223,6 +224,8 @@ function SessionSection({ title, count, sessions, canCreateSession, onViewDetail
 }
 
 export default function SessionList() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -232,6 +235,7 @@ export default function SessionList() {
   const [editingSession, setEditingSession] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [detailsInitialTab, setDetailsInitialTab] = useState('details');
   const [sortBy, setSortBy] = useState('date');
   const [sessionFilter, setSessionFilter] = useState('upcoming');
 
@@ -253,6 +257,29 @@ export default function SessionList() {
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
+
+  useEffect(() => {
+    if (sessions.length === 0) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const targetSessionId = Number(params.get('sessionId'));
+    const targetTab = params.get('tab');
+
+    if (!Number.isInteger(targetSessionId) || targetSessionId <= 0) {
+      return;
+    }
+
+    const session = sessions.find((item) => Number(item.id) === targetSessionId);
+    if (!session) {
+      return;
+    }
+
+    setSelectedSession(session);
+    setDetailsInitialTab(targetTab || 'details');
+    setShowDetails(true);
+  }, [location.search, sessions]);
 
   const handleNewSession = () => {
     setEditingSession(null);
@@ -278,7 +305,18 @@ export default function SessionList() {
 
   const handleViewDetails = (session) => {
     setSelectedSession(session);
+    setDetailsInitialTab('details');
     setShowDetails(true);
+  };
+
+  const handleCloseDetails = () => {
+    setShowDetails(false);
+    setSelectedSession(null);
+    setDetailsInitialTab('details');
+
+    if (location.search) {
+      navigate('/dashboard/sessions', { replace: true });
+    }
   };
 
   const searchedSessions = useMemo(
@@ -355,10 +393,8 @@ export default function SessionList() {
     return (
       <SessionDetails
         sessionId={selectedSession.id}
-        onClose={() => {
-          setShowDetails(false);
-          setSelectedSession(null);
-        }}
+        initialTab={detailsInitialTab}
+        onClose={handleCloseDetails}
         onEdit={handleEditSession}
         onDelete={handleDeleteSession}
       />

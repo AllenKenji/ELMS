@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import '../../styles/EventsCalendar.css';
 
@@ -47,6 +49,8 @@ function getDayClassName(isTodayDay, isSelected, hasEvents) {
 }
 
 export default function EventsCalendar() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const today = new Date();
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
@@ -55,6 +59,8 @@ export default function EventsCalendar() {
   const [error, setError] = useState('');
   const [selectedDay, setSelectedDay] = useState(null);
   const [filterType, setFilterType] = useState('');
+  const [joinLoadingBySession, setJoinLoadingBySession] = useState({});
+  const [joinedSessionIds, setJoinedSessionIds] = useState(() => new Set());
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -74,6 +80,44 @@ export default function EventsCalendar() {
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
+
+  const handleJoinSession = async (sessionId) => {
+    const normalizedSessionId = Number(sessionId);
+    if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+      return;
+    }
+
+    if (!user?.id || joinedSessionIds.has(normalizedSessionId)) {
+      return;
+    }
+
+    setError('');
+    setJoinLoadingBySession((prev) => ({ ...prev, [normalizedSessionId]: true }));
+
+    try {
+      await api.post(`/sessions/${normalizedSessionId}/join`);
+      setJoinedSessionIds((prev) => {
+        const next = new Set(prev);
+        next.add(normalizedSessionId);
+        return next;
+      });
+      await fetchSessions();
+    } catch (err) {
+      const message = err?.message || err?.response?.data?.error || 'Failed to join session from calendar.';
+      setError(message);
+    } finally {
+      setJoinLoadingBySession((prev) => ({ ...prev, [normalizedSessionId]: false }));
+    }
+  };
+
+  const handleWatchLive = (sessionId) => {
+    const normalizedSessionId = Number(sessionId);
+    if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+      return;
+    }
+
+    navigate(`/dashboard/sessions?sessionId=${normalizedSessionId}&tab=recording`);
+  };
 
   const handlePrevMonth = () => {
     if (currentMonth === 0) {
@@ -308,6 +352,10 @@ export default function EventsCalendar() {
               {selectedSessions.map((session) => {
                 const status = getSessionStatus(session);
                 const sessionDate = new Date(session.date);
+                const normalizedSessionId = Number(session.id);
+                const isJoining = Boolean(joinLoadingBySession[normalizedSessionId]);
+                const isJoined = joinedSessionIds.has(normalizedSessionId);
+                const canJoin = Boolean(user?.id) && status !== 'Completed';
                 return (
                   <div key={session.id} className="panel-session-card">
                     <div
@@ -333,6 +381,25 @@ export default function EventsCalendar() {
                       )}
                       {session.agenda && (
                         <p className="session-agenda-text">{session.agenda}</p>
+                      )}
+                      {canJoin && (
+                        <div className="session-card-actions">
+                          <button
+                            type="button"
+                            className="btn-calendar-watch"
+                            onClick={() => handleWatchLive(session.id)}
+                          >
+                            Watch Live
+                          </button>
+                          <button
+                            type="button"
+                            className={`btn-calendar-join ${isJoined ? 'joined' : ''}`}
+                            onClick={() => handleJoinSession(session.id)}
+                            disabled={isJoining || isJoined}
+                          >
+                            {isJoined ? 'Joined' : isJoining ? 'Joining...' : 'Join Session'}
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>

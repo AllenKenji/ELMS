@@ -460,6 +460,82 @@
   font-size: 0.84rem;
 }
 
+.live-session-panel {
+  border-left-color: #1f7a5e;
+  background: linear-gradient(135deg, #f4fffb 0%, #effaf6 100%);
+}
+
+.live-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.btn-live-start,
+.btn-live-stop,
+.btn-live-watch {
+  border: none;
+  border-radius: 999px;
+  padding: 0.6rem 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-live-start {
+  background: linear-gradient(135deg, #0f9d58 0%, #0b7d46 100%);
+  color: #fff;
+}
+
+.btn-live-stop {
+  background: linear-gradient(135deg, #d64545 0%, #b93131 100%);
+  color: #fff;
+}
+
+.btn-live-watch {
+  background: linear-gradient(135deg, #1777c5 0%, #145ea8 100%);
+  color: #fff;
+}
+
+.btn-live-watch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.live-session-status {
+  margin: 0.15rem 0 0.5rem;
+  color: #25596c;
+  font-weight: 600;
+}
+
+.live-session-error {
+  margin: 0 0 0.65rem;
+  color: #b93131;
+  font-weight: 600;
+}
+
+.live-video-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.live-video-block label {
+  font-size: 0.83rem;
+  font-weight: 700;
+  color: #476172;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.live-video {
+  width: 100%;
+  max-height: 360px;
+  border-radius: 10px;
+  background: #06131b;
+  border: 1px solid #c7dbe5;
+}
+
 /* Ordinances */
 .ordinances-pane h3 {
   margin-bottom: 1.5rem;

@@ -3,6 +3,7 @@ import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
 import SessionAgendaPanel from './SessionAgendaPanel';
 import OrderOfBusinessPanel from './OrderOfBusinessPanel';
+import LiveSessionPanel from './LiveSessionPanel';
 import LocalMeetingRecorder from '../common/LocalMeetingRecorder';
 import RichTextContent from '../common/RichTextContent';
 import '../../styles/SessionDetails.css';
@@ -100,7 +101,7 @@ function formatTimeRange(dateValue, sessionTime, totalMinutes) {
   return `${startText} - ${endText}`;
 }
 
-export default function SessionDetails({ sessionId, onClose, onEdit, onDelete }) {
+export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, initialTab = 'details' }) {
   const { user } = useAuth();
   const [session, setSession] = useState(null);
   const [ordinances, setOrdinances] = useState([]);
@@ -109,10 +110,19 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
   const [selectedMinutesId, setSelectedMinutesId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState('details');
+  const [activeTab, setActiveTab] = useState(initialTab || 'details');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [joining, setJoining] = useState(false);
+
+  const fetchSessionMinutesOnly = useCallback(async () => {
+    try {
+      const minutesRes = await api.get(`/sessions/${sessionId}/minutes`);
+      setSessionMinutes(minutesRes.data || []);
+    } catch {
+      // Keep existing data if refresh fails.
+    }
+  }, [sessionId]);
 
   const fetchSessionData = useCallback(async () => {
     try {
@@ -156,6 +166,22 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
   useEffect(() => {
     fetchSessionData();
   }, [fetchSessionData]);
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'recording') {
+      return undefined;
+    }
+
+    fetchSessionMinutesOnly();
+    const intervalId = setInterval(fetchSessionMinutesOnly, 10000);
+    return () => clearInterval(intervalId);
+  }, [activeTab, fetchSessionMinutesOnly]);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -465,10 +491,20 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                   <section className="detail-section full-width recording-access-note">
                     <h3>🎥 Recording Access</h3>
                     <p>
-                      You can view the attached session minutes and saved recordings here.
+                      You can watch live streams and view attached session recordings here.
                       Only authorized roles can start or upload a new recording.
                     </p>
+                    <p>
+                      Live viewing starts once an authorized broadcaster clicks Start Live.
+                    </p>
                   </section>
+                )}
+
+                {(canRecordSession() || isParticipant) && (
+                  <LiveSessionPanel
+                    sessionId={sessionId}
+                    canBroadcast={canRecordSession()}
+                  />
                 )}
 
                 {canRecordSession() && (

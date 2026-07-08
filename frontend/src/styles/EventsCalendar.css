@@ -393,6 +393,54 @@
   overflow: hidden;
 }
 
+.session-card-actions {
+  margin-top: 0.65rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.btn-calendar-watch {
+  border: none;
+  border-radius: 999px;
+  padding: 0.42rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #1f6fd1 0%, #1959a6 100%);
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-calendar-watch:hover {
+  transform: translateY(-1px);
+}
+
+.btn-calendar-join {
+  border: none;
+  border-radius: 999px;
+  padding: 0.42rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, #0f8f5d 0%, #0c764d 100%);
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+.btn-calendar-join:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-calendar-join:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.btn-calendar-join.joined {
+  background: linear-gradient(135deg, #2d7fb8 0%, #245f94 100%);
+}
+
 /* Shared styles */
 .filter-select {
   padding: 0.4rem 0.75rem;
