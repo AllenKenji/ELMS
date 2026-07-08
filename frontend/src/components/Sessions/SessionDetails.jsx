@@ -114,6 +114,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
 
   const fetchSessionMinutesOnly = useCallback(async () => {
     try {
@@ -508,6 +509,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                   <LiveSessionPanel
                     sessionId={sessionId}
                     canBroadcast={canStartLiveStream()}
+                    broadcastStream={liveBroadcastStream}
                   />
                 )}
 
@@ -547,6 +549,8 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                       recordingUrl={latestRecording?.recording_url}
                       recordingUploadedAt={latestRecording?.recording_uploaded_at}
                       recordingUploadedByName={latestRecording?.recording_uploaded_by_name}
+                      onCaptureStarted={setLiveBroadcastStream}
+                      onCaptureStopped={() => setLiveBroadcastStream(null)}
                       onUploadComplete={(uploadedMinutes) => {
                         setSessionMinutes((prev) => {
                           const rest = prev.filter((item) => item.id !== uploadedMinutes.id);

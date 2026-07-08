@@ -89,6 +89,8 @@ export default function LocalMeetingRecorder({
   recordingUploadedAt,
   recordingUploadedByName,
   onUploadComplete,
+  onCaptureStarted,
+  onCaptureStopped,
   subjectLabel = 'meeting',
 }) {
   const [isRecording, setIsRecording] = useState(false);
@@ -293,6 +295,8 @@ export default function LocalMeetingRecorder({
         });
         const filename = buildRecordingFilename(meetingTitle);
 
+        onCaptureStopped?.();
+
         downloadRecording(blob, filename);
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
@@ -306,6 +310,7 @@ export default function LocalMeetingRecorder({
       recorder.onerror = () => {
         setError(`Recording failed while capturing the ${subjectLabel}.`);
         toast.error(`Recording failed while capturing the ${subjectLabel}.`);
+        onCaptureStopped?.();
         cleanupMedia();
         setIsRecording(false);
       };
@@ -319,6 +324,7 @@ export default function LocalMeetingRecorder({
       screenStreamRef.current = screenStream;
       microphoneStreamRef.current = microphoneStream;
       recordingStreamRef.current = recordingStream;
+      onCaptureStarted?.(recordingStream);
 
       recorder.start(1000);
       setIsRecording(true);
@@ -329,10 +335,11 @@ export default function LocalMeetingRecorder({
       setError(message);
       setStatus('Local recording did not start.');
       toast.error(message);
+      onCaptureStopped?.();
       cleanupMedia();
       setIsRecording(false);
     }
-  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, meetingTitle, stopRecording, subjectLabel, uploadRecordingToServer]);
+  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, meetingTitle, onCaptureStarted, onCaptureStopped, stopRecording, subjectLabel, uploadRecordingToServer]);
 
   useEffect(() => {
     return () => {
@@ -342,9 +349,10 @@ export default function LocalMeetingRecorder({
         mediaRecorder.onstop = null;
       }
 
+      onCaptureStopped?.();
       cleanupMedia();
     };
-  }, [cleanupMedia]);
+  }, [cleanupMedia, onCaptureStopped]);
 
   const handleStartClick = useCallback(() => {
     if (!isSupported || isRecording || isUploading) {

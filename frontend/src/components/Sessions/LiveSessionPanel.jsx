@@ -15,7 +15,7 @@ function stopTracks(stream) {
   stream.getTracks().forEach((track) => track.stop());
 }
 
-export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
+export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isWatching, setIsWatching] = useState(false);
@@ -30,8 +30,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
   const viewerPeerRef = useRef(null);
   const viewerBroadcasterSocketIdRef = useRef(null);
   const broadcasterPeersRef = useRef(new Map());
+  const broadcastModeRef = useRef(null);
 
   const normalizedSessionId = useMemo(() => Number(sessionId), [sessionId]);
+  const hasExternalBroadcast = Boolean(broadcastStream);
 
   const closeViewerPeer = useCallback(() => {
     if (viewerPeerRef.current) {
@@ -51,11 +53,16 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
     broadcasterPeersRef.current.clear();
   }, []);
 
-  const stopBroadcast = useCallback(() => {
+  const stopBroadcast = useCallback((stopMedia = true) => {
     setIsBroadcasting(false);
     closeBroadcasterPeers();
-    stopTracks(localStreamRef.current);
+
+    if (stopMedia && broadcastModeRef.current === 'manual') {
+      stopTracks(localStreamRef.current);
+    }
+
     localStreamRef.current = null;
+    broadcastModeRef.current = null;
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
     }
@@ -87,6 +94,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
         };
       }
 
+      broadcastModeRef.current = 'manual';
       setIsBroadcasting(true);
       setStatus('You are live. Waiting for participants to connect...');
       socketRef.current.emit('live:publish', { sessionId: normalizedSessionId });
@@ -179,6 +187,35 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
   }, [closeViewerPeer, isLive]);
 
   useEffect(() => {
+    if (!canBroadcast || !socketRef.current) {
+      return undefined;
+    }
+
+    if (!broadcastStream) {
+      if (broadcastModeRef.current === 'external' && isBroadcasting) {
+        stopBroadcast(false);
+        setStatus('Live stream ended because local recording stopped.');
+      }
+      return undefined;
+    }
+
+    localStreamRef.current = broadcastStream;
+    broadcastModeRef.current = 'external';
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = broadcastStream;
+    }
+
+    if (!isBroadcasting) {
+      setError('');
+      setIsBroadcasting(true);
+      setStatus('Live via local recording. Participants can now watch.');
+      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId });
+    }
+
+    return undefined;
+  }, [broadcastStream, canBroadcast, isBroadcasting, normalizedSessionId, stopBroadcast]);
+
+  useEffect(() => {
     if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
       return undefined;
     }
@@ -197,11 +234,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
       setIsLive(active);
 
       if (!active) {
-        if (!canBroadcast) {
+        if (isWatching) {
           closeViewerPeer();
           setIsWatching(false);
         }
-        setStatus('No live stream in progress.');
+        if (!isBroadcasting) {
+          setStatus('No live stream in progress.');
+        }
       } else if (!isBroadcasting) {
         setStatus('Live stream is active.');
       }
@@ -225,7 +264,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
     });
 
     socket.on('live:offer', async (payload) => {
-      if (canBroadcast) return;
       if (!isWatching) return;
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
       if (!payload?.fromSocketId || !payload?.sdp) return;
@@ -251,7 +289,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
     });
 
     socket.on('live:answer', async (payload) => {
-      if (!canBroadcast) return;
+      if (!isBroadcasting) return;
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
       if (!payload?.fromSocketId || !payload?.sdp) return;
 
@@ -270,7 +308,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
       if (!payload?.candidate || !payload?.fromSocketId) return;
 
       try {
-        if (canBroadcast) {
+        if (isBroadcasting) {
           const pc = broadcasterPeersRef.current.get(payload.fromSocketId);
           if (pc) {
             await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
@@ -278,7 +316,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
           return;
         }
 
-        const pc = viewerPeerRef.current;
+        const pc = isWatching ? viewerPeerRef.current : null;
         if (pc && viewerBroadcasterSocketIdRef.current === payload.fromSocketId) {
           await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
         }
@@ -288,8 +326,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
     });
 
     return () => {
-      if (canBroadcast) {
-        stopBroadcast();
+      if (isBroadcasting) {
+        stopBroadcast(broadcastModeRef.current === 'manual');
       }
       closeViewerPeer();
       socket.disconnect();
@@ -315,23 +353,31 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
       <h3>Live Session</h3>
 
       <div className="live-session-actions">
-        {canBroadcast && !isBroadcasting && (
+        {canBroadcast && !isBroadcasting && !hasExternalBroadcast && (
           <button type="button" className="btn-live-start" onClick={startBroadcast}>
             Start Live
           </button>
         )}
-        {canBroadcast && isBroadcasting && (
+
+        {canBroadcast && isBroadcasting && !hasExternalBroadcast && (
           <button type="button" className="btn-live-stop" onClick={stopBroadcast}>
             Stop Live
           </button>
         )}
 
-        {!canBroadcast && !isWatching && (
+        {isLive && !isBroadcasting && !isWatching && (
           <button type="button" className="btn-live-watch" onClick={startWatching} disabled={!isLive}>
-            {isLive ? 'Watch Live' : 'Waiting for Live'}
+            Watch Live
           </button>
         )}
-        {!canBroadcast && isWatching && (
+
+        {!isLive && !isBroadcasting && !hasExternalBroadcast && !canBroadcast && (
+          <button type="button" className="btn-live-watch" onClick={startWatching} disabled>
+            Waiting for Live
+          </button>
+        )}
+
+        {isWatching && (
           <button type="button" className="btn-live-stop" onClick={stopWatching}>
             Leave Live
           </button>
@@ -340,6 +386,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false }) {
 
       <p className="live-session-status">{status}</p>
       {error && <p className="live-session-error">{error}</p>}
+
+      {hasExternalBroadcast && canBroadcast && (
+        <p className="live-session-status">Local recording is also broadcasting live to participants.</p>
+      )}
 
       {canBroadcast && (
         <div className="live-video-block">
