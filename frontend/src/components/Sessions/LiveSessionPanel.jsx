@@ -293,6 +293,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   }, [closeViewerPeer, isLive]);
 
   useEffect(() => {
+    if (!isLive || canBroadcast || !socketConnected || isWatchingRef.current) {
+      return;
+    }
+
+    startWatching();
+  }, [canBroadcast, isLive, socketConnected, startWatching]);
+
+  useEffect(() => {
     if (!canBroadcast || !socketRef.current) {
       return undefined;
     }
