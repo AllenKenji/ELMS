@@ -280,6 +280,33 @@ async function ensureCommitteeMeetingRecordingSchema() {
   `).catch(() => {});
 }
 
+async function ensureSessionMinutesBaseSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS session_minutes (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      meeting_date DATE,
+      participants TEXT,
+      transcript TEXT,
+      status VARCHAR(50) DEFAULT 'Draft',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      session_id INTEGER REFERENCES sessions(id) ON DELETE CASCADE,
+      generated_minutes TEXT,
+      attendees TEXT,
+      key_decisions TEXT,
+      action_items TEXT,
+      next_steps TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `).catch(() => {});
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_session_minutes_session_id
+      ON session_minutes(session_id);
+  `).catch(() => {});
+}
+
 async function ensureSessionMinutesRecordingSchema() {
   await pool.query(`
     ALTER TABLE session_minutes
@@ -638,6 +665,7 @@ async function bootstrapSchema() {
   await ensureOrderOfBusinessItemTypeConstraint();
   await ensureOrderOfBusinessDocumentsSchema();
   await ensureCommitteeMeetingRecordingSchema();
+  await ensureSessionMinutesBaseSchema();
   await ensureSessionMinutesRecordingSchema();
   await ensureSessionRecordingsSchema();
 }
