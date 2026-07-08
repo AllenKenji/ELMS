@@ -31,9 +31,19 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const viewerBroadcasterSocketIdRef = useRef(null);
   const broadcasterPeersRef = useRef(new Map());
   const broadcastModeRef = useRef(null);
+  const isBroadcastingRef = useRef(false);
+  const isWatchingRef = useRef(false);
 
   const normalizedSessionId = useMemo(() => Number(sessionId), [sessionId]);
   const hasExternalBroadcast = Boolean(broadcastStream);
+
+  useEffect(() => {
+    isBroadcastingRef.current = isBroadcasting;
+  }, [isBroadcasting]);
+
+  useEffect(() => {
+    isWatchingRef.current = isWatching;
+  }, [isWatching]);
 
   const closeViewerPeer = useCallback(() => {
     if (viewerPeerRef.current) {
@@ -225,6 +235,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     socket.on('connect', () => {
       socket.emit('joinSessionLive', normalizedSessionId);
+
+      // Recover session state on reconnect.
+      if (isBroadcastingRef.current) {
+        socket.emit('live:publish', { sessionId: normalizedSessionId });
+      }
+
+      if (isWatchingRef.current) {
+        socket.emit('live:viewer-ready', { sessionId: normalizedSessionId });
+      }
     });
 
     socket.on('live:status', (payload) => {
@@ -234,14 +253,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setIsLive(active);
 
       if (!active) {
-        if (isWatching) {
+        if (isWatchingRef.current) {
           closeViewerPeer();
           setIsWatching(false);
         }
-        if (!isBroadcasting) {
+        if (!isBroadcastingRef.current) {
           setStatus('No live stream in progress.');
         }
-      } else if (!isBroadcasting) {
+      } else if (!isBroadcastingRef.current) {
         setStatus('Live stream is active.');
       }
     });
@@ -251,7 +270,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
 
     socket.on('live:viewer-joined', async (payload) => {
-      if (!canBroadcast || !isBroadcasting) return;
+      if (!canBroadcast || !isBroadcastingRef.current) return;
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
       const viewerSocketId = payload?.viewerSocketId;
       if (!viewerSocketId) return;
@@ -264,7 +283,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
 
     socket.on('live:offer', async (payload) => {
-      if (!isWatching) return;
+      if (!isWatchingRef.current) return;
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
       if (!payload?.fromSocketId || !payload?.sdp) return;
 
@@ -289,7 +308,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
 
     socket.on('live:answer', async (payload) => {
-      if (!isBroadcasting) return;
+      if (!isBroadcastingRef.current) return;
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
       if (!payload?.fromSocketId || !payload?.sdp) return;
 
@@ -308,7 +327,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (!payload?.candidate || !payload?.fromSocketId) return;
 
       try {
-        if (isBroadcasting) {
+        if (isBroadcastingRef.current) {
           const pc = broadcasterPeersRef.current.get(payload.fromSocketId);
           if (pc) {
             await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
@@ -316,7 +335,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           return;
         }
 
-        const pc = isWatching ? viewerPeerRef.current : null;
+        const pc = isWatchingRef.current ? viewerPeerRef.current : null;
         if (pc && viewerBroadcasterSocketIdRef.current === payload.fromSocketId) {
           await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
         }
@@ -326,7 +345,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
 
     return () => {
-      if (isBroadcasting) {
+      if (isBroadcastingRef.current) {
         stopBroadcast(broadcastModeRef.current === 'manual');
       }
       closeViewerPeer();
@@ -341,11 +360,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     closeViewerPeer,
     createBroadcasterPeer,
     createViewerPeer,
-    isBroadcasting,
-    isWatching,
     normalizedSessionId,
     stopBroadcast,
-    stopWatching,
   ]);
 
   return (
