@@ -11,17 +11,71 @@ function getSessionDate(session) {
   return Number.isNaN(sessionDate.getTime()) ? null : sessionDate;
 }
 
-function parseSessionStart(session) {
-  if (!session?.date) return null;
+function parseSessionStartHHMM(session) {
+  const explicit = String(session?.session_time || '').match(/^(\d{2}:\d{2})/)?.[1];
+  if (explicit) {
+    return explicit;
+  }
 
-  const datePart = String(session.date).split('T')[0];
-  const timePart = String(session.session_time || '').match(/^(\d{2}:\d{2})/)?.[1] || '00:00';
-  const dateTime = new Date(`${datePart}T${timePart}:00`);
-  if (Number.isNaN(dateTime.getTime())) {
+  const fromDate = String(session?.date || '').match(/T(\d{2}:\d{2})/)?.[1];
+  if (fromDate) {
+    return fromDate;
+  }
+
+  return null;
+}
+
+function formatClock(hhmm) {
+  const parts = String(hhmm || '').split(':');
+  if (parts.length < 2) {
     return null;
   }
 
-  return dateTime;
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    return null;
+  }
+
+  const normalizedHour = ((hour % 24) + 24) % 24;
+  const suffix = normalizedHour >= 12 ? 'PM' : 'AM';
+  const hour12 = normalizedHour % 12 || 12;
+  return `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
+
+function addMinutes(hhmm, totalMinutes) {
+  const parts = String(hhmm || '').split(':');
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    return null;
+  }
+
+  const base = ((hour * 60) + minute + Number(totalMinutes || 0)) % (24 * 60);
+  const normalized = (base + (24 * 60)) % (24 * 60);
+  const outHour = Math.floor(normalized / 60);
+  const outMinute = normalized % 60;
+  return `${String(outHour).padStart(2, '0')}:${String(outMinute).padStart(2, '0')}`;
+}
+
+function formatSessionTimeRange(session) {
+  const startHHMM = parseSessionStartHHMM(session);
+  const startText = formatClock(startHHMM);
+  if (!startText) {
+    return null;
+  }
+
+  const totalMinutes = Number(session.total_oob_minutes || 0);
+  if (!totalMinutes) {
+    return startText;
+  }
+
+  const endText = formatClock(addMinutes(startHHMM, totalMinutes));
+  return endText ? `${startText} - ${endText}` : startText;
 }
 
 function isCompletedSession(session) {
@@ -59,29 +113,12 @@ function formatDuration(totalMinutes) {
   return `${remainder}m`;
 }
 
-function formatSessionTimeRange(session) {
-  const sessionStart = parseSessionStart(session);
-  if (!sessionStart || !session.session_time) {
+function getSessionTimeLabel(session) {
+  const value = formatSessionTimeRange(session);
+  if (!value) {
     return 'Time not specified';
   }
-
-  const startText = sessionStart.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const totalMinutes = Number(session.total_oob_minutes || 0);
-  if (!totalMinutes) {
-    return startText;
-  }
-
-  const endDate = new Date(sessionStart.getTime() + totalMinutes * 60000);
-  const endText = endDate.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  return `${startText} - ${endText}`;
+  return value;
 }
 
 function matchesSessionFilter(session, filter) {
@@ -144,7 +181,7 @@ function SessionSection({ title, count, sessions, canCreateSession, onViewDetail
                     })}
                   </span>
                   <span className="meta-item">
-                    🕐 {formatSessionTimeRange(session)}
+                    🕐 {getSessionTimeLabel(session)}
                   </span>
                 </div>
 

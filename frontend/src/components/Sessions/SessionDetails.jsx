@@ -34,42 +34,69 @@ function formatDuration(totalMinutes) {
   return `${remainder} minute${remainder === 1 ? '' : 's'}`;
 }
 
-function getSessionStartDateTime(dateValue, sessionTime) {
-  if (!dateValue || !sessionTime) {
+function parseStartTime(dateValue, sessionTime) {
+  const explicit = String(sessionTime || '').match(/^(\d{2}:\d{2})/)?.[1];
+  if (explicit) {
+    return explicit;
+  }
+
+  const fromDate = String(dateValue || '').match(/T(\d{2}:\d{2})/)?.[1];
+  return fromDate || null;
+}
+
+function formatClock(hhmm) {
+  const parts = String(hhmm || '').split(':');
+  if (parts.length < 2) {
     return null;
   }
 
-  const datePart = String(dateValue).split('T')[0];
-  const timePart = String(sessionTime).match(/^(\d{2}:\d{2})/)?.[1];
-  if (!timePart) {
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
     return null;
   }
 
-  const start = new Date(`${datePart}T${timePart}:00`);
-  return Number.isNaN(start.getTime()) ? null : start;
+  const normalizedHour = ((hour % 24) + 24) % 24;
+  const suffix = normalizedHour >= 12 ? 'PM' : 'AM';
+  const hour12 = normalizedHour % 12 || 12;
+  return `${String(hour12).padStart(2, '0')}:${String(minute).padStart(2, '0')} ${suffix}`;
+}
+
+function addMinutes(hhmm, totalMinutes) {
+  const parts = String(hhmm || '').split(':');
+  if (parts.length < 2) {
+    return null;
+  }
+
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    return null;
+  }
+
+  const base = ((hour * 60) + minute + Number(totalMinutes || 0)) % (24 * 60);
+  const normalized = (base + (24 * 60)) % (24 * 60);
+  const outHour = Math.floor(normalized / 60);
+  const outMinute = normalized % 60;
+  return `${String(outHour).padStart(2, '0')}:${String(outMinute).padStart(2, '0')}`;
 }
 
 function formatTimeRange(dateValue, sessionTime, totalMinutes) {
-  const start = getSessionStartDateTime(dateValue, sessionTime);
-  if (!start) {
+  const startHHMM = parseStartTime(dateValue, sessionTime);
+  const startText = formatClock(startHHMM);
+  if (!startText) {
     return 'Not specified';
   }
-
-  const startText = start.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 
   const minutes = Number(totalMinutes || 0);
   if (!minutes) {
     return startText;
   }
 
-  const end = new Date(start.getTime() + minutes * 60000);
-  const endText = end.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const endText = formatClock(addMinutes(startHHMM, minutes));
+  if (!endText) {
+    return startText;
+  }
 
   return `${startText} - ${endText}`;
 }

@@ -34,7 +34,7 @@ function normalizeSessionFormData(data) {
       }
 
       const timeMatch = rawDate.match(/T(\d{2}:\d{2})/);
-      if (timeMatch?.[1]) {
+      if (!sourceTime && timeMatch?.[1]) {
         normalizedTime = timeMatch[1];
       }
     }
@@ -212,7 +212,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
 
     if (!formData.date) {
       newErrors.date = 'Date is required';
-    } else {
+    } else if (!sessionId) {
       const selectedDate = new Date(formData.date);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -365,6 +365,7 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
       setTimeout(() => onSuccess?.(response.data), 1500);
     } catch (err) {
       const msg =
+        err.message ||
         err.response?.data?.message ||
         err.response?.data?.error ||
         'Error processing session. Please try again.';

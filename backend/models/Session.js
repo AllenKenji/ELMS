@@ -4,6 +4,21 @@
 const pool = require('../db');
 const SessionMinutes = require('./SessionMinutes');
 
+let sessionTimeColumnEnsured = false;
+
+async function ensureSessionTimeColumn() {
+  if (sessionTimeColumnEnsured) {
+    return;
+  }
+
+  await pool.query(`
+    ALTER TABLE sessions
+    ADD COLUMN IF NOT EXISTS session_time TIME;
+  `);
+
+  sessionTimeColumnEnsured = true;
+}
+
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findAll = async () => {
   return pool.query(
@@ -33,6 +48,7 @@ exports.findById = async (id) => {
 
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.create = async (title, date, sessionTime, location, agenda, notes, createdBy) => {
+  await ensureSessionTimeColumn();
   return pool.query(
     `INSERT INTO sessions (title, date, session_time, location, agenda, notes, created_by, created_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *`,
@@ -42,6 +58,7 @@ exports.create = async (title, date, sessionTime, location, agenda, notes, creat
 
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.update = async (id, title, date, sessionTime, location, agenda, notes) => {
+  await ensureSessionTimeColumn();
   return pool.query(
     `UPDATE sessions
      SET title=$1, date=$2, session_time=$3, location=$4, agenda=$5, notes=$6, updated_at=NOW()
