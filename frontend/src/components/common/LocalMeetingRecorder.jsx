@@ -45,6 +45,20 @@ function buildRecordingFilename(meetingTitle) {
   return `${safeTitle}-${timestamp}.webm`;
 }
 
+function getFileExtensionForMimeType(mimeType) {
+  const normalized = String(mimeType || '').toLowerCase();
+  if (normalized.includes('mp4')) {
+    return 'mp4';
+  }
+
+  return 'webm';
+}
+
+function buildRecordingFilenameForMimeType(meetingTitle, mimeType) {
+  const baseName = buildRecordingFilename(meetingTitle).replace(/\.[a-z0-9]+$/i, '');
+  return `${baseName}.${getFileExtensionForMimeType(mimeType)}`;
+}
+
 function getRecorderErrorMessage(error) {
   if (error?.name === 'NotAllowedError') {
     return 'Recording was blocked. Allow screen and microphone access to continue.';
@@ -207,7 +221,7 @@ export default function LocalMeetingRecorder({
     toast.success('Recording ready. If it did not auto-save, use the Download local copy link below.');
   }, []);
 
-  const saveRecordingToChosenPath = useCallback(async (blob, filename) => {
+  const saveRecordingToChosenPath = useCallback(async (blob, filename, mimeType) => {
     if (!supportsSavePicker) {
       return false;
     }
@@ -222,6 +236,10 @@ export default function LocalMeetingRecorder({
               description: 'WebM video',
               accept: { 'video/webm': ['.webm'] },
             },
+            {
+              description: 'MP4 video',
+              accept: { 'video/mp4': ['.mp4'] },
+            },
           ],
         });
         saveHandleRef.current = handle;
@@ -233,9 +251,15 @@ export default function LocalMeetingRecorder({
 
     try {
       const writable = await handle.createWritable();
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      await writable.write({ type: 'write', position: 0, data: bytes });
+      await writable.truncate(0);
+      await writable.write(blob);
       await writable.close();
+
+      const savedFile = await handle.getFile();
+      if (!savedFile || savedFile.size <= 0) {
+        throw new Error('Saved file is empty after write.');
+      }
+
       toast.success('Recording saved to the chosen file path.');
       return true;
     } catch {
@@ -400,10 +424,11 @@ export default function LocalMeetingRecorder({
         await waitForNextTick();
 
         const recordedChunks = [...chunksRef.current];
+        const resolvedMimeType = recorder.mimeType || 'video/webm';
         const blob = new Blob(recordedChunks, {
-          type: recorder.mimeType || 'video/webm',
+          type: resolvedMimeType,
         });
-        const filename = buildRecordingFilename(meetingTitle);
+        const filename = buildRecordingFilenameForMimeType(meetingTitle, resolvedMimeType);
 
         onCaptureStopped?.();
 
@@ -424,12 +449,12 @@ export default function LocalMeetingRecorder({
           createdAt: Date.now(),
         });
 
-        const savedToPath = await saveRecordingToChosenPath(blob, filename);
+        const savedToPath = await saveRecordingToChosenPath(blob, filename, resolvedMimeType);
         if (!savedToPath) {
           downloadRecording(localHref, filename, blob.size);
           setStatus('Recording is ready. If it did not auto-download, click Download local copy below.');
         } else {
-          setStatus('Recording saved to the selected file path.');
+          setStatus(`Recording saved to the selected file path (${Math.max(1, Math.round(blob.size / 1024))} KB).`);
         }
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
@@ -518,13 +543,17 @@ export default function LocalMeetingRecorder({
 
     if (supportsSavePicker && !saveHandleRef.current) {
       try {
-        const suggestedName = buildRecordingFilename(meetingTitle);
+        const suggestedName = buildRecordingFilenameForMimeType(meetingTitle, 'video/webm');
         saveHandleRef.current = await window.showSaveFilePicker({
           suggestedName,
           types: [
             {
               description: 'WebM video',
               accept: { 'video/webm': ['.webm'] },
+            },
+            {
+              description: 'MP4 video',
+              accept: { 'video/mp4': ['.mp4'] },
             },
           ],
         });
