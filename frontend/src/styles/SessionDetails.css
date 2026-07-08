@@ -188,6 +188,46 @@
   padding: 0 2rem;
 }
 
+.participants-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.btn-join-session {
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #27ae60, #1f8f4d);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.btn-join-session:hover:not(:disabled) {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.btn-join-session:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.joined-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 0.9rem;
+  border-radius: 999px;
+  background: #e8f6ee;
+  color: #1f8f4d;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
 .tab-button {
   padding: 1rem 1.5rem;
   border: none;

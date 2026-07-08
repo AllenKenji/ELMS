@@ -112,6 +112,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
   const [activeTab, setActiveTab] = useState('details');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [joining, setJoining] = useState(false);
 
   const fetchSessionData = useCallback(async () => {
     try {
@@ -169,6 +170,21 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
     }
   };
 
+  const handleJoinSession = async () => {
+    if (!user?.id || isParticipant) return;
+
+    setJoining(true);
+    setError('');
+    try {
+      await api.post(`/sessions/${sessionId}/join`);
+      await fetchSessionData();
+    } catch (err) {
+      setError(err?.message || err?.response?.data?.error || 'Failed to join session.');
+    } finally {
+      setJoining(false);
+    }
+  };
+
   const getSessionStatus = () => {
     if (!session?.date) return 'Unknown';
     const sessionDate = new Date(session.date);
@@ -196,6 +212,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
 
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;
   const latestRecording = latestRecordedMinutes?.recordings?.[0] || null;
+  const isParticipant = participants.some((participant) => String(participant.id) === String(user?.id));
 
   useEffect(() => {
     if (!selectedMinutesId && sessionMinutes.length > 0) {
@@ -603,7 +620,22 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
           {/* Participants Tab */}
           {activeTab === 'participants' && (
             <div className="tab-pane participants-pane">
-              <h3>Session Participants</h3>
+              <div className="participants-header">
+                <h3>Session Participants</h3>
+                {user?.id && !isParticipant && (
+                  <button
+                    type="button"
+                    className="btn-join-session"
+                    onClick={handleJoinSession}
+                    disabled={joining}
+                  >
+                    {joining ? 'Joining...' : 'Join Session'}
+                  </button>
+                )}
+                {user?.id && isParticipant && (
+                  <span className="joined-badge">You are joined</span>
+                )}
+              </div>
               {participants && participants.length > 0 ? (
                 <div className="participants-list">
                   <table className="participants-table">

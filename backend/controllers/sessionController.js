@@ -133,6 +133,22 @@ exports.addParticipant = async (req, res) => {
 };
 
 /**
+ * Join a session as the currently authenticated user.
+ * POST /sessions/:id/join
+ */
+exports.joinSession = async (req, res) => {
+  try {
+    const participant = await sessionService.joinSession(req.params.id, req.user.id);
+    res.json(participant);
+  } catch (err) {
+    console.error('Join session error:', err);
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error joining session' });
+  }
+};
+
+/**
  * Auto-populate participants from an OOB document.
  * POST /sessions/:id/participants/from-oob
  */

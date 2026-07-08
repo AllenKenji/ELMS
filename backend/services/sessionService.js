@@ -239,6 +239,21 @@ exports.addParticipant = async (sessionId, userId) => {
 };
 
 /**
+ * Allow the authenticated user to join a session as a participant.
+ */
+exports.joinSession = async (sessionId, userId) => {
+  const sessionResult = await pool.query('SELECT id, title FROM sessions WHERE id = $1', [sessionId]);
+  ensureFound(sessionResult.rows, 'Session not found');
+
+  const result = await Session.addParticipant(sessionId, userId);
+  ensureFound(result.rows, 'You are already a participant in this session', 400);
+
+  await createNotification(userId, `You have joined session: "${sessionResult.rows[0].title}"`);
+
+  return result.rows[0];
+};
+
+/**
  * Update a participant's attendance status.
  */
 exports.updateParticipantAttendance = async (sessionId, userId, attendanceStatus) => {
