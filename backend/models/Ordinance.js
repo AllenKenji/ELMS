@@ -393,15 +393,19 @@ exports.findAgendaBySession = async (sessionId) => {
      LEFT JOIN LATERAL (
        SELECT STRING_AGG(u.name, ', ' ORDER BY u.name) AS co_author_names
        FROM users u
-       WHERE u.id = ANY(
-         STRING_TO_ARRAY(REGEXP_REPLACE(NULLIF(o.co_authors, ''), '\\s', '', 'g'), ',')::INT[]
+       WHERE u.id IN (
+         SELECT DISTINCT BTRIM(token)::INT
+         FROM regexp_split_to_table(COALESCE(o.co_authors, ''), ',') AS token
+         WHERE BTRIM(token) ~ '^[0-9]+$'
        )
      ) oca ON TRUE
      LEFT JOIN LATERAL (
        SELECT STRING_AGG(u.name, ', ' ORDER BY u.name) AS co_author_names
        FROM users u
-       WHERE u.id = ANY(
-         STRING_TO_ARRAY(REGEXP_REPLACE(NULLIF(r.co_authors, ''), '\\s', '', 'g'), ',')::INT[]
+       WHERE u.id IN (
+         SELECT DISTINCT BTRIM(token)::INT
+         FROM regexp_split_to_table(COALESCE(r.co_authors, ''), ',') AS token
+         WHERE BTRIM(token) ~ '^[0-9]+$'
        )
      ) rca ON TRUE
      WHERE ai.session_id=$1

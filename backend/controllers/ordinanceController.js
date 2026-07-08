@@ -510,7 +510,10 @@ exports.getSessionAgenda = async (req, res) => {
     res.json(items);
   } catch (err) {
     console.error('Get session agenda error:', err);
-    res.status(500).json({ error: 'Error fetching session agenda' });
+    if (err.status) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Error fetching session agenda' });
   }
 };
 
