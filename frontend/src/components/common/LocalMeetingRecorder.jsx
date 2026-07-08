@@ -4,9 +4,9 @@ import api from '../../api/api';
 import '../../styles/LocalMeetingRecorder.css';
 
 const MIME_TYPE_CANDIDATES = [
+  'video/webm',
   'video/webm;codecs=vp8,opus',
   'video/webm;codecs=vp9,opus',
-  'video/webm',
 ];
 
 function getSupportedMimeType() {
@@ -15,6 +15,23 @@ function getSupportedMimeType() {
   }
 
   return MIME_TYPE_CANDIDATES.find((mimeType) => window.MediaRecorder.isTypeSupported(mimeType)) || '';
+}
+
+function createMediaRecorder(stream) {
+  if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
+    throw new Error('MediaRecorder is not supported in this browser.');
+  }
+
+  try {
+    return new MediaRecorder(stream);
+  } catch {
+    const mimeType = getSupportedMimeType();
+    if (!mimeType) {
+      throw new Error('This browser does not support a compatible recording format.');
+    }
+
+    return new MediaRecorder(stream, { mimeType });
+  }
 }
 
 function buildRecordingFilename(meetingTitle) {
@@ -280,7 +297,6 @@ export default function LocalMeetingRecorder({
       return;
     }
 
-    const mimeType = getSupportedMimeType();
     setError('');
     if (localDownload?.href) {
       window.URL.revokeObjectURL(localDownload.href);
@@ -333,9 +349,7 @@ export default function LocalMeetingRecorder({
         ...(recordingAudioTrack ? [recordingAudioTrack.clone()] : []),
       ]);
 
-      const recorder = mimeType
-        ? new MediaRecorder(recordingStream, { mimeType })
-        : new MediaRecorder(recordingStream);
+      const recorder = createMediaRecorder(recordingStream);
 
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -375,7 +389,7 @@ export default function LocalMeetingRecorder({
 
       recorder.onstop = async () => {
         const blob = new Blob(chunksRef.current, {
-          type: mimeType || 'video/webm',
+          type: recorder.mimeType || 'video/webm',
         });
         const filename = buildRecordingFilename(meetingTitle);
 
