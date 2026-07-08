@@ -96,6 +96,12 @@ function formatRecordingDate(value) {
   });
 }
 
+function waitForNextTick() {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, 0);
+  });
+}
+
 export default function LocalMeetingRecorder({
   meetingTitle,
   committeeId,
@@ -184,8 +190,8 @@ export default function LocalMeetingRecorder({
     setChunkStats({ count: 0, bytes: 0 });
   }, []);
 
-  const downloadRecording = useCallback((downloadUrl, filename) => {
-    if (!chunksRef.current.length) {
+  const downloadRecording = useCallback((downloadUrl, filename, blobSize) => {
+    if (!blobSize) {
       toast.error('No recording data was captured.');
       return;
     }
@@ -384,7 +390,10 @@ export default function LocalMeetingRecorder({
       };
 
       recorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, {
+        await waitForNextTick();
+
+        const recordedChunks = [...chunksRef.current];
+        const blob = new Blob(recordedChunks, {
           type: recorder.mimeType || 'video/webm',
         });
         const filename = buildRecordingFilename(meetingTitle);
@@ -410,7 +419,7 @@ export default function LocalMeetingRecorder({
 
         const savedToPath = await saveRecordingToChosenPath(blob, filename);
         if (!savedToPath) {
-          downloadRecording(localHref, filename);
+          downloadRecording(localHref, filename, blob.size);
           setStatus('Recording is ready. If it did not auto-download, click Download local copy below.');
         } else {
           setStatus('Recording saved to the selected file path.');
@@ -459,7 +468,7 @@ export default function LocalMeetingRecorder({
       cleanupMedia();
       setIsRecording(false);
     }
-  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, stopRecording, subjectLabel, uploadRecordingToServer]);
+  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, saveRecordingToChosenPath, stopRecording, subjectLabel, uploadRecordingToServer]);
 
   useEffect(() => {
     onRecordingStateChange?.(isRecording);
