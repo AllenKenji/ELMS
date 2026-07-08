@@ -272,6 +272,10 @@
   animation: fadeIn 0.3s ease-in-out;
 }
 
+.tab-pane-hidden {
+  display: none;
+}
+
 .recording-access-note {
   border: 1px solid #d7e7f7;
   background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);

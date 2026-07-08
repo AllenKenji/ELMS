@@ -513,8 +513,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
             </div>
           )}
 
-          {activeTab === 'recording' && (
-            <div className="tab-pane recording-pane">
+          <div className={`tab-pane recording-pane ${activeTab === 'recording' ? '' : 'tab-pane-hidden'}`}>
               <div className="details-grid">
                 {!canRecordSession() && (
                   <section className="detail-section full-width recording-access-note">
@@ -627,7 +626,6 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                 </section>
               </div>
             </div>
-          )}
 
           {/* Agenda Tab */}
           {activeTab === 'order-of-business' && (
