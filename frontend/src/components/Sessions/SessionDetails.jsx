@@ -236,6 +236,10 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
     return ['Admin', 'Secretary', 'Vice Mayor', 'Councilor'].includes(user?.role);
   };
 
+  const canStartLiveStream = () => {
+    return ['Admin', 'Secretary', 'Vice Mayor'].includes(user?.role);
+  };
+
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;
   const latestRecording = latestRecordedMinutes?.recordings?.[0] || null;
   const isParticipant = participants.some((participant) => String(participant.id) === String(user?.id));
@@ -500,10 +504,10 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                   </section>
                 )}
 
-                {(canRecordSession() || isParticipant) && (
+                {(canStartLiveStream() || isParticipant) && (
                   <LiveSessionPanel
                     sessionId={sessionId}
-                    canBroadcast={canRecordSession()}
+                    canBroadcast={canStartLiveStream()}
                   />
                 )}
 

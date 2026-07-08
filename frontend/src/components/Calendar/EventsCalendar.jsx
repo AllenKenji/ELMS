@@ -2,6 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import {
+  formatSessionClock,
+  getSessionDateKey,
+  getSessionStatus,
+} from '../../utils/sessionDateTime';
 import '../../styles/EventsCalendar.css';
 
 const SESSION_STATUS_COLORS = {
@@ -16,15 +21,6 @@ const MONTHS = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
-
-function getSessionStatus(session) {
-  const now = new Date();
-  const sessionDate = new Date(session.date);
-  if (sessionDate > now) return 'Upcoming';
-  const endTime = new Date(sessionDate.getTime() + 2 * 60 * 60 * 1000);
-  if (now >= sessionDate && now <= endTime) return 'Active';
-  return 'Completed';
-}
 
 function buildCalendarDays(year, month) {
   const firstDay = new Date(year, month, 1).getDay();
@@ -148,8 +144,11 @@ export default function EventsCalendar() {
   // Group sessions by date string (YYYY-MM-DD)
   const sessionsByDate = {};
   sessions.forEach((session) => {
-    const d = new Date(session.date);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const key = getSessionDateKey(session);
+    if (!key) {
+      return;
+    }
+
     if (!sessionsByDate[key]) sessionsByDate[key] = [];
     sessionsByDate[key].push(session);
   });
@@ -351,7 +350,6 @@ export default function EventsCalendar() {
             <div className="panel-sessions">
               {selectedSessions.map((session) => {
                 const status = getSessionStatus(session);
-                const sessionDate = new Date(session.date);
                 const normalizedSessionId = Number(session.id);
                 const isJoining = Boolean(joinLoadingBySession[normalizedSessionId]);
                 const isJoined = joinedSessionIds.has(normalizedSessionId);
@@ -373,7 +371,7 @@ export default function EventsCalendar() {
                         </span>
                       </div>
                       <div className="session-meta-row">
-                        <span>🕐 {sessionDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>🕐 {formatSessionClock(session.session_time)}</span>
                         <span>📍 {session.location || 'Not specified'}</span>
                       </div>
                       {session.type && (

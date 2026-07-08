@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../api/api';
+import { isSessionStrictUpcoming } from '../utils/sessionDateTime';
 
 // Hook to fetch dashboard statistics
 export const useStats = () => {
@@ -29,8 +30,7 @@ export const useStats = () => {
         const ordinances = ordinancesRes.data || [];
         const sessions = sessionsRes.data || [];
 
-        const now = new Date();
-        const upcomingSessions = sessions.filter(s => new Date(s.date) > now).length;
+        const upcomingSessions = sessions.filter((s) => isSessionStrictUpcoming(s)).length;
 
         const counts = {
           totalOrdinances: ordinances.length,
