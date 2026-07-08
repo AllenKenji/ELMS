@@ -44,6 +44,26 @@ function parseCoAuthorIds(value) {
     .filter((id) => Number.isInteger(id) && id > 0);
 }
 
+async function ensureSessionParticipant(sessionId, userId) {
+  const normalizedSessionId = Number(sessionId);
+  const normalizedUserId = Number(userId);
+
+  if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) return;
+  if (!Number.isInteger(normalizedUserId) || normalizedUserId <= 0) return;
+
+  await pool.query(
+    `INSERT INTO session_participants (session_id, user_id, attendance_status, added_at)
+     SELECT $1, $2, 'Pending', NOW()
+     WHERE EXISTS (SELECT 1 FROM sessions WHERE id = $1)
+       AND EXISTS (SELECT 1 FROM users WHERE id = $2)
+       AND NOT EXISTS (
+         SELECT 1 FROM session_participants
+         WHERE session_id = $1 AND user_id = $2
+       )`,
+    [normalizedSessionId, normalizedUserId]
+  );
+}
+
 async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true } = {}) {
   if (coAuthorIds === undefined || coAuthorIds === null) {
     if (allowEmpty) return null;
@@ -1340,6 +1360,10 @@ exports.addAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNumbe
     ].filter((id) => Number.isInteger(id) && id > 0));
 
     for (const userId of involvedUserIds) {
+      await ensureSessionParticipant(sessionId, userId);
+    }
+
+    for (const userId of involvedUserIds) {
       await createNotification(
         userId,
         `Your ordinance "${ordinance.title}" has been included in the agenda for "${sessionTitle}".`,
@@ -1375,6 +1399,10 @@ exports.addResolutionAgendaItem = async (sessionId, resolutionId, agendaOrder, r
       Number(resolution.proposer_id),
       ...parseCoAuthorIds(resolution.co_authors),
     ].filter((id) => Number.isInteger(id) && id > 0));
+
+    for (const userId of involvedUserIds) {
+      await ensureSessionParticipant(sessionId, userId);
+    }
 
     for (const userId of involvedUserIds) {
       await createNotification(
