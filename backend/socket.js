@@ -19,6 +19,7 @@ function getOrCreateLiveState(sessionId) {
   if (!liveSessions.has(sessionId)) {
     liveSessions.set(sessionId, {
       broadcasterSocketId: null,
+      broadcasterName: null,
       viewers: new Set(),
     });
   }
@@ -32,6 +33,7 @@ function emitLiveStatus(sessionId) {
     sessionId,
     active: Boolean(state?.broadcasterSocketId),
     broadcasterSocketId: state?.broadcasterSocketId || null,
+    broadcasterName: state?.broadcasterName || null,
   });
 }
 
@@ -94,7 +96,7 @@ function init(server) {
       emitLiveStatus(sessionId);
     });
 
-    socket.on('live:publish', ({ sessionId: sessionIdValue } = {}) => {
+    socket.on('live:publish', ({ sessionId: sessionIdValue, hostName } = {}) => {
       const sessionId = normalizeSessionId(sessionIdValue);
       if (!sessionId) {
         return;
@@ -107,6 +109,7 @@ function init(server) {
       }
 
       state.broadcasterSocketId = socket.id;
+      state.broadcasterName = String(hostName || '').trim().slice(0, 120) || 'Unknown host';
       socket.join(getLiveRoom(sessionId));
       socket.data.liveSessionIds.add(sessionId);
       emitLiveStatus(sessionId);
@@ -124,6 +127,7 @@ function init(server) {
       }
 
       state.broadcasterSocketId = null;
+      state.broadcasterName = null;
       emitLiveStatus(sessionId);
       cleanupLiveStateIfEmpty(sessionId);
     });
@@ -197,6 +201,7 @@ function init(server) {
 
         if (state.broadcasterSocketId === socket.id) {
           state.broadcasterSocketId = null;
+          state.broadcasterName = null;
           emitLiveStatus(sessionId);
         }
 

@@ -263,6 +263,15 @@
   border-bottom-color: #4a90e2;
 }
 
+.tab-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.recording-lock-alert {
+  margin: 1rem 2rem 0;
+}
+
 /* Content */
 .details-content {
   padding: 2rem;
@@ -510,6 +519,12 @@
   margin: 0.15rem 0 0.5rem;
   color: #25596c;
   font-weight: 600;
+}
+
+.live-session-host {
+  margin: 0 0 0.55rem;
+  color: #0b4f89;
+  font-weight: 700;
 }
 
 .live-session-error {

@@ -91,6 +91,7 @@ export default function LocalMeetingRecorder({
   onUploadComplete,
   onCaptureStarted,
   onCaptureStopped,
+  onRecordingStateChange,
   subjectLabel = 'meeting',
 }) {
   const [isRecording, setIsRecording] = useState(false);
@@ -397,6 +398,10 @@ export default function LocalMeetingRecorder({
       setIsRecording(false);
     }
   }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, stopRecording, subjectLabel, uploadRecordingToServer]);
+
+  useEffect(() => {
+    onRecordingStateChange?.(isRecording);
+  }, [isRecording, onRecordingStateChange]);
 
   useEffect(() => {
     return () => {

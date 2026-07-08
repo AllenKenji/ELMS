@@ -115,6 +115,16 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   const [deleting, setDeleting] = useState(false);
   const [joining, setJoining] = useState(false);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
+  const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
+
+  const handleCloseRequest = useCallback(() => {
+    if (isLocalRecordingActive) {
+      setError('Stop and save the active recording before closing session details.');
+      return;
+    }
+
+    onClose?.();
+  }, [isLocalRecordingActive, onClose]);
 
   const fetchSessionMinutesOnly = useCallback(async () => {
     if (!accessToken) {
@@ -262,7 +272,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   };
 
   const canStartLiveStream = () => {
-    return ['Admin', 'Secretary', 'Vice Mayor'].includes(user?.role);
+    return ['Admin', 'Secretary', 'Vice Mayor'].includes(user?.role) || isParticipant;
   };
 
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;
@@ -305,7 +315,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
 
   return (
     <div className="session-details-modal">
-      <div className="modal-overlay" onClick={onClose}></div>
+      <div className="modal-overlay" onClick={handleCloseRequest}></div>
       <div className="modal-content large">
         {/* Header */}
         <div className="details-header">
@@ -337,7 +347,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                 🗑️
               </button>
             )}
-            <button onClick={onClose} className="btn-close">
+            <button onClick={handleCloseRequest} className="btn-close" title={isLocalRecordingActive ? 'Stop recording before closing' : 'Close'}>
               ✕
             </button>
           </div>
@@ -408,40 +418,58 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
           <button
             className={`tab-button ${activeTab === 'details' ? 'active' : ''}`}
             onClick={() => setActiveTab('details')}
+            disabled={isLocalRecordingActive && activeTab !== 'details'}
+            title={isLocalRecordingActive && activeTab !== 'details' ? 'Stop and save recording before switching tabs.' : ''}
           >
             📋 Details
           </button>
           <button
             className={`tab-button ${activeTab === 'order-of-business' ? 'active' : ''}`}
             onClick={() => setActiveTab('order-of-business')}
+            disabled={isLocalRecordingActive && activeTab !== 'order-of-business'}
+            title={isLocalRecordingActive && activeTab !== 'order-of-business' ? 'Stop and save recording before switching tabs.' : ''}
           >
             📋 Order of Business
           </button>
           <button
             className={`tab-button ${activeTab === 'agenda' ? 'active' : ''}`}
             onClick={() => setActiveTab('agenda')}
+            disabled={isLocalRecordingActive && activeTab !== 'agenda'}
+            title={isLocalRecordingActive && activeTab !== 'agenda' ? 'Stop and save recording before switching tabs.' : ''}
           >
             📜 Agenda
           </button>
           <button
             className={`tab-button ${activeTab === 'recording' ? 'active' : ''}`}
             onClick={() => setActiveTab('recording')}
+            title={isLocalRecordingActive ? 'Recording tab is locked while recording is active.' : ''}
           >
             🎥 Recording
           </button>
           <button
             className={`tab-button ${activeTab === 'ordinances' ? 'active' : ''}`}
             onClick={() => setActiveTab('ordinances')}
+            disabled={isLocalRecordingActive && activeTab !== 'ordinances'}
+            title={isLocalRecordingActive && activeTab !== 'ordinances' ? 'Stop and save recording before switching tabs.' : ''}
           >
             📃 Ordinances ({ordinances.length})
           </button>
           <button
             className={`tab-button ${activeTab === 'participants' ? 'active' : ''}`}
             onClick={() => setActiveTab('participants')}
+            disabled={isLocalRecordingActive && activeTab !== 'participants'}
+            title={isLocalRecordingActive && activeTab !== 'participants' ? 'Stop and save recording before switching tabs.' : ''}
           >
             👥 Participants ({participants.length})
           </button>
         </div>
+
+        {isLocalRecordingActive && (
+          <div className="alert alert-error recording-lock-alert">
+            <span>🎥</span>
+            <p>Recording is in progress. Stop &amp; Save before switching tabs.</p>
+          </div>
+        )}
 
         {/* Tab Content */}
         <div className="details-content">
@@ -533,6 +561,8 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                     sessionId={sessionId}
                     canBroadcast={canStartLiveStream()}
                     broadcastStream={liveBroadcastStream}
+                    hostName={user?.name || user?.username || user?.email || 'Unknown host'}
+                    hostRole={user?.role || ''}
                   />
                 )}
 
@@ -574,6 +604,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                       recordingUploadedByName={latestRecording?.recording_uploaded_by_name}
                       onCaptureStarted={setLiveBroadcastStream}
                       onCaptureStopped={() => setLiveBroadcastStream(null)}
+                      onRecordingStateChange={setIsLocalRecordingActive}
                       onUploadComplete={(uploadedMinutes) => {
                         setSessionMinutes((prev) => {
                           const rest = prev.filter((item) => item.id !== uploadedMinutes.id);

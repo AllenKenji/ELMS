@@ -47,10 +47,12 @@ function preferVp8Codec(pc) {
   transceiver.setCodecPreferences([...vp8, ...nonVp8]);
 }
 
-export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null }) {
+export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '' }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isWatching, setIsWatching] = useState(false);
+  const [liveHostName, setLiveHostName] = useState('');
+  const [liveHostSocketId, setLiveHostSocketId] = useState(null);
   const [status, setStatus] = useState('No live stream in progress.');
   const [error, setError] = useState('');
 
@@ -69,6 +71,23 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
   const normalizedSessionId = useMemo(() => Number(sessionId), [sessionId]);
   const hasExternalBroadcast = Boolean(broadcastStream);
+
+  const liveHostLabel = useMemo(() => {
+    if (!isLive) {
+      return '';
+    }
+
+    const currentSocketId = socketRef.current?.id || null;
+    const isSelfHost = Boolean(
+      isBroadcasting || (liveHostSocketId && currentSocketId && liveHostSocketId === currentSocketId)
+    );
+
+    if (isSelfHost) {
+      return hostRole ? `You (${hostRole})` : 'You';
+    }
+
+    return liveHostName || 'Unknown host';
+  }, [hostRole, isBroadcasting, isLive, liveHostName, liveHostSocketId]);
 
   useEffect(() => {
     isBroadcastingRef.current = isBroadcasting;
@@ -144,12 +163,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
       broadcastModeRef.current = 'manual';
       setIsBroadcasting(true);
+      setLiveHostName(String(hostName || '').trim() || 'You');
       setStatus('You are live. Waiting for participants to connect...');
-      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId });
+      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId, hostName });
     } catch (err) {
       setError(err?.message || 'Unable to start live stream.');
     }
-  }, [canBroadcast, isBroadcasting, normalizedSessionId, stopBroadcast]);
+  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, stopBroadcast]);
 
   const createBroadcasterPeer = useCallback(async (viewerSocketId) => {
     if (!localStreamRef.current || !socketRef.current) return;
@@ -275,12 +295,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (!isBroadcasting) {
       setError('');
       setIsBroadcasting(true);
+      setLiveHostName(String(hostName || '').trim() || 'You');
       setStatus('Live via local recording. Participants can now watch.');
-      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId });
+      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId, hostName });
     }
 
     return undefined;
-  }, [broadcastStream, canBroadcast, isBroadcasting, normalizedSessionId, stopBroadcast]);
+  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, normalizedSessionId, stopBroadcast]);
 
   useEffect(() => {
     if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
@@ -295,7 +316,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
       // Recover session state on reconnect.
       if (isBroadcastingRef.current) {
-        socket.emit('live:publish', { sessionId: normalizedSessionId });
+        socket.emit('live:publish', { sessionId: normalizedSessionId, hostName });
       }
 
       if (isWatchingRef.current) {
@@ -308,12 +329,16 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
       const active = Boolean(payload?.active);
       setIsLive(active);
+      setLiveHostName(String(payload?.broadcasterName || '').trim());
+      setLiveHostSocketId(payload?.broadcasterSocketId || null);
 
       if (!active) {
         if (isWatchingRef.current) {
           closeViewerPeer();
           setIsWatching(false);
         }
+        setLiveHostName('');
+        setLiveHostSocketId(null);
         if (!isBroadcastingRef.current) {
           setStatus('No live stream in progress.');
         }
@@ -417,6 +442,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     closeViewerPeer,
     createBroadcasterPeer,
     createViewerPeer,
+    hostName,
     normalizedSessionId,
     stopBroadcast,
   ]);
@@ -458,6 +484,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       </div>
 
       <p className="live-session-status">{status}</p>
+      {isLive && liveHostLabel && (
+        <p className="live-session-host">Live started by: {liveHostLabel}</p>
+      )}
       {error && <p className="live-session-error">{error}</p>}
 
       {hasExternalBroadcast && canBroadcast && (
