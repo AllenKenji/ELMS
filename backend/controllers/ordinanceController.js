@@ -496,7 +496,10 @@ exports.addAgendaItem = async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Add agenda item error:', err);
-    res.status(500).json({ error: 'Error adding agenda item' });
+    if (err.status) {
+      return res.status(err.status).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || 'Error adding agenda item' });
   }
 };
 

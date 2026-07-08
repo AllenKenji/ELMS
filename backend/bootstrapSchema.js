@@ -121,6 +121,7 @@ async function ensureLegislativeAgendaSchema() {
     ALTER TABLE session_agenda_items
     ADD COLUMN IF NOT EXISTS session_id INTEGER,
     ADD COLUMN IF NOT EXISTS ordinance_id INTEGER,
+    ADD COLUMN IF NOT EXISTS resolution_id INTEGER,
     ADD COLUMN IF NOT EXISTS agenda_order INTEGER NOT NULL DEFAULT 1,
     ADD COLUMN IF NOT EXISTS reading_number INTEGER,
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();
@@ -150,6 +151,17 @@ async function ensureLegislativeAgendaSchema() {
         ADD CONSTRAINT session_agenda_items_ordinance_id_fkey
         FOREIGN KEY (ordinance_id) REFERENCES ordinances(id) ON DELETE SET NULL;
       END IF;
+
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'session_agenda_items'
+          AND constraint_name = 'session_agenda_items_resolution_id_fkey'
+      ) THEN
+        ALTER TABLE session_agenda_items
+        ADD CONSTRAINT session_agenda_items_resolution_id_fkey
+        FOREIGN KEY (resolution_id) REFERENCES resolutions(id) ON DELETE SET NULL;
+      END IF;
     END
     $$;
   `);
@@ -157,9 +169,33 @@ async function ensureLegislativeAgendaSchema() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_agenda_items_session ON session_agenda_items(session_id);
     CREATE INDEX IF NOT EXISTS idx_agenda_items_ordinance ON session_agenda_items(ordinance_id);
+    CREATE INDEX IF NOT EXISTS idx_agenda_items_resolution ON session_agenda_items(resolution_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_agenda_items_session_ordinance_unique
       ON session_agenda_items(session_id, ordinance_id)
       WHERE ordinance_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_agenda_items_session_resolution_unique
+      ON session_agenda_items(session_id, resolution_id)
+      WHERE resolution_id IS NOT NULL;
+  `);
+
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE table_name = 'session_agenda_items'
+          AND constraint_name = 'session_agenda_items_exactly_one_measure_check'
+      ) THEN
+        ALTER TABLE session_agenda_items
+        ADD CONSTRAINT session_agenda_items_exactly_one_measure_check
+        CHECK (
+          (ordinance_id IS NOT NULL AND resolution_id IS NULL) OR
+          (ordinance_id IS NULL AND resolution_id IS NOT NULL)
+        );
+      END IF;
+    END
+    $$;
   `);
 }
 
