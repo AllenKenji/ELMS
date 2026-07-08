@@ -15,6 +15,38 @@ function stopTracks(stream) {
   stream.getTracks().forEach((track) => track.stop());
 }
 
+function buildOutboundStream(sourceStream) {
+  const outbound = new MediaStream();
+  sourceStream.getVideoTracks().forEach((track) => outbound.addTrack(track.clone()));
+  sourceStream.getAudioTracks().forEach((track) => outbound.addTrack(track.clone()));
+  return outbound;
+}
+
+function preferVp8Codec(pc) {
+  const hasCapabilities = typeof RTCRtpSender !== 'undefined' && typeof RTCRtpSender.getCapabilities === 'function';
+  if (!hasCapabilities) {
+    return;
+  }
+
+  const capabilities = RTCRtpSender.getCapabilities('video');
+  if (!capabilities?.codecs?.length) {
+    return;
+  }
+
+  const transceiver = pc.getTransceivers().find((item) => item?.sender?.track?.kind === 'video');
+  if (!transceiver || typeof transceiver.setCodecPreferences !== 'function') {
+    return;
+  }
+
+  const vp8 = capabilities.codecs.filter((codec) => String(codec.mimeType || '').toLowerCase() === 'video/vp8');
+  if (!vp8.length) {
+    return;
+  }
+
+  const nonVp8 = capabilities.codecs.filter((codec) => String(codec.mimeType || '').toLowerCase() !== 'video/vp8');
+  transceiver.setCodecPreferences([...vp8, ...nonVp8]);
+}
+
 export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -33,6 +65,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const broadcastModeRef = useRef(null);
   const isBroadcastingRef = useRef(false);
   const isWatchingRef = useRef(false);
+  const sourceBroadcastStreamRef = useRef(null);
 
   const normalizedSessionId = useMemo(() => Number(sessionId), [sessionId]);
   const hasExternalBroadcast = Boolean(broadcastStream);
@@ -67,11 +100,16 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     setIsBroadcasting(false);
     closeBroadcasterPeers();
 
+    if (broadcastModeRef.current === 'external') {
+      stopTracks(localStreamRef.current);
+    }
+
     if (stopMedia && broadcastModeRef.current === 'manual') {
       stopTracks(localStreamRef.current);
     }
 
     localStreamRef.current = null;
+    sourceBroadcastStreamRef.current = null;
     broadcastModeRef.current = null;
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
@@ -123,6 +161,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       pc.addTrack(track, localStreamRef.current);
     });
 
+    preferVp8Codec(pc);
+
     pc.onicecandidate = (event) => {
       if (!event.candidate) return;
       socketRef.current.emit('live:ice-candidate', {
@@ -169,6 +209,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       const [stream] = event.streams;
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream || null;
+        const playPromise = remoteVideoRef.current.play?.();
+        if (playPromise?.catch) {
+          playPromise.catch(() => {
+            setStatus('Live connected. Press play to start video if your browser paused playback.');
+          });
+        }
       }
     };
 
@@ -209,7 +255,18 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       return undefined;
     }
 
-    localStreamRef.current = broadcastStream;
+    if (sourceBroadcastStreamRef.current === broadcastStream && isBroadcasting) {
+      return undefined;
+    }
+
+    if (!broadcastStream.getVideoTracks().length) {
+      setError('Live stream cannot start because no screen video track was captured.');
+      return undefined;
+    }
+
+    stopTracks(localStreamRef.current);
+    localStreamRef.current = buildOutboundStream(broadcastStream);
+    sourceBroadcastStreamRef.current = broadcastStream;
     broadcastModeRef.current = 'external';
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = broadcastStream;
