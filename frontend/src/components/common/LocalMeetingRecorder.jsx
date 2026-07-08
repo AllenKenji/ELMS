@@ -215,6 +215,12 @@ export default function LocalMeetingRecorder({
     }
 
     if (mediaRecorder.state !== 'inactive') {
+      try {
+        // Force a final dataavailable event before stopping.
+        mediaRecorder.requestData();
+      } catch {
+        // requestData can fail for some browser states; continue stopping.
+      }
       mediaRecorder.stop();
     }
 
@@ -296,6 +302,15 @@ export default function LocalMeetingRecorder({
         const filename = buildRecordingFilename(meetingTitle);
 
         onCaptureStopped?.();
+
+        if (!blob.size) {
+          setError('No recording data was captured. Keep the shared tab/window active for a few seconds before stopping.');
+          setStatus('Recording stopped, but no file was generated.');
+          toast.error('No recording data captured. Try recording again and wait a few seconds before stopping.');
+          cleanupMedia();
+          setIsRecording(false);
+          return;
+        }
 
         downloadRecording(blob, filename);
         if (canUploadToServer) {
