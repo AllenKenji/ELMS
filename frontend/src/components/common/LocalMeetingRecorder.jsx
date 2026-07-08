@@ -116,6 +116,27 @@ function waitForNextTick() {
   });
 }
 
+async function buildBlobFromChunks(chunks, mimeType) {
+  const buffers = await Promise.all(chunks.map((chunk) => chunk.arrayBuffer()));
+  const totalBytes = buffers.reduce((sum, buffer) => sum + buffer.byteLength, 0);
+
+  if (!totalBytes) {
+    return { blob: new Blob([], { type: mimeType || 'video/webm' }), totalBytes: 0 };
+  }
+
+  const merged = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const buffer of buffers) {
+    merged.set(new Uint8Array(buffer), offset);
+    offset += buffer.byteLength;
+  }
+
+  return {
+    blob: new Blob([merged.buffer], { type: mimeType || 'video/webm' }),
+    totalBytes,
+  };
+}
+
 export default function LocalMeetingRecorder({
   meetingTitle,
   committeeId,
@@ -148,6 +169,7 @@ export default function LocalMeetingRecorder({
   const fallbackRecordingStreamRef = useRef(null);
   const usesExternalCaptureRef = useRef(false);
   const saveHandleRef = useRef(null);
+  const localDownloadUrlRef = useRef(null);
   const chunksRef = useRef([]);
   const requestDataIntervalRef = useRef(null);
   const noDataWarningTimeoutRef = useRef(null);
@@ -165,7 +187,6 @@ export default function LocalMeetingRecorder({
   }, []);
 
   const canUploadToServer = Boolean(uploadUrl || (committeeId && meetingId));
-  const supportsSavePicker = useMemo(() => typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function', []);
   const uploadedRecordingHref = useMemo(() => buildRecordingUrl(recordingUrl), [recordingUrl]);
   const uploadedRecordingLabel = useMemo(() => formatRecordingDate(recordingUploadedAt), [recordingUploadedAt]);
 
@@ -213,16 +234,13 @@ export default function LocalMeetingRecorder({
     const anchor = document.createElement('a');
     anchor.href = downloadUrl;
     anchor.download = filename;
+    anchor.rel = 'noopener';
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
 
     // Keep URL available so user can manually download if browser blocked auto-save.
     toast.success('Recording ready. If it did not auto-save, use the Download local copy link below.');
-  }, []);
-
-  const saveRecordingToChosenPath = useCallback(async () => {
-    return false;
   }, []);
 
   const uploadRecordingToServer = useCallback(async (blob, filename) => {
@@ -293,6 +311,11 @@ export default function LocalMeetingRecorder({
     }
 
     setError('');
+    if (localDownloadUrlRef.current) {
+      window.URL.revokeObjectURL(localDownloadUrlRef.current);
+      localDownloadUrlRef.current = null;
+    }
+
     if (localDownload?.href) {
       window.URL.revokeObjectURL(localDownload.href);
       setLocalDownload(null);
@@ -381,14 +404,12 @@ export default function LocalMeetingRecorder({
 
         const recordedChunks = [...chunksRef.current];
         const resolvedMimeType = recorder.mimeType || 'video/webm';
-        const blob = new Blob(recordedChunks, {
-          type: resolvedMimeType,
-        });
+        const { blob, totalBytes } = await buildBlobFromChunks(recordedChunks, resolvedMimeType);
         const filename = buildRecordingFilenameForMimeType(meetingTitle, resolvedMimeType);
 
         onCaptureStopped?.();
 
-        if (!blob.size) {
+        if (!blob.size || !totalBytes) {
           setError('No recording data was captured. Keep the shared tab/window active for a few seconds before stopping.');
           setStatus('Recording stopped, but no file was generated.');
           toast.error('No recording data captured. Try recording again and wait a few seconds before stopping.');
@@ -397,16 +418,18 @@ export default function LocalMeetingRecorder({
           return;
         }
 
-        const localHref = window.URL.createObjectURL(blob);
+        const localFile = new File([blob], filename, { type: resolvedMimeType });
+        const localHref = window.URL.createObjectURL(localFile);
+        localDownloadUrlRef.current = localHref;
         setLocalDownload({
           href: localHref,
           filename,
-          size: blob.size,
+          size: localFile.size,
           createdAt: Date.now(),
         });
 
-        downloadRecording(localHref, filename, blob.size);
-        setStatus(`Recording downloaded locally (${Math.max(1, Math.round(blob.size / 1024))} KB). If the download was blocked, use the Download local copy link below.`);
+        downloadRecording(localHref, filename, localFile.size);
+        setStatus(`Recording downloaded locally (${Math.max(1, Math.round(localFile.size / 1024))} KB). If the download was blocked, use the Download local copy link below.`);
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
         } else {
@@ -465,14 +488,15 @@ export default function LocalMeetingRecorder({
         mediaRecorder.onstop = null;
       }
 
-      if (localDownload?.href) {
-        window.URL.revokeObjectURL(localDownload.href);
+      if (localDownloadUrlRef.current) {
+        window.URL.revokeObjectURL(localDownloadUrlRef.current);
+        localDownloadUrlRef.current = null;
       }
 
       onCaptureStopped?.();
       cleanupMedia();
     };
-  }, [cleanupMedia, localDownload?.href, onCaptureStopped]);
+  }, [cleanupMedia, onCaptureStopped]);
 
   const handleStartClick = useCallback(() => {
     if (!isSupported || isRecording || isUploading) {
