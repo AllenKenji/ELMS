@@ -516,8 +516,28 @@ export default function LocalMeetingRecorder({
       return;
     }
 
+    if (supportsSavePicker && !saveHandleRef.current) {
+      try {
+        const suggestedName = buildRecordingFilename(meetingTitle);
+        saveHandleRef.current = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: 'WebM video',
+              accept: { 'video/webm': ['.webm'] },
+            },
+          ],
+        });
+        setStatus('Finishing recording and writing to the selected file path...');
+      } catch {
+        // Continue stopping so the browser download fallback can still be offered.
+        saveHandleRef.current = null;
+        setStatus('File location not selected. Finishing recording and preparing download fallback...');
+      }
+    }
+
     stopRecording(true);
-  }, [isRecording, stopRecording]);
+  }, [isRecording, meetingTitle, stopRecording, supportsSavePicker]);
 
   return (
     <>
