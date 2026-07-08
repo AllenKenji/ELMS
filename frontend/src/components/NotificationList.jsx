@@ -49,7 +49,10 @@ export default function NotificationList() {
   useEffect(() => {
     if (!user?.id) return;
 
-    const socket = io(import.meta.env.VITE_SOCKET_URL || API_BASE_URL);
+    const socketBaseUrl = String(import.meta.env.VITE_SOCKET_URL || API_BASE_URL)
+      .trim()
+      .replace(/\/+$/, '');
+    const socket = io(socketBaseUrl);
     socket.emit('joinUser', user.id);
 
     const handleNotificationCreated = (notification) => {

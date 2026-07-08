@@ -8,7 +8,10 @@ export default function useSocket(role) {
 
   useEffect(() => {
     // Create socket connection inside effect
-    const socket = io(import.meta.env.VITE_SOCKET_URL || API_BASE_URL);
+    const socketBaseUrl = String(import.meta.env.VITE_SOCKET_URL || API_BASE_URL)
+      .trim()
+      .replace(/\/+$/, '');
+    const socket = io(socketBaseUrl);
 
     // Join role-specific room
     if (role) {
