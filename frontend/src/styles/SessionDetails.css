@@ -183,9 +183,11 @@
 /* Tabs */
 .details-tabs {
   display: flex;
+  flex-wrap: wrap;
   border-bottom: 1px solid #ddd;
   background: white;
   padding: 0 2rem;
+  row-gap: 0.25rem;
 }
 
 .participants-header {
@@ -238,6 +240,17 @@
   border-bottom: 3px solid transparent;
   transition: all 0.2s;
   font-size: 0.95rem;
+}
+
+@media (max-width: 768px) {
+  .details-tabs {
+    padding: 0 1rem;
+  }
+
+  .tab-button {
+    padding: 0.8rem 1rem;
+    font-size: 0.9rem;
+  }
 }
 
 .tab-button:hover {
