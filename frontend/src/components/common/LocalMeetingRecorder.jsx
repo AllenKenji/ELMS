@@ -173,6 +173,11 @@ export default function LocalMeetingRecorder({
   const chunksRef = useRef([]);
   const requestDataIntervalRef = useRef(null);
   const noDataWarningTimeoutRef = useRef(null);
+  const onCaptureStoppedRef = useRef(onCaptureStopped);
+
+  useEffect(() => {
+    onCaptureStoppedRef.current = onCaptureStopped;
+  }, [onCaptureStopped]);
 
   const isSupported = useMemo(() => {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
@@ -484,10 +489,10 @@ export default function LocalMeetingRecorder({
         localDownloadUrlRef.current = null;
       }
 
-      onCaptureStopped?.();
+      onCaptureStoppedRef.current?.();
       cleanupMedia();
     };
-  }, [cleanupMedia, onCaptureStopped]);
+  }, [cleanupMedia]);
 
   const handleStartClick = useCallback(() => {
     if (!isSupported || isRecording || isUploading) {
