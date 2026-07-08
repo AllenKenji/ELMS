@@ -461,6 +461,16 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
           {activeTab === 'recording' && (
             <div className="tab-pane recording-pane">
               <div className="details-grid">
+                {!canRecordSession() && (
+                  <section className="detail-section full-width recording-access-note">
+                    <h3>🎥 Recording Access</h3>
+                    <p>
+                      You can view the attached session minutes and saved recordings here.
+                      Only authorized roles can start or upload a new recording.
+                    </p>
+                  </section>
+                )}
+
                 {canRecordSession() && (
                   <section className="detail-section full-width">
                     <h3>🎥 Session Recording</h3>

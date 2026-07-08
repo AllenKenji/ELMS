@@ -259,6 +259,16 @@
   animation: fadeIn 0.3s ease-in-out;
 }
 
+.recording-access-note {
+  border: 1px solid #d7e7f7;
+  background: linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%);
+  border-radius: 14px;
+}
+
+.recording-access-note h3 {
+  margin-top: 0;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;
