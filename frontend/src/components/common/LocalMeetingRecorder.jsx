@@ -4,8 +4,8 @@ import api from '../../api/api';
 import '../../styles/LocalMeetingRecorder.css';
 
 const MIME_TYPE_CANDIDATES = [
-  'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=vp9,opus',
   'video/webm',
 ];
 
@@ -106,8 +106,9 @@ export default function LocalMeetingRecorder({
   const screenStreamRef = useRef(null);
   const microphoneStreamRef = useRef(null);
   const recordingStreamRef = useRef(null);
-  const audioContextRef = useRef(null);
   const chunksRef = useRef([]);
+  const requestDataIntervalRef = useRef(null);
+  const noDataWarningTimeoutRef = useRef(null);
 
   const isSupported = useMemo(() => {
     if (typeof window === 'undefined' || typeof navigator === 'undefined') {
@@ -134,15 +135,20 @@ export default function LocalMeetingRecorder({
       });
     });
 
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
+    if (requestDataIntervalRef.current) {
+      window.clearInterval(requestDataIntervalRef.current);
+      requestDataIntervalRef.current = null;
+    }
+
+    if (noDataWarningTimeoutRef.current) {
+      window.clearTimeout(noDataWarningTimeoutRef.current);
+      noDataWarningTimeoutRef.current = null;
     }
 
     mediaRecorderRef.current = null;
     screenStreamRef.current = null;
     microphoneStreamRef.current = null;
     recordingStreamRef.current = null;
-    audioContextRef.current = null;
     chunksRef.current = [];
     setChunkStats({ count: 0, bytes: 0 });
   }, []);
@@ -238,8 +244,6 @@ export default function LocalMeetingRecorder({
     }
 
     const mimeType = getSupportedMimeType();
-    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-
     setError('');
     if (localDownload?.href) {
       window.URL.revokeObjectURL(localDownload.href);
@@ -255,42 +259,33 @@ export default function LocalMeetingRecorder({
         audio: true,
       });
 
-      const microphoneStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-        video: false,
-      });
+      let microphoneStream = null;
+      try {
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+          video: false,
+        });
+      } catch {
+        // Keep recording even if microphone access fails.
+        toast.warning('Microphone access is unavailable. Recording will continue with shared tab/system audio only.');
+      }
 
-      let audioTracks = [];
+      const preferredAudioTrack =
+        microphoneStream?.getAudioTracks()?.[0] ||
+        screenStream.getAudioTracks()?.[0] ||
+        null;
 
-      if (AudioContextClass) {
-        const audioContext = new AudioContextClass();
-        const destination = audioContext.createMediaStreamDestination();
-
-        if (screenStream.getAudioTracks().length > 0) {
-          const screenAudioSource = audioContext.createMediaStreamSource(new MediaStream(screenStream.getAudioTracks()));
-          screenAudioSource.connect(destination);
-        }
-
-        if (microphoneStream.getAudioTracks().length > 0) {
-          const microphoneAudioSource = audioContext.createMediaStreamSource(new MediaStream(microphoneStream.getAudioTracks()));
-          microphoneAudioSource.connect(destination);
-        }
-
-        audioContextRef.current = audioContext;
-        audioTracks = destination.stream.getAudioTracks();
-      } else {
-        audioTracks = [
-          ...screenStream.getAudioTracks(),
-          ...microphoneStream.getAudioTracks(),
-        ];
+      const videoTrack = screenStream.getVideoTracks()?.[0] || null;
+      if (!videoTrack) {
+        throw new Error('No screen video track was captured.');
       }
 
       const recordingStream = new MediaStream([
-        ...screenStream.getVideoTracks(),
-        ...audioTracks,
+        videoTrack,
+        ...(preferredAudioTrack ? [preferredAudioTrack] : []),
       ]);
 
       const recorder = mimeType
@@ -305,6 +300,32 @@ export default function LocalMeetingRecorder({
             bytes: prev.bytes + event.data.size,
           }));
         }
+      };
+
+      recorder.onstart = () => {
+        if (requestDataIntervalRef.current) {
+          window.clearInterval(requestDataIntervalRef.current);
+        }
+
+        requestDataIntervalRef.current = window.setInterval(() => {
+          if (recorder.state === 'recording') {
+            try {
+              recorder.requestData();
+            } catch {
+              // Ignore transient requestData failures.
+            }
+          }
+        }, 2000);
+
+        if (noDataWarningTimeoutRef.current) {
+          window.clearTimeout(noDataWarningTimeoutRef.current);
+        }
+
+        noDataWarningTimeoutRef.current = window.setTimeout(() => {
+          if (chunksRef.current.length === 0) {
+            setStatus('Recording started, but no media chunks received yet. Keep the shared tab active and avoid minimizing it.');
+          }
+        }, 3500);
       };
 
       recorder.onstop = async () => {
