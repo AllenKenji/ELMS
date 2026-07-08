@@ -13,6 +13,32 @@ const { getIO } = require('../socket');
 const ROLES = ['Secretary', 'Admin', 'Councilor', 'Vice Mayor', 'Resident'];
 const SESSION_RECORDING_UPLOAD_PREFIX = '/uploads/session-recordings/';
 
+function normalizeSessionSchedule(dateValue, timeValue) {
+  const rawDate = dateValue == null ? '' : String(dateValue).trim();
+  let normalizedDate = rawDate;
+  let normalizedTime = timeValue == null ? null : String(timeValue).trim();
+
+  if (rawDate.includes('T')) {
+    const [datePart, timePart] = rawDate.split('T');
+    if (datePart) {
+      normalizedDate = datePart;
+    }
+    if (!normalizedTime && timePart) {
+      const hhmm = timePart.match(/^(\d{2}:\d{2})/);
+      normalizedTime = hhmm?.[1] || null;
+    }
+  }
+
+  if (normalizedTime && /^\d{2}:\d{2}:\d{2}$/.test(normalizedTime)) {
+    normalizedTime = normalizedTime.slice(0, 5);
+  }
+
+  return {
+    date: normalizedDate,
+    sessionTime: normalizedTime || null,
+  };
+}
+
 /**
  * Utility: broadcast session updates to all roles
  */
@@ -83,8 +109,17 @@ exports.getSessionCommitteeReports = async (sessionId) => {
 /**
  * Create a new legislative session.
  */
-exports.createSession = async ({ title, date, location, agenda, notes }, userId) => {
-  const result = await Session.create(title, date, location, agenda, notes, userId);
+exports.createSession = async ({ title, date, time, session_time, location, agenda, notes }, userId) => {
+  const schedule = normalizeSessionSchedule(date, time ?? session_time);
+  const result = await Session.create(
+    title,
+    schedule.date,
+    schedule.sessionTime,
+    location,
+    agenda,
+    notes,
+    userId
+  );
   const session = result.rows[0];
 
   await AuditLog.create(null, userId, 'SESSION_CREATE', `Session "${title}" created`);
@@ -116,8 +151,9 @@ exports.getSessionById = async (id) => {
 /**
  * Update a session.
  */
-exports.updateSession = async (id, { title, date, location, agenda, notes }, userId) => {
-  const result = await Session.update(id, title, date, location, agenda, notes);
+exports.updateSession = async (id, { title, date, time, session_time, location, agenda, notes }, userId) => {
+  const schedule = normalizeSessionSchedule(date, time ?? session_time);
+  const result = await Session.update(id, title, schedule.date, schedule.sessionTime, location, agenda, notes);
   ensureFound(result.rows, 'Session not found');
 
   const session = result.rows[0];

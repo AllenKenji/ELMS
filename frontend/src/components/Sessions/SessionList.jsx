@@ -11,6 +11,19 @@ function getSessionDate(session) {
   return Number.isNaN(sessionDate.getTime()) ? null : sessionDate;
 }
 
+function parseSessionStart(session) {
+  if (!session?.date) return null;
+
+  const datePart = String(session.date).split('T')[0];
+  const timePart = String(session.session_time || '').match(/^(\d{2}:\d{2})/)?.[1] || '00:00';
+  const dateTime = new Date(`${datePart}T${timePart}:00`);
+  if (Number.isNaN(dateTime.getTime())) {
+    return null;
+  }
+
+  return dateTime;
+}
+
 function isCompletedSession(session) {
   const sessionDate = getSessionDate(session);
   if (!sessionDate) {
@@ -47,12 +60,12 @@ function formatDuration(totalMinutes) {
 }
 
 function formatSessionTimeRange(session) {
-  const sessionDate = getSessionDate(session);
-  if (!sessionDate) {
+  const sessionStart = parseSessionStart(session);
+  if (!sessionStart || !session.session_time) {
     return 'Time not specified';
   }
 
-  const startText = sessionDate.toLocaleTimeString('en-US', {
+  const startText = sessionStart.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -62,7 +75,7 @@ function formatSessionTimeRange(session) {
     return startText;
   }
 
-  const endDate = new Date(sessionDate.getTime() + totalMinutes * 60000);
+  const endDate = new Date(sessionStart.getTime() + totalMinutes * 60000);
   const endText = endDate.toLocaleTimeString('en-US', {
     hour: '2-digit',
     minute: '2-digit',
@@ -282,7 +295,8 @@ export default function SessionList() {
         initialData={{
           title: editingSession.title,
           date: editingSession.date?.split('T')[0],
-          time: editingSession.date?.split('T')[1]?.substring(0, 5) || '14:00',
+          time: String(editingSession.session_time || '').match(/^(\d{2}:\d{2})/)?.[1] || '14:00',
+          session_time: editingSession.session_time,
           location: editingSession.location,
           agenda: editingSession.agenda,
           notes: editingSession.notes,

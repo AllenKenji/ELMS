@@ -27,6 +27,7 @@ async function ensureCoreSchema() {
       id SERIAL PRIMARY KEY,
       title VARCHAR(255) NOT NULL,
       date DATE NOT NULL,
+      session_time TIME,
       location TEXT,
       agenda TEXT,
       notes TEXT,
@@ -34,6 +35,11 @@ async function ensureCoreSchema() {
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE sessions
+    ADD COLUMN IF NOT EXISTS session_time TIME;
   `);
 
   await pool.query(`

@@ -32,21 +32,21 @@ exports.findById = async (id) => {
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.create = async (title, date, location, agenda, notes, createdBy) => {
+exports.create = async (title, date, sessionTime, location, agenda, notes, createdBy) => {
   return pool.query(
-    `INSERT INTO sessions (title, date, location, agenda, notes, created_by, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, NOW()) RETURNING *`,
-    [title, date, location, agenda, notes || null, createdBy]
+    `INSERT INTO sessions (title, date, session_time, location, agenda, notes, created_by, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW()) RETURNING *`,
+    [title, date, sessionTime || null, location, agenda, notes || null, createdBy]
   );
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.update = async (id, title, date, location, agenda, notes) => {
+exports.update = async (id, title, date, sessionTime, location, agenda, notes) => {
   return pool.query(
     `UPDATE sessions
-     SET title=$1, date=$2, location=$3, agenda=$4, notes=$5, updated_at=NOW()
-     WHERE id=$6 RETURNING *`,
-    [title, date, location, agenda, notes || null, id]
+     SET title=$1, date=$2, session_time=$3, location=$4, agenda=$5, notes=$6, updated_at=NOW()
+     WHERE id=$7 RETURNING *`,
+    [title, date, sessionTime || null, location, agenda, notes || null, id]
   );
 };
 

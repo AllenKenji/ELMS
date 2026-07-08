@@ -12,6 +12,15 @@ function normalizeSessionFormData(data) {
   let normalizedDate = '';
   let normalizedTime = '14:00';
 
+  const sourceTime = source.time ?? source.session_time;
+  if (sourceTime) {
+    const timeText = String(sourceTime).trim();
+    const hhmm = timeText.match(/^(\d{2}:\d{2})/);
+    if (hhmm?.[1]) {
+      normalizedTime = hhmm[1];
+    }
+  }
+
   if (source.date) {
     const rawDate = String(source.date);
 
@@ -34,7 +43,7 @@ function normalizeSessionFormData(data) {
   return {
     title: source.title ?? '',
     date: normalizedDate,
-    time: source.time ?? normalizedTime,
+    time: normalizedTime,
     location: source.location ?? '',
     agenda: source.agenda ?? '',
     notes: source.notes ?? '',
@@ -274,12 +283,10 @@ export default function SessionForm({ onSuccess, onCancel, sessionId = null, ini
     setLoading(true);
 
     try {
-      // Combine date and time
-      const dateTime = `${formData.date}T${formData.time}:00`;
-
       const payload = {
         title: safeTrim(formData.title),
-        date: dateTime,
+        date: formData.date,
+        time: formData.time,
         location: safeTrim(formData.location),
         agenda: safeTrim(formData.agenda),
         notes: safeTrim(formData.notes) || null,

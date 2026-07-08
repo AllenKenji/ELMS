@@ -34,13 +34,24 @@ function formatDuration(totalMinutes) {
   return `${remainder} minute${remainder === 1 ? '' : 's'}`;
 }
 
-function formatTimeRange(dateValue, totalMinutes) {
-  if (!dateValue) {
-    return 'Not specified';
+function getSessionStartDateTime(dateValue, sessionTime) {
+  if (!dateValue || !sessionTime) {
+    return null;
   }
 
-  const start = new Date(dateValue);
-  if (Number.isNaN(start.getTime())) {
+  const datePart = String(dateValue).split('T')[0];
+  const timePart = String(sessionTime).match(/^(\d{2}:\d{2})/)?.[1];
+  if (!timePart) {
+    return null;
+  }
+
+  const start = new Date(`${datePart}T${timePart}:00`);
+  return Number.isNaN(start.getTime()) ? null : start;
+}
+
+function formatTimeRange(dateValue, sessionTime, totalMinutes) {
+  const start = getSessionStartDateTime(dateValue, sessionTime);
+  if (!start) {
     return 'Not specified';
   }
 
@@ -190,6 +201,8 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
 
   const status = getSessionStatus();
   const sessionDateTime = new Date(session.date);
+  const hasValidSessionDate = !Number.isNaN(sessionDateTime.getTime());
+  const sessionTimeRangeText = formatTimeRange(session.date, session.session_time, session.total_oob_minutes);
   const totalDuration = formatDuration(session.total_oob_minutes);
 
   return (
@@ -247,12 +260,12 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
             <div>
               <span className="info-label">Date</span>
               <span className="info-value">
-                {sessionDateTime.toLocaleDateString('en-US', {
+                {hasValidSessionDate ? sessionDateTime.toLocaleDateString('en-US', {
                   weekday: 'long',
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
-                })}
+                }) : 'Not specified'}
               </span>
             </div>
           </div>
@@ -262,7 +275,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
             <div>
               <span className="info-label">Time</span>
               <span className="info-value">
-                {formatTimeRange(session.date, session.total_oob_minutes)}
+                {sessionTimeRangeText}
               </span>
             </div>
           </div>
@@ -357,11 +370,11 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete })
                   <div className="detail-item">
                     <label>Date & Time:</label>
                     <span>
-                      {sessionDateTime.toLocaleDateString('en-US', {
+                      {hasValidSessionDate ? sessionDateTime.toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: 'long',
                         day: 'numeric',
-                      })} at {formatTimeRange(session.date, session.total_oob_minutes)}
+                      }) : 'Not specified'} at {sessionTimeRangeText}
                     </span>
                   </div>
                   <div className="detail-item">
