@@ -19,6 +19,63 @@ Common roles:
 - Councilor: authors and co-authors measures, joins sessions, participates in live and voting activities.
 - Participant: joins assigned sessions and views allowed content.
 
+### 2.1 Role Capability Summary
+- Admin:
+   - create/edit/deactivate users
+   - full session and workflow administration
+   - can override and complete most legislative lifecycle actions
+- Secretary:
+   - create and manage sessions, participants, minutes, and order of business
+   - manage workflow transitions such as readings, agenda inclusion, posting/effectivity
+   - manage recording and minutes attachments
+- Vice Mayor:
+   - committee assignment actions in measure workflow
+   - executive approval or rejection actions
+   - participates in session operations
+- Councilor:
+   - create and update proposed measures (ordinances/resolutions)
+   - submit measures to workflow and cast votes
+   - participate in committee and session activities
+- Participant:
+   - join allowed sessions and view permitted content
+   - no direct workflow modification actions
+
+### 2.2 Workflow Modification Matrix (Who Can Modify What)
+The matrix below reflects current role guards configured in backend routes.
+
+| Workflow / Action | Roles Allowed to Modify |
+| --- | --- |
+| User Management: create/edit users | Admin |
+| Sessions: create/edit session | Secretary, Admin |
+| Sessions: delete session | Admin |
+| Sessions: add participants / add from OOB | Secretary, Admin |
+| Order of Business: create/update/reorder/status/documents | Secretary, Admin |
+| Minutes: create/generate/transcribe/update/delete | Secretary, Admin |
+| Proposed Measures (Ordinance/Resolution): create draft | Councilor, Admin |
+| Proposed Measures: update draft/content | Secretary, Councilor, Admin |
+| Proposed Measures: delete item | Secretary, Admin |
+| Proposed Measures: submit to Vice Mayor | Councilor, Admin |
+| Proposed Measures: first reading / second reading | Secretary, Admin |
+| Proposed Measures: assign committee | Vice Mayor, Secretary, Admin |
+| Proposed Measures: committee report | Councilor, Committee Secretary, Admin |
+| Proposed Measures: open/close voting | Secretary, Admin |
+| Proposed Measures: cast vote | Councilor, Secretary, Admin |
+| Proposed Measures: executive approval/rejection | Vice Mayor, Admin |
+| Proposed Measures: post publicly / mark effective | Secretary, Admin |
+| Votes module: create/close vote session, cast vote | Councilor, Secretary, Admin |
+| Votes module: delete vote session | Admin |
+| Reports: create/update | Councilor, Secretary, Admin |
+| Reports: delete | Secretary, Admin |
+| Committee setup: create committee | Vice Mayor, Admin |
+| Committee setup: update committee | Assigned Chairperson, Vice Mayor, Admin |
+| Committee setup: delete committee | Admin |
+| Committee membership: add/remove members | Secretary, Admin |
+
+### 2.3 Notes on Access Variations
+- UI visibility can differ from API authority; some buttons may be hidden even if API role allows action.
+- Some actions also require assignment context (for example: chairperson-specific committee updates).
+- If your LGU policy is stricter, Admin configuration may further limit permissions.
+
 ## 3. Signing In
 1. Open the ELegislative login page.
 2. Enter your account credentials.
@@ -36,6 +93,58 @@ Typical modules in the system:
 - Sessions: agenda, participants, order of business, live, recording.
 - Notifications and Messages: updates and communication.
 - Reports and Audit Logs: tracking and transparency.
+
+### 4.1 Navigational Toolbar Guide
+Use the left sidebar or top navigation toolbar (depending on layout) to move between modules.
+
+- Dashboard:
+   - What it does: shows pending actions, recent records, and quick status indicators.
+   - Typical users: Admin, Secretary, Vice Mayor, Councilor.
+
+- Calendar:
+   - What it does: shows scheduled committee meetings and sessions by date.
+   - Quick actions: Join Session and Watch Live from event cards.
+   - Typical users: all roles with session access.
+
+- Ordinances and Resolutions:
+   - What it does: opens proposed measure lists, drafts, and workflow status.
+   - Typical users: Councilor, Secretary, Vice Mayor, Admin.
+
+- Committees:
+   - What it does: opens committee setup, membership, meetings, and recommendations.
+   - Typical users: Secretary, Vice Mayor, Councilor, Admin.
+
+- Sessions:
+   - What it does: opens session records, agenda, participants, recording, and live panel.
+   - Typical users: Secretary, Vice Mayor, Councilor, Participant (view/join only), Admin.
+
+- Order of Business:
+   - What it does: manages session flow items, ordering, and document records.
+   - Typical users: Secretary, Admin.
+
+- Minutes:
+   - What it does: creates and updates session minutes, transcripts, and recording links.
+   - Typical users: Secretary, Admin.
+
+- Voting:
+   - What it does: opens voting sessions, ballot actions, and vote summaries.
+   - Typical users: Councilor, Secretary, Admin.
+
+- Reports:
+   - What it does: generates operational and legislative reports.
+   - Typical users: Councilor, Secretary, Admin.
+
+- Notifications and Messages:
+   - What it does: system alerts, workflow updates, and internal communication.
+   - Typical users: all active users.
+
+- User Management:
+   - What it does: create/edit users, assign roles, and manage account status.
+   - Typical users: Admin.
+
+- Audit Logs:
+   - What it does: tracks who did what action and when for accountability.
+   - Typical users: Admin, authorized oversight roles.
 
 ## 4A. Workflow: Creating a Proposed Measure and Resolution
 Use this workflow when creating a new legislative proposal (ordinance or resolution).

@@ -19,6 +19,63 @@ Karaniwang roles:
 - Councilor: may-akda/co-author ng measures, sumasali sa sessions, live, at voting.
 - Participant: sumasali sa assigned sessions at pinapayagang content.
 
+### 2.1 Buod ng Kakayahan ng Bawat Role
+- Admin:
+   - gumawa/mag-edit/mag-deactivate ng users
+   - buong session at workflow administration
+   - maaaring magpatupad ng karamihan sa legislative lifecycle actions
+- Secretary:
+   - gumawa at mamahala ng sessions, participants, minutes, at order of business
+   - mamahala ng workflow transitions tulad ng readings, agenda inclusion, posting/effectivity
+   - mamahala ng recording at minutes attachments
+- Vice Mayor:
+   - committee assignment actions sa measure workflow
+   - executive approval o rejection actions
+   - nakikilahok sa session operations
+- Councilor:
+   - gumawa at mag-update ng proposed measures (ordinansa/resolusyon)
+   - magsumite ng measures sa workflow at bumoto
+   - lumahok sa committee at session activities
+- Participant:
+   - sumali sa pinapayagang sessions at manood ng allowed content
+   - walang direktang workflow modification actions
+
+### 2.2 Workflow Modification Matrix (Sino ang Puwedeng Magbago)
+Ang matrix na ito ay batay sa kasalukuyang role guards sa backend routes.
+
+| Workflow / Action | Mga Role na Puwedeng Mag-modify |
+| --- | --- |
+| User Management: create/edit users | Admin |
+| Sessions: create/edit session | Secretary, Admin |
+| Sessions: delete session | Admin |
+| Sessions: add participants / add from OOB | Secretary, Admin |
+| Order of Business: create/update/reorder/status/documents | Secretary, Admin |
+| Minutes: create/generate/transcribe/update/delete | Secretary, Admin |
+| Proposed Measures (Ordinance/Resolution): create draft | Councilor, Admin |
+| Proposed Measures: update draft/content | Secretary, Councilor, Admin |
+| Proposed Measures: delete item | Secretary, Admin |
+| Proposed Measures: submit to Vice Mayor | Councilor, Admin |
+| Proposed Measures: first reading / second reading | Secretary, Admin |
+| Proposed Measures: assign committee | Vice Mayor, Secretary, Admin |
+| Proposed Measures: committee report | Councilor, Committee Secretary, Admin |
+| Proposed Measures: open/close voting | Secretary, Admin |
+| Proposed Measures: cast vote | Councilor, Secretary, Admin |
+| Proposed Measures: executive approval/rejection | Vice Mayor, Admin |
+| Proposed Measures: post publicly / mark effective | Secretary, Admin |
+| Votes module: create/close vote session, cast vote | Councilor, Secretary, Admin |
+| Votes module: delete vote session | Admin |
+| Reports: create/update | Councilor, Secretary, Admin |
+| Reports: delete | Secretary, Admin |
+| Committee setup: create committee | Vice Mayor, Admin |
+| Committee setup: update committee | Assigned Chairperson, Vice Mayor, Admin |
+| Committee setup: delete committee | Admin |
+| Committee membership: add/remove members | Secretary, Admin |
+
+### 2.3 Notes sa Posibleng Pagkakaiba ng Access
+- Maaaring magkaiba ang nakikitang UI buttons at aktwal na API authority.
+- May ilang actions na kailangan ng assignment context (halimbawa: chairperson-specific updates).
+- Maaaring mas higpitan pa ng lokal na policy/configuration ang permissions.
+
 ## 3. Pag-login
 1. Buksan ang ELegislative login page.
 2. Ilagay ang account credentials.
@@ -36,6 +93,58 @@ Karaniwang bahagi ng system:
 - Sessions: agenda, participants, order of business, live, at recording.
 - Notifications at Messages: updates at komunikasyon.
 - Reports at Audit Logs: tracking at transparency.
+
+### 4.1 Gabay sa Navigational Toolbar
+Gamitin ang left sidebar o top navigation toolbar (depende sa layout) para lumipat sa modules.
+
+- Dashboard:
+   - Gamit: ipinapakita ang pending actions, recent records, at quick status indicators.
+   - Karaniwang users: Admin, Secretary, Vice Mayor, Councilor.
+
+- Calendar:
+   - Gamit: ipinapakita ang nakaiskedyul na committee meetings at sessions ayon sa petsa.
+   - Quick actions: Join Session at Watch Live mula sa event cards.
+   - Karaniwang users: lahat ng roles na may session access.
+
+- Ordinances at Resolutions:
+   - Gamit: listahan ng proposed measures, drafts, at workflow status.
+   - Karaniwang users: Councilor, Secretary, Vice Mayor, Admin.
+
+- Committees:
+   - Gamit: committee setup, membership, meetings, at recommendations.
+   - Karaniwang users: Secretary, Vice Mayor, Councilor, Admin.
+
+- Sessions:
+   - Gamit: session records, agenda, participants, recording, at live panel.
+   - Karaniwang users: Secretary, Vice Mayor, Councilor, Participant (view/join lamang), Admin.
+
+- Order of Business:
+   - Gamit: pamamahala ng session flow items, ordering, at document records.
+   - Karaniwang users: Secretary, Admin.
+
+- Minutes:
+   - Gamit: paglikha at pag-update ng session minutes, transcripts, at recording links.
+   - Karaniwang users: Secretary, Admin.
+
+- Voting:
+   - Gamit: voting sessions, ballot actions, at vote summaries.
+   - Karaniwang users: Councilor, Secretary, Admin.
+
+- Reports:
+   - Gamit: pag-generate ng operational at legislative reports.
+   - Karaniwang users: Councilor, Secretary, Admin.
+
+- Notifications at Messages:
+   - Gamit: system alerts, workflow updates, at internal communication.
+   - Karaniwang users: lahat ng active users.
+
+- User Management:
+   - Gamit: paggawa/pag-edit ng users, role assignment, at account status management.
+   - Karaniwang users: Admin.
+
+- Audit Logs:
+   - Gamit: talaan kung sino ang gumawa ng action at kailan para sa accountability.
+   - Karaniwang users: Admin at authorized oversight roles.
 
 ## 4A. Workflow: Paggawa ng Proposed Measure at Resolution
 Gamitin ang workflow na ito kapag gagawa ng bagong panukalang ordinansa o resolusyon.

@@ -52,6 +52,25 @@
     ul, ol { margin: 0.3em 0 0.7em 1.2em; }
     li { margin: 0.2em 0; }
 
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.35em 0 0.7em;
+      font-size: 10.8pt;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #f3f4f6;
+      color: #111827;
+    }
+
     .meta {
       margin-top: 14px;
       padding: 10px;
@@ -154,6 +173,57 @@
         <li>Councilor: authors and co-authors measures, joins sessions, participates in live and voting activities.</li>
         <li>Participant: joins assigned sessions and views allowed content.</li>
       </ul>
+      <h3>2.1 Role Capability Summary</h3>
+      <ul>
+        <li>Admin: create/edit users, full session and workflow administration, and most legislative lifecycle actions.</li>
+        <li>Secretary: manage sessions, participants, minutes, order of business, recordings, and key workflow transitions.</li>
+        <li>Vice Mayor: committee assignment and executive approval/rejection actions.</li>
+        <li>Councilor: create/update proposed measures, submit to workflow, and cast votes.</li>
+        <li>Participant: join allowed sessions and view permitted content only.</li>
+      </ul>
+      <h3>2.2 Workflow Modification Matrix</h3>
+      <p>The matrix below reflects current role guards configured in backend routes.</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Workflow / Action</th>
+            <th>Roles Allowed to Modify</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>User Management: create/edit users</td><td>Admin</td></tr>
+          <tr><td>Sessions: create/edit session</td><td>Secretary, Admin</td></tr>
+          <tr><td>Sessions: delete session</td><td>Admin</td></tr>
+          <tr><td>Sessions: add participants / add from OOB</td><td>Secretary, Admin</td></tr>
+          <tr><td>Order of Business: create/update/reorder/status/documents</td><td>Secretary, Admin</td></tr>
+          <tr><td>Minutes: create/generate/transcribe/update/delete</td><td>Secretary, Admin</td></tr>
+          <tr><td>Proposed Measures: create draft</td><td>Councilor, Admin</td></tr>
+          <tr><td>Proposed Measures: update draft/content</td><td>Secretary, Councilor, Admin</td></tr>
+          <tr><td>Proposed Measures: delete item</td><td>Secretary, Admin</td></tr>
+          <tr><td>Proposed Measures: submit to Vice Mayor</td><td>Councilor, Admin</td></tr>
+          <tr><td>Proposed Measures: first/second reading</td><td>Secretary, Admin</td></tr>
+          <tr><td>Proposed Measures: assign committee</td><td>Vice Mayor, Secretary, Admin</td></tr>
+          <tr><td>Proposed Measures: committee report</td><td>Councilor, Committee Secretary, Admin</td></tr>
+          <tr><td>Proposed Measures: open/close voting</td><td>Secretary, Admin</td></tr>
+          <tr><td>Proposed Measures: cast vote</td><td>Councilor, Secretary, Admin</td></tr>
+          <tr><td>Proposed Measures: executive approval/rejection</td><td>Vice Mayor, Admin</td></tr>
+          <tr><td>Proposed Measures: post publicly / mark effective</td><td>Secretary, Admin</td></tr>
+          <tr><td>Votes module: create/close vote session, cast vote</td><td>Councilor, Secretary, Admin</td></tr>
+          <tr><td>Votes module: delete vote session</td><td>Admin</td></tr>
+          <tr><td>Reports: create/update</td><td>Councilor, Secretary, Admin</td></tr>
+          <tr><td>Reports: delete</td><td>Secretary, Admin</td></tr>
+          <tr><td>Committee setup: create committee</td><td>Vice Mayor, Admin</td></tr>
+          <tr><td>Committee setup: update committee</td><td>Assigned Chairperson, Vice Mayor, Admin</td></tr>
+          <tr><td>Committee setup: delete committee</td><td>Admin</td></tr>
+          <tr><td>Committee membership: add/remove members</td><td>Secretary, Admin</td></tr>
+        </tbody>
+      </table>
+      <h3>2.3 Notes on Access Variations</h3>
+      <ul>
+        <li>UI visibility can differ from API authority.</li>
+        <li>Some actions require assignment context (for example, chairperson-specific updates).</li>
+        <li>Local policy/configuration may further restrict permissions.</li>
+      </ul>
     </section>
 
     <section class="section">
@@ -176,6 +246,23 @@
         <li>Notifications and Messages: updates and communication.</li>
         <li>Reports and Audit Logs: tracking and transparency.</li>
       </ul>
+      <h3>4.1 Navigational Toolbar Guide</h3>
+      <p>Use the left sidebar or top navigation toolbar (depending on layout) to move between modules.</p>
+      <ul>
+        <li>Dashboard: pending actions, recent records, and quick status indicators.</li>
+        <li>Calendar: scheduled meetings/sessions, with Join Session and Watch Live quick actions.</li>
+        <li>Ordinances and Resolutions: proposed measure lists, drafts, and workflow status.</li>
+        <li>Committees: committee setup, membership, meetings, and recommendations.</li>
+        <li>Sessions: agenda, participants, recording, and live panel.</li>
+        <li>Order of Business: flow items, ordering, and OOB document records.</li>
+        <li>Minutes: session minutes, transcripts, and recording links.</li>
+        <li>Voting: vote sessions, ballot actions, and summaries.</li>
+        <li>Reports: operational and legislative reports.</li>
+        <li>Notifications and Messages: alerts, updates, and communication.</li>
+        <li>User Management: create/edit users, assign roles, and set account status.</li>
+        <li>Audit Logs: historical action trail for accountability.</li>
+      </ul>
+      <p><strong>Role note:</strong> Access visibility can differ per role. If a toolbar item is missing, your account may not have permission.</p>
     </section>
 
     <section class="section">
