@@ -34,14 +34,44 @@ async function generateNextOrdinanceNumber() {
 }
 
 function parseCoAuthorIds(value) {
-  if (!value || typeof value !== 'string') {
+  if (Array.isArray(value)) {
+    return [...new Set(value
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0))];
+  }
+
+  if (value === null || value === undefined) {
     return [];
   }
 
-  return value
-    .split(',')
-    .map((id) => Number(id.trim()))
-    .filter((id) => Number.isInteger(id) && id > 0);
+  if (typeof value === 'number') {
+    return Number.isInteger(value) && value > 0 ? [value] : [];
+  }
+
+  const text = String(value).trim();
+  if (!text) {
+    return [];
+  }
+
+  // Support JSON array payloads stored as strings, e.g. "[3,4]"
+  if (text.startsWith('[') && text.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return [...new Set(parsed
+          .map((id) => Number(id))
+          .filter((id) => Number.isInteger(id) && id > 0))];
+      }
+    } catch {
+      // Fallback to regex extraction below.
+    }
+  }
+
+  // Fallback for legacy/mixed formats: "1, 2", "[1,2]", "1|2", etc.
+  const matches = text.match(/\d+/g) || [];
+  return [...new Set(matches
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0))];
 }
 
 async function ensureSessionParticipant(sessionId, userId) {
