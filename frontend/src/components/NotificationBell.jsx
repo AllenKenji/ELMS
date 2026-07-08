@@ -6,7 +6,7 @@ import { API_BASE_URL } from '../api/api';
 import '../styles/NotificationBell.css';
 
 export default function NotificationBell() {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -14,17 +14,19 @@ export default function NotificationBell() {
 
   // Fetch unread count
   useEffect(() => {
-    if (!user) {
+    if (!user || !accessToken) {
       setUnreadCount(0);
       return;
     }
+
     const fetchUnreadCount = async () => {
       try {
         const res = await api.get('/notifications/count/unread');
         setUnreadCount(res.data.unread || 0);
       } catch (err) {
-        if (err?.response?.status === 401) {
+        if (err?.status === 401 || err?.response?.status === 401) {
           setUnreadCount(0);
+          return;
         }
         console.error('Error fetching unread count:', err);
       }
@@ -32,7 +34,7 @@ export default function NotificationBell() {
     fetchUnreadCount();
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
-  }, [user]);
+  }, [accessToken, user]);
 
   // Subscribe to user-specific notification socket events for instant bell updates.
   useEffect(() => {
@@ -61,15 +63,16 @@ export default function NotificationBell() {
 
   // Fetch notifications when dropdown opens
   const handleBellClick = async () => {
-    if (!user) return;
+    if (!user || !accessToken) return;
     if (!showDropdown) {
       setLoading(true);
       try {
         const res = await api.get('/notifications?unread=true');
         setNotifications(res.data || []);
       } catch (err) {
-        if (err?.response?.status === 401) {
+        if (err?.status === 401 || err?.response?.status === 401) {
           setNotifications([]);
+          return;
         }
         console.error('Error fetching notifications:', err);
       } finally {

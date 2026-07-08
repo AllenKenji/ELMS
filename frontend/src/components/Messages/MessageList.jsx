@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/api';
+import { useAuth } from '../../context/useAuth';
 import MessageThread from './MessageThread';
 import MessageCompose from './MessageCompose';
 import '../../styles/MessageList.css';
 
 export default function MessageList() {
+  const { accessToken } = useAuth();
   
   const [messages, setMessages] = useState([]);
   const [filteredMessages, setFilteredMessages] = useState([]);
@@ -37,10 +39,19 @@ export default function MessageList() {
 
   // Fetch unread count
   const fetchUnreadCount = async () => {
+    if (!accessToken) {
+      setUnreadCount(0);
+      return;
+    }
+
     try {
       const res = await api.get('/messages/count/unread');
       setUnreadCount(res.data.unread || 0);
     } catch (err) {
+      if (err?.status === 401 || err?.response?.status === 401) {
+        setUnreadCount(0);
+        return;
+      }
       console.error('Error fetching unread count:', err);
     }
   };
@@ -49,7 +60,7 @@ export default function MessageList() {
   useEffect(() => {
     fetchMessages(activeTab);
     fetchUnreadCount();
-  }, [activeTab]);
+  }, [accessToken, activeTab]);
 
   // Search filter
   useEffect(() => {
