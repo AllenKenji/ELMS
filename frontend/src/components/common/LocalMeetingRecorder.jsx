@@ -99,6 +99,7 @@ export default function LocalMeetingRecorder({
   const [showTipsModal, setShowTipsModal] = useState(false);
   const [status, setStatus] = useState(`Record the ${subjectLabel} tab/window and microphone directly to this laptop.`);
   const [error, setError] = useState('');
+  const [localDownload, setLocalDownload] = useState(null);
 
   const mediaRecorderRef = useRef(null);
   const screenStreamRef = useRef(null);
@@ -144,21 +145,21 @@ export default function LocalMeetingRecorder({
     chunksRef.current = [];
   }, []);
 
-  const downloadRecording = useCallback((blob, filename) => {
+  const downloadRecording = useCallback((downloadUrl, filename) => {
     if (!chunksRef.current.length) {
       toast.error('No recording data was captured.');
       return;
     }
 
-    const downloadUrl = window.URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = downloadUrl;
     anchor.download = filename;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    window.setTimeout(() => window.URL.revokeObjectURL(downloadUrl), 1000);
-    toast.success('Recording saved to this laptop.');
+
+    // Keep URL available so user can manually download if browser blocked auto-save.
+    toast.success('Recording ready. If it did not auto-save, use the Download local copy link below.');
   }, []);
 
   const uploadRecordingToServer = useCallback(async (blob, filename) => {
@@ -238,6 +239,10 @@ export default function LocalMeetingRecorder({
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 
     setError('');
+    if (localDownload?.href) {
+      window.URL.revokeObjectURL(localDownload.href);
+      setLocalDownload(null);
+    }
     setStatus('Requesting screen/tab and microphone access...');
     chunksRef.current = [];
 
@@ -312,7 +317,15 @@ export default function LocalMeetingRecorder({
           return;
         }
 
-        downloadRecording(blob, filename);
+        const localHref = window.URL.createObjectURL(blob);
+        setLocalDownload({
+          href: localHref,
+          filename,
+          size: blob.size,
+          createdAt: Date.now(),
+        });
+
+        downloadRecording(localHref, filename);
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
         } else {
@@ -354,7 +367,7 @@ export default function LocalMeetingRecorder({
       cleanupMedia();
       setIsRecording(false);
     }
-  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, meetingTitle, onCaptureStarted, onCaptureStopped, stopRecording, subjectLabel, uploadRecordingToServer]);
+  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, stopRecording, subjectLabel, uploadRecordingToServer]);
 
   useEffect(() => {
     return () => {
@@ -364,10 +377,14 @@ export default function LocalMeetingRecorder({
         mediaRecorder.onstop = null;
       }
 
+      if (localDownload?.href) {
+        window.URL.revokeObjectURL(localDownload.href);
+      }
+
       onCaptureStopped?.();
       cleanupMedia();
     };
-  }, [cleanupMedia, onCaptureStopped]);
+  }, [cleanupMedia, localDownload?.href, onCaptureStopped]);
 
   const handleStartClick = useCallback(() => {
     if (!isSupported || isRecording || isUploading) {
@@ -430,6 +447,17 @@ export default function LocalMeetingRecorder({
                 {uploadedRecordingLabel ? ` on ${uploadedRecordingLabel}` : ''}
               </p>
             )}
+          </div>
+        )}
+        {localDownload?.href && (
+          <div className="committee-recorder-saved">
+            <span className="committee-recorder-upload-label">Local Recording Copy</span>
+            <a href={localDownload.href} download={localDownload.filename} className="committee-recorder-link">
+              Download local copy
+            </a>
+            <p className="committee-recorder-meta">
+              {localDownload.filename} ({Math.max(1, Math.round(localDownload.size / 1024))} KB)
+            </p>
           </div>
         )}
         <p className="committee-recorder-note">

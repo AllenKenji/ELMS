@@ -102,7 +102,7 @@ function formatTimeRange(dateValue, sessionTime, totalMinutes) {
 }
 
 export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, initialTab = 'details' }) {
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const [session, setSession] = useState(null);
   const [ordinances, setOrdinances] = useState([]);
   const [participants, setParticipants] = useState([]);
@@ -117,15 +117,29 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
 
   const fetchSessionMinutesOnly = useCallback(async () => {
+    if (!accessToken) {
+      return;
+    }
+
     try {
       const minutesRes = await api.get(`/sessions/${sessionId}/minutes`);
       setSessionMinutes(minutesRes.data || []);
-    } catch {
+    } catch (err) {
+      if (err?.status === 401 || err?.response?.status === 401) {
+        setSessionMinutes([]);
+        return;
+      }
+
       // Keep existing data if refresh fails.
     }
-  }, [sessionId]);
+  }, [accessToken, sessionId]);
 
   const fetchSessionData = useCallback(async () => {
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
@@ -153,16 +167,26 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
       try {
         const minutesRes = await api.get(`/sessions/${sessionId}/minutes`);
         setSessionMinutes(minutesRes.data || []);
-      } catch {
+      } catch (err) {
+        if (err?.status === 401 || err?.response?.status === 401) {
+          setSessionMinutes([]);
+          return;
+        }
+
         setSessionMinutes([]);
       }
     } catch (err) {
+      if (err?.status === 401 || err?.response?.status === 401) {
+        setError('Your session expired. Please log in again.');
+        return;
+      }
+
       setError('Failed to load session details.');
       console.error('Error:', err);
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [accessToken, sessionId]);
 
   useEffect(() => {
     fetchSessionData();
