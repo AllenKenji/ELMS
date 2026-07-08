@@ -196,6 +196,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       });
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = screenStream;
+        localVideoRef.current.onloadedmetadata = () => {
+          localVideoRef.current?.play?.().catch(() => {});
+        };
+        localVideoRef.current.muted = true;
+        localVideoRef.current.playsInline = true;
+        localVideoRef.current.play?.().catch(() => {});
       }
 
       if (screenVideoTrack) {
@@ -372,6 +378,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = broadcastStream;
+      localVideoRef.current.onloadedmetadata = () => {
+        localVideoRef.current?.play?.().catch(() => {});
+      };
+      localVideoRef.current.muted = true;
+      localVideoRef.current.playsInline = true;
+      localVideoRef.current.play?.().catch(() => {});
     }
 
     if (!isBroadcasting) {

@@ -310,26 +310,27 @@ export default function LocalMeetingRecorder({
         toast.warning('Microphone access is unavailable. Recording will continue with shared tab/system audio only.');
       }
 
-      const preferredAudioTrack =
-        microphoneStream?.getAudioTracks()?.[0] ||
-        screenStream.getAudioTracks()?.[0] ||
-        null;
-
       const videoTrack = screenStream.getVideoTracks()?.[0] || null;
       if (!videoTrack) {
         throw new Error('No screen video track was captured.');
       }
 
-      const fallbackRecordingStream = new MediaStream([videoTrack]);
+      const screenAudioTrack = screenStream.getAudioTracks()?.[0] || null;
+      const microphoneAudioTrack = microphoneStream?.getAudioTracks()?.[0] || null;
+      const recordingAudioTrack = microphoneAudioTrack || screenAudioTrack || null;
 
-      const recordingStream = new MediaStream([
-        videoTrack,
-        ...(preferredAudioTrack ? [preferredAudioTrack] : []),
-      ]);
+      const recordingStream = screenStream;
+      if (microphoneAudioTrack && !screenStream.getAudioTracks().some((track) => track.id === microphoneAudioTrack.id)) {
+        try {
+          screenStream.addTrack(microphoneAudioTrack);
+        } catch {
+          // Some browsers lock the display capture stream; keep recording video-only if audio cannot be attached.
+        }
+      }
 
       const liveBroadcastStream = new MediaStream([
         videoTrack.clone(),
-        ...(preferredAudioTrack ? [preferredAudioTrack.clone()] : []),
+        ...(recordingAudioTrack ? [recordingAudioTrack.clone()] : []),
       ]);
 
       const recorder = mimeType
@@ -430,7 +431,7 @@ export default function LocalMeetingRecorder({
       screenStreamRef.current = screenStream;
       microphoneStreamRef.current = microphoneStream;
       recordingStreamRef.current = recordingStream;
-      fallbackRecordingStreamRef.current = fallbackRecordingStream;
+      fallbackRecordingStreamRef.current = null;
       onCaptureStarted?.(liveBroadcastStream);
 
       recorder.start(1000);

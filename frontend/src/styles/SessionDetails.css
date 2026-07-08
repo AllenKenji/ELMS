@@ -549,10 +549,12 @@
 
 .live-video {
   width: 100%;
+  aspect-ratio: 16 / 9;
   max-height: 360px;
   border-radius: 10px;
   background: #06131b;
   border: 1px solid #c7dbe5;
+  object-fit: contain;
 }
 
 /* Ordinances */
