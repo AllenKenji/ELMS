@@ -352,25 +352,51 @@ exports.findReadingSessions = async (id) => {
 
 /** Insert or update a session_agenda_items row. */
 exports.upsertAgendaItem = async (sessionId, ordinanceId, agendaOrder, readingNumber) => {
+  const normalizedOrder = agendaOrder || 1;
+  const normalizedReading = readingNumber || null;
+
+  const updated = await pool.query(
+    `UPDATE session_agenda_items
+     SET agenda_order=$3, reading_number=$4
+     WHERE session_id=$1 AND ordinance_id=$2
+     RETURNING *`,
+    [sessionId, ordinanceId, normalizedOrder, normalizedReading]
+  );
+
+  if (updated.rows.length > 0) {
+    return updated;
+  }
+
   return pool.query(
     `INSERT INTO session_agenda_items (session_id, ordinance_id, agenda_order, reading_number, created_at)
      VALUES ($1,$2,$3,$4,NOW())
-     ON CONFLICT (session_id, ordinance_id) WHERE ordinance_id IS NOT NULL DO UPDATE
-       SET agenda_order=$3, reading_number=$4
      RETURNING *`,
-    [sessionId, ordinanceId, agendaOrder || 1, readingNumber || null]
+    [sessionId, ordinanceId, normalizedOrder, normalizedReading]
   );
 };
 
 /** Upsert a resolution agenda item for a session. */
 exports.upsertResolutionAgendaItem = async (sessionId, resolutionId, agendaOrder, readingNumber) => {
+  const normalizedOrder = agendaOrder || 1;
+  const normalizedReading = readingNumber || null;
+
+  const updated = await pool.query(
+    `UPDATE session_agenda_items
+     SET agenda_order=$3, reading_number=$4
+     WHERE session_id=$1 AND resolution_id=$2
+     RETURNING *`,
+    [sessionId, resolutionId, normalizedOrder, normalizedReading]
+  );
+
+  if (updated.rows.length > 0) {
+    return updated;
+  }
+
   return pool.query(
     `INSERT INTO session_agenda_items (session_id, resolution_id, agenda_order, reading_number, created_at)
      VALUES ($1,$2,$3,$4,NOW())
-     ON CONFLICT (session_id, resolution_id) WHERE resolution_id IS NOT NULL DO UPDATE
-       SET agenda_order=$3, reading_number=$4
      RETURNING *`,
-    [sessionId, resolutionId, agendaOrder || 1, readingNumber || null]
+    [sessionId, resolutionId, normalizedOrder, normalizedReading]
   );
 };
 

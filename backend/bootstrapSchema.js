@@ -112,6 +112,11 @@ async function ensureLegislativeAgendaSchema() {
   `);
 
   await pool.query(`
+    ALTER TABLE resolutions
+    ADD COLUMN IF NOT EXISTS reading_stage VARCHAR(50) DEFAULT NULL;
+  `);
+
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS session_agenda_items (
       id SERIAL PRIMARY KEY
     );

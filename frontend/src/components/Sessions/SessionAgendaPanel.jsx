@@ -105,7 +105,7 @@ export default function SessionAgendaPanel({ sessionId, readOnly = false }) {
       setShowAddForm(false);
       fetchAgenda();
     } catch (err) {
-      setError(err?.response?.data?.error || 'Failed to add agenda item.');
+      setError(err?.message || err?.response?.data?.error || 'Failed to add agenda item.');
     } finally {
       setAdding(false);
     }
@@ -125,7 +125,7 @@ export default function SessionAgendaPanel({ sessionId, readOnly = false }) {
       }
       fetchAgenda();
     } catch (err) {
-      setError(err?.response?.data?.error || 'Failed to remove agenda item.');
+      setError(err?.message || err?.response?.data?.error || 'Failed to remove agenda item.');
     } finally {
       setRemovingId(null);
     }
