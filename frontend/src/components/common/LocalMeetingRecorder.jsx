@@ -100,6 +100,7 @@ export default function LocalMeetingRecorder({
   const [status, setStatus] = useState(`Record the ${subjectLabel} tab/window and microphone directly to this laptop.`);
   const [error, setError] = useState('');
   const [localDownload, setLocalDownload] = useState(null);
+  const [chunkStats, setChunkStats] = useState({ count: 0, bytes: 0 });
 
   const mediaRecorderRef = useRef(null);
   const screenStreamRef = useRef(null);
@@ -143,6 +144,7 @@ export default function LocalMeetingRecorder({
     recordingStreamRef.current = null;
     audioContextRef.current = null;
     chunksRef.current = [];
+    setChunkStats({ count: 0, bytes: 0 });
   }, []);
 
   const downloadRecording = useCallback((downloadUrl, filename) => {
@@ -243,6 +245,7 @@ export default function LocalMeetingRecorder({
       window.URL.revokeObjectURL(localDownload.href);
       setLocalDownload(null);
     }
+    setChunkStats({ count: 0, bytes: 0 });
     setStatus('Requesting screen/tab and microphone access...');
     chunksRef.current = [];
 
@@ -297,6 +300,10 @@ export default function LocalMeetingRecorder({
       recorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunksRef.current.push(event.data);
+          setChunkStats((prev) => ({
+            count: prev.count + 1,
+            bytes: prev.bytes + event.data.size,
+          }));
         }
       };
 
@@ -326,6 +333,7 @@ export default function LocalMeetingRecorder({
         });
 
         downloadRecording(localHref, filename);
+        setStatus('Recording is ready. If it did not auto-download, click Download local copy below.');
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
         } else {
@@ -435,6 +443,12 @@ export default function LocalMeetingRecorder({
             </span>
           </div>
         )}
+        <div className="committee-recorder-upload-row">
+          <span className="committee-recorder-upload-label">Capture Diagnostics</span>
+          <span className="committee-recorder-upload-value">
+            {chunkStats.count} chunk(s), {Math.max(0, Math.round(chunkStats.bytes / 1024))} KB
+          </span>
+        </div>
         {uploadedRecordingHref && (
           <div className="committee-recorder-saved">
             <span className="committee-recorder-upload-label">Saved Recording</span>
