@@ -225,22 +225,13 @@ export default function LocalMeetingRecorder({
     setChunkStats({ count: 0, bytes: 0 });
   }, []);
 
-  const downloadRecording = useCallback((downloadUrl, filename, blobSize) => {
+  const prepareRecordingDownload = useCallback((blobSize) => {
     if (!blobSize) {
       toast.error('No recording data was captured.');
       return;
     }
 
-    const anchor = document.createElement('a');
-    anchor.href = downloadUrl;
-    anchor.download = filename;
-    anchor.rel = 'noopener';
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-
-    // Keep URL available so user can manually download if browser blocked auto-save.
-    toast.success('Recording ready. If it did not auto-save, use the Download local copy link below.');
+    toast.success('Recording is ready. Click the Download local copy link below to save the file.');
   }, []);
 
   const uploadRecordingToServer = useCallback(async (blob, filename) => {
@@ -428,8 +419,8 @@ export default function LocalMeetingRecorder({
           createdAt: Date.now(),
         });
 
-        downloadRecording(localHref, filename, localFile.size);
-        setStatus(`Recording downloaded locally (${Math.max(1, Math.round(localFile.size / 1024))} KB). If the download was blocked, use the Download local copy link below.`);
+        prepareRecordingDownload(localFile.size);
+        setStatus(`Recording is ready (${Math.max(1, Math.round(localFile.size / 1024))} KB). Click Download local copy below to save it.`);
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
         } else {
@@ -474,7 +465,7 @@ export default function LocalMeetingRecorder({
       cleanupMedia();
       setIsRecording(false);
     }
-  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, stopRecording, subjectLabel, uploadRecordingToServer]);
+  }, [canUploadToServer, cleanupMedia, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, prepareRecordingDownload, stopRecording, subjectLabel, uploadRecordingToServer]);
 
   useEffect(() => {
     onRecordingStateChange?.(isRecording);
