@@ -221,53 +221,9 @@ export default function LocalMeetingRecorder({
     toast.success('Recording ready. If it did not auto-save, use the Download local copy link below.');
   }, []);
 
-  const saveRecordingToChosenPath = useCallback(async (blob, filename, mimeType) => {
-    if (!supportsSavePicker) {
-      return false;
-    }
-
-    let handle = saveHandleRef.current;
-    if (!handle) {
-      try {
-        handle = await window.showSaveFilePicker({
-          suggestedName: filename,
-          types: [
-            {
-              description: 'WebM video',
-              accept: { 'video/webm': ['.webm'] },
-            },
-            {
-              description: 'MP4 video',
-              accept: { 'video/mp4': ['.mp4'] },
-            },
-          ],
-        });
-        saveHandleRef.current = handle;
-      } catch {
-        setStatus('Save canceled. Use the Download local copy link below to keep the recording.');
-        return null;
-      }
-    }
-
-    try {
-      const writable = await handle.createWritable();
-      await writable.truncate(0);
-      await writable.write(blob);
-      await writable.close();
-
-      const savedFile = await handle.getFile();
-      if (!savedFile || savedFile.size <= 0) {
-        throw new Error('Saved file is empty after write.');
-      }
-
-      toast.success('Recording saved to the chosen file path.');
-      return true;
-    } catch {
-      setStatus('Saving to the selected file path failed. Use the Download local copy link below.');
-      toast.error('Saving to the selected file path failed.');
-      return false;
-    }
-  }, [supportsSavePicker]);
+  const saveRecordingToChosenPath = useCallback(async () => {
+    return false;
+  }, []);
 
   const uploadRecordingToServer = useCallback(async (blob, filename) => {
     if (!canUploadToServer) {
@@ -449,13 +405,8 @@ export default function LocalMeetingRecorder({
           createdAt: Date.now(),
         });
 
-        const savedToPath = await saveRecordingToChosenPath(blob, filename, resolvedMimeType);
-        if (!savedToPath) {
-          downloadRecording(localHref, filename, blob.size);
-          setStatus('Recording is ready. If it did not auto-download, click Download local copy below.');
-        } else {
-          setStatus(`Recording saved to the selected file path (${Math.max(1, Math.round(blob.size / 1024))} KB).`);
-        }
+        downloadRecording(localHref, filename, blob.size);
+        setStatus(`Recording downloaded locally (${Math.max(1, Math.round(blob.size / 1024))} KB). If the download was blocked, use the Download local copy link below.`);
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
         } else {
@@ -500,7 +451,7 @@ export default function LocalMeetingRecorder({
       cleanupMedia();
       setIsRecording(false);
     }
-  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, saveRecordingToChosenPath, stopRecording, subjectLabel, uploadRecordingToServer]);
+  }, [canUploadToServer, cleanupMedia, downloadRecording, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, stopRecording, subjectLabel, uploadRecordingToServer]);
 
   useEffect(() => {
     onRecordingStateChange?.(isRecording);
@@ -541,32 +492,8 @@ export default function LocalMeetingRecorder({
       return;
     }
 
-    if (supportsSavePicker && !saveHandleRef.current) {
-      try {
-        const suggestedName = buildRecordingFilenameForMimeType(meetingTitle, 'video/webm');
-        saveHandleRef.current = await window.showSaveFilePicker({
-          suggestedName,
-          types: [
-            {
-              description: 'WebM video',
-              accept: { 'video/webm': ['.webm'] },
-            },
-            {
-              description: 'MP4 video',
-              accept: { 'video/mp4': ['.mp4'] },
-            },
-          ],
-        });
-        setStatus('Finishing recording and writing to the selected file path...');
-      } catch {
-        // Continue stopping so the browser download fallback can still be offered.
-        saveHandleRef.current = null;
-        setStatus('File location not selected. Finishing recording and preparing download fallback...');
-      }
-    }
-
     stopRecording(true);
-  }, [isRecording, meetingTitle, stopRecording, supportsSavePicker]);
+  }, [isRecording, stopRecording]);
 
   return (
     <>
