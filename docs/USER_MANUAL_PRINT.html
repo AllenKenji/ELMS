@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ELegislative User Manual (Printable)</title>
+  <style>
+    :root {
+      --text: #1f2937;
+      --muted: #4b5563;
+      --border: #d1d5db;
+      --heading: #111827;
+      --accent: #0f4c81;
+      --bg: #ffffff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Georgia", "Times New Roman", serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.45;
+      font-size: 12pt;
+    }
+
+    .page {
+      max-width: 8.5in;
+      margin: 0 auto;
+      padding: 0.75in;
+    }
+
+    h1, h2, h3 {
+      color: var(--heading);
+      margin: 0.45em 0 0.35em;
+      line-height: 1.2;
+      break-after: avoid;
+    }
+
+    h1 {
+      font-size: 22pt;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 8px;
+      margin-top: 0;
+    }
+
+    h2 { font-size: 15pt; }
+    h3 { font-size: 12.5pt; color: var(--accent); }
+
+    p { margin: 0.35em 0 0.55em; }
+    ul, ol { margin: 0.3em 0 0.7em 1.2em; }
+    li { margin: 0.2em 0; }
+
+    .meta {
+      margin-top: 14px;
+      padding: 10px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 10.5pt;
+    }
+
+    .section {
+      break-inside: avoid;
+      margin-bottom: 8px;
+    }
+
+    .step-visual {
+      margin: 8px 0 12px;
+      padding: 10px;
+      border: 1.5px dashed #9ca3af;
+      border-radius: 8px;
+      background: #f9fafb;
+      color: #374151;
+    }
+
+    .step-visual-title {
+      margin: 0 0 6px;
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 10.8pt;
+    }
+
+    .step-visual-note {
+      margin: 0;
+      font-size: 10.3pt;
+      color: #4b5563;
+    }
+
+    .step-visual-box {
+      margin-top: 8px;
+      min-height: 140px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: repeating-linear-gradient(
+        45deg,
+        #f3f4f6,
+        #f3f4f6 8px,
+        #e5e7eb 8px,
+        #e5e7eb 16px
+      );
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 10px;
+      color: #334155;
+      font-size: 10pt;
+      font-style: italic;
+    }
+
+    .page-break {
+      page-break-before: always;
+      break-before: page;
+      height: 0;
+    }
+
+    @page {
+      size: A4;
+      margin: 0.5in;
+    }
+
+    @media print {
+      body { background: #fff; }
+      .page { max-width: none; margin: 0; padding: 0; }
+      a { color: inherit; text-decoration: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>ELegislative User Manual</h1>
+
+    <section class="section">
+      <h2>1. Purpose</h2>
+      <p>This manual explains how to use the ELegislative system for day-to-day legislative operations, including:</p>
+      <ul>
+        <li>user access and roles</li>
+        <li>ordinance and resolution workflows</li>
+        <li>committee and session workflows</li>
+        <li>live session viewing</li>
+        <li>local recording and server upload</li>
+        <li>common troubleshooting steps</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>2. Roles and Access</h2>
+      <p>The system uses role-based access. Actual permissions may vary by your account configuration.</p>
+      <ul>
+        <li>Admin: full system management, user and configuration control.</li>
+        <li>Secretary: manages records, sessions, minutes, and recording workflows.</li>
+        <li>Vice Mayor: participates in leadership workflows and session operations.</li>
+        <li>Councilor: authors and co-authors measures, joins sessions, participates in live and voting activities.</li>
+        <li>Participant: joins assigned sessions and views allowed content.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>3. Signing In</h2>
+      <ol>
+        <li>Open the ELegislative login page.</li>
+        <li>Enter your account credentials.</li>
+        <li>Click Sign In.</li>
+        <li>If login fails, verify your credentials and account status, then contact Admin or Secretary if needed.</li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>4. Main Areas</h2>
+      <ul>
+        <li>Dashboard: summary metrics, recent activity, pending actions.</li>
+        <li>Ordinances and Resolutions: create, submit, review, approve lifecycle.</li>
+        <li>Committees: assignments, meetings, reports, workflows.</li>
+        <li>Sessions: agenda, participants, order of business, live, recording.</li>
+        <li>Notifications and Messages: updates and communication.</li>
+        <li>Reports and Audit Logs: tracking and transparency.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>4A. Workflow: Creating a Proposed Measure and Resolution</h2>
+      <h3>4A.1 Create Draft</h3>
+      <ol>
+        <li>Open Ordinances and Resolutions.</li>
+        <li>Click Create New or New Proposed Measure.</li>
+        <li>Select measure type: Ordinance or Resolution.</li>
+        <li>Fill required fields: title, rationale/summary, legal basis (if required), and category.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: New Proposed Measure</p>
+        <p class="step-visual-note">Insert image file: proposed-measure-create.png</p>
+        <div class="step-visual-box">Place New Proposed Measure form screenshot here</div>
+      </div>
+      <h3>4A.2 Set Author and Co-Authors</h3>
+      <ol>
+        <li>Confirm the main author/proponent.</li>
+        <li>Add co-authors when applicable.</li>
+        <li>Save draft metadata.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Author and Co-Authors</p>
+        <p class="step-visual-note">Insert image file: proposed-measure-authors.png</p>
+        <div class="step-visual-box">Place Author and Co-Authors section screenshot here</div>
+      </div>
+      <h3>4A.3 Attach Supporting Files</h3>
+      <ol>
+        <li>Upload supporting documents such as draft text, committee notes, and references.</li>
+        <li>Verify attachments appear correctly in the document list.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Supporting Documents</p>
+        <p class="step-visual-note">Insert image file: proposed-measure-attachments.png</p>
+        <div class="step-visual-box">Place attachments upload screenshot here</div>
+      </div>
+      <h3>4A.4 Submit for Workflow</h3>
+      <ol>
+        <li>Click Submit or Forward.</li>
+        <li>Verify status changes from Draft to Submitted (or equivalent).</li>
+        <li>Verify visibility in pending review queues.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Submit and Status</p>
+        <p class="step-visual-note">Insert image file: proposed-measure-submitted-status.png</p>
+        <div class="step-visual-box">Place submit confirmation/status screenshot here</div>
+      </div>
+      <h3>4A.5 Committee to Session Path</h3>
+      <ol>
+        <li>Committee reviews and records recommendation: APPROVE, REVISION, or REJECTION.</li>
+        <li>Secretary includes recommended items in session agenda.</li>
+        <li>Item proceeds to discussion/readings/voting and final status update.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Committee to Session</p>
+        <p class="step-visual-note">Insert image file: proposed-measure-committee-to-session.png</p>
+        <div class="step-visual-box">Place committee recommendation/session agenda screenshot here</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>4B. Workflow: Admin User Management (Create User)</h2>
+      <h3>4B.1 Open User Management</h3>
+      <ol>
+        <li>Sign in using an Admin account.</li>
+        <li>Open User Management.</li>
+        <li>Click Create User or Add User.</li>
+      </ol>
+      <h3>4B.2 Enter User Information</h3>
+      <ol>
+        <li>Fill required fields: full name, username/email, contact details (if required), and temporary password.</li>
+        <li>Verify there are no duplicate usernames or emails.</li>
+      </ol>
+      <h3>4B.3 Assign Role and Save</h3>
+      <ol>
+        <li>Select the correct role (Secretary, Vice Mayor, Councilor, Participant, or Admin when authorized).</li>
+        <li>Set status to Active.</li>
+        <li>Save the account.</li>
+      </ol>
+      <h3>4B.4 Validate Account</h3>
+      <ol>
+        <li>Confirm the user appears in User Management list.</li>
+        <li>Confirm role and status are correct.</li>
+        <li>Instruct user to change password on first login if required.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Admin Create User</p>
+        <p class="step-visual-note">Insert image file: admin-user-management-create-user.png</p>
+        <div class="step-visual-box">Place Admin User Management Create User form screenshot here</div>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>5. Creating and Managing Sessions</h2>
+      <h3>5.1 Create a Session</h3>
+      <ol>
+        <li>Open Sessions.</li>
+        <li>Click Create Session.</li>
+        <li>Fill required fields: title, date, time, location, and agenda.</li>
+        <li>Save.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Session Create Form</p>
+        <p class="step-visual-note">Insert image file: session-create-form.png</p>
+        <div class="step-visual-box">Place Session Create Form screenshot here</div>
+      </div>
+      <h3>5.2 Edit a Session</h3>
+      <ol>
+        <li>Open Sessions.</li>
+        <li>Select the target session.</li>
+        <li>Click Edit, update details, then save.</li>
+      </ol>
+      <h3>5.3 Session Details Tabs</h3>
+      <p>Use tabs such as Details, Order of Business, Agenda, Recording, Ordinances, and Participants.</p>
+    </section>
+
+    <section class="section">
+      <h2>6. Joining and Managing Participants</h2>
+      <h3>6.1 Join a Session</h3>
+      <ol>
+        <li>Open Session Details.</li>
+        <li>Go to Participants or use Join Session.</li>
+        <li>Click Join Session.</li>
+      </ol>
+      <h3>6.2 Participant Inclusion</h3>
+      <ul>
+        <li>Users manually added to the session.</li>
+        <li>Authors and co-authors of proposed measures, if enabled by workflow.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>7. Committee Workflow</h2>
+      <ol>
+        <li>Committee scheduling</li>
+        <li>Deliberation and hearing</li>
+        <li>Committee report drafting</li>
+        <li>Recommendation outcome: APPROVE, REVISION, or REJECTION</li>
+        <li>Submission to Secretary for next session flow</li>
+      </ol>
+    </section>
+
+    <div class="page-break"></div>
+
+    <section class="section">
+      <h2>8. Live Session Workflow</h2>
+      <h3>8.1 Starting Live</h3>
+      <ol>
+        <li>Open Session Details.</li>
+        <li>Go to Recording tab.</li>
+        <li>Click Start Live if your role is allowed.</li>
+        <li>Confirm screen or window sharing when prompted.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Start Live</p>
+        <p class="step-visual-note">Insert image file: live-start-panel.png</p>
+        <div class="step-visual-box">Place Live Session start panel screenshot here</div>
+      </div>
+      <h3>8.2 Viewing Live</h3>
+      <ol>
+        <li>Open the same session in another allowed account.</li>
+        <li>Go to Recording tab.</li>
+        <li>Wait for active live stream.</li>
+        <li>Verify host label: Live started by: name.</li>
+      </ol>
+      <h3>8.3 Host Behavior Notes</h3>
+      <ul>
+        <li>Single-tab sharing can produce black output when switching away.</li>
+        <li>For stability, share a window or entire screen.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>9. Local Recording Workflow</h2>
+      <h3>9.1 Start Recording</h3>
+      <ol>
+        <li>Open Session Details and go to Recording tab.</li>
+        <li>Click Start Local Recording.</li>
+        <li>Confirm capture source in browser prompt.</li>
+        <li>Wait for chunk and KB growth in Capture Diagnostics.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Recording Diagnostics</p>
+        <p class="step-visual-note">Insert image file: recording-chunk-diagnostics.png</p>
+        <div class="step-visual-box">Place recording panel with chunk diagnostics screenshot here</div>
+      </div>
+      <h3>9.2 Stop and Save</h3>
+      <ol>
+        <li>Click Stop and Save.</li>
+        <li>Wait for finalization.</li>
+        <li>Click Download local copy in recorder panel.</li>
+        <li>Confirm file appears in browser downloads.</li>
+      </ol>
+      <div class="step-visual">
+        <p class="step-visual-title">Screenshot Placeholder: Download Local Copy</p>
+        <p class="step-visual-note">Insert image file: recording-download-local-copy.png</p>
+        <div class="step-visual-box">Place recorder panel showing Download local copy link here</div>
+      </div>
+      <h3>9.3 Attach to Server Minutes</h3>
+      <p>If server sync is enabled, upload to session minutes happens after local finalization.</p>
+    </section>
+
+    <section class="section">
+      <h2>10. Recording the Active Live Session (Secretary)</h2>
+      <ul>
+        <li>Secretary can watch the active host stream in Recording tab.</li>
+        <li>When available, secretary recording captures the incoming live stream.</li>
+        <li>If no incoming stream exists, recorder uses local capture fallback.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>11. Calendar-Based Access</h2>
+      <ul>
+        <li>Join Session opens the selected session.</li>
+        <li>Watch Live opens Session Details on the Recording tab.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>12. Minutes and Recordings</h2>
+      <ul>
+        <li>Recordings are attached to session minutes records.</li>
+        <li>If no minutes record exists, workflow may auto-create one on upload.</li>
+        <li>Uploaded recordings are available in Attached Session Minutes.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>13. Troubleshooting</h2>
+      <h3>13.1 Live shows black screen</h3>
+      <ul>
+        <li>Host must share a valid window/screen.</li>
+        <li>Avoid switching away from a single-tab share source.</li>
+        <li>Verify session access and live diagnostics.</li>
+      </ul>
+      <h3>13.2 Recording diagnostics show 0 chunks</h3>
+      <ul>
+        <li>Confirm recording really started.</li>
+        <li>Confirm capture permissions were granted.</li>
+        <li>Keep source active and visible.</li>
+      </ul>
+      <h3>13.3 File cannot open</h3>
+      <ul>
+        <li>Record for several seconds before stopping.</li>
+        <li>Confirm chunk/KB diagnostics increase.</li>
+        <li>Use Download local copy from recorder panel.</li>
+      </ul>
+      <h3>13.4 401 Unauthorized</h3>
+      <ul>
+        <li>Re-authenticate and verify token is valid.</li>
+        <li>Verify role has access to requested action.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>14. Best Practices</h2>
+      <ul>
+        <li>Keep Session Details open during recording finalization.</li>
+        <li>Record at least 5 to 10 seconds for validation.</li>
+        <li>Use consistent role accounts for host and viewer testing.</li>
+        <li>Prefer window or entire-screen capture for reliability.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>15. Quick Checklist for Secretaries</h2>
+      <h3>Before session</h3>
+      <ul>
+        <li>Verify session schedule, participants, agenda, and order of business.</li>
+      </ul>
+      <h3>During session</h3>
+      <ul>
+        <li>Confirm host label and monitor diagnostics.</li>
+        <li>Start recording and verify chunk growth.</li>
+      </ul>
+      <h3>After session</h3>
+      <ul>
+        <li>Stop recording and click Download local copy.</li>
+        <li>Confirm file opens and upload appears in minutes record.</li>
+      </ul>
+    </section>
+
+    <section class="section">
+      <h2>16. Support and Escalation</h2>
+      <ol>
+        <li>Capture diagnostics screenshot.</li>
+        <li>Note role, session ID, and timestamp.</li>
+        <li>Document exact steps and observed result.</li>
+        <li>Attach browser console errors if available.</li>
+      </ol>
+    </section>
+
+    <div class="meta">
+      <div>Document version: 1.0 (Printable)</div>
+      <div>Last updated: 2026-07-08</div>
+      <div>How to generate PDF: Open this file in browser and use Print -> Save as PDF.</div>
+    </div>
+  </main>
+</body>
+</html>
