@@ -58,6 +58,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remotePlaybackStreamRef = useRef(null);
 
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -106,6 +107,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = null;
     }
+    remotePlaybackStreamRef.current = null;
   }, []);
 
   const closeBroadcasterPeers = useCallback(() => {
@@ -226,9 +228,21 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     };
 
     pc.ontrack = (event) => {
-      const [stream] = event.streams;
+      const [stream] = event.streams || [];
+      if (!remotePlaybackStreamRef.current) {
+        remotePlaybackStreamRef.current = new MediaStream();
+      }
+
+      if (event.track) {
+        const existingTrack = remotePlaybackStreamRef.current.getTracks().find((track) => track.id === event.track.id);
+        if (!existingTrack) {
+          remotePlaybackStreamRef.current.addTrack(event.track);
+        }
+      }
+
+      const playbackStream = stream || remotePlaybackStreamRef.current;
       if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream || null;
+        remoteVideoRef.current.srcObject = playbackStream || null;
         const playPromise = remoteVideoRef.current.play?.();
         if (playPromise?.catch) {
           playPromise.catch(() => {

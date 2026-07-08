@@ -107,6 +107,7 @@ export default function LocalMeetingRecorder({
   const screenStreamRef = useRef(null);
   const microphoneStreamRef = useRef(null);
   const recordingStreamRef = useRef(null);
+  const saveHandleRef = useRef(null);
   const chunksRef = useRef([]);
   const requestDataIntervalRef = useRef(null);
   const noDataWarningTimeoutRef = useRef(null);
@@ -124,6 +125,7 @@ export default function LocalMeetingRecorder({
   }, []);
 
   const canUploadToServer = Boolean(uploadUrl || (committeeId && meetingId));
+  const supportsSavePicker = useMemo(() => typeof window !== 'undefined' && typeof window.showSaveFilePicker === 'function', []);
   const uploadedRecordingHref = useMemo(() => buildRecordingUrl(recordingUrl), [recordingUrl]);
   const uploadedRecordingLabel = useMemo(() => formatRecordingDate(recordingUploadedAt), [recordingUploadedAt]);
 
@@ -150,6 +152,7 @@ export default function LocalMeetingRecorder({
     screenStreamRef.current = null;
     microphoneStreamRef.current = null;
     recordingStreamRef.current = null;
+    saveHandleRef.current = null;
     chunksRef.current = [];
     setChunkStats({ count: 0, bytes: 0 });
   }, []);
@@ -170,6 +173,37 @@ export default function LocalMeetingRecorder({
     // Keep URL available so user can manually download if browser blocked auto-save.
     toast.success('Recording ready. If it did not auto-save, use the Download local copy link below.');
   }, []);
+
+  const saveRecordingToChosenPath = useCallback(async (blob, filename) => {
+    if (!supportsSavePicker) {
+      return false;
+    }
+
+    let handle = saveHandleRef.current;
+    if (!handle) {
+      try {
+        handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [
+            {
+              description: 'WebM video',
+              accept: { 'video/webm': ['.webm'] },
+            },
+          ],
+        });
+        saveHandleRef.current = handle;
+      } catch {
+        setStatus('Save canceled. Recording is still active.');
+        return null;
+      }
+    }
+
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+    toast.success('Recording saved to the chosen file path.');
+    return true;
+  }, [supportsSavePicker]);
 
   const uploadRecordingToServer = useCallback(async (blob, filename) => {
     if (!canUploadToServer) {
@@ -354,8 +388,13 @@ export default function LocalMeetingRecorder({
           createdAt: Date.now(),
         });
 
-        downloadRecording(localHref, filename);
-        setStatus('Recording is ready. If it did not auto-download, click Download local copy below.');
+        const savedToPath = await saveRecordingToChosenPath(blob, filename);
+        if (!savedToPath) {
+          downloadRecording(localHref, filename);
+          setStatus('Recording is ready. If it did not auto-download, click Download local copy below.');
+        } else {
+          setStatus('Recording saved to the selected file path.');
+        }
         if (canUploadToServer) {
           await uploadRecordingToServer(blob, filename);
         } else {
@@ -433,6 +472,33 @@ export default function LocalMeetingRecorder({
     startRecording();
   }, [startRecording]);
 
+  const handleStopClick = useCallback(async () => {
+    if (!isRecording) {
+      return;
+    }
+
+    if (supportsSavePicker && !saveHandleRef.current) {
+      try {
+        const suggestedName = buildRecordingFilename(meetingTitle);
+        saveHandleRef.current = await window.showSaveFilePicker({
+          suggestedName,
+          types: [
+            {
+              description: 'WebM video',
+              accept: { 'video/webm': ['.webm'] },
+            },
+          ],
+        });
+        setStatus('Saving to the selected file path...');
+      } catch {
+        setStatus('Save canceled. Recording continues until you choose Stop & Save again.');
+        return;
+      }
+    }
+
+    stopRecording(true);
+  }, [isRecording, meetingTitle, stopRecording, supportsSavePicker]);
+
   return (
     <>
       <div className="committee-recorder-panel">
@@ -455,7 +521,7 @@ export default function LocalMeetingRecorder({
           <button
             type="button"
             className="btn committee-recorder-button committee-recorder-stop"
-            onClick={() => stopRecording(true)}
+            onClick={handleStopClick}
             disabled={!isRecording}
           >
             Stop & Save
