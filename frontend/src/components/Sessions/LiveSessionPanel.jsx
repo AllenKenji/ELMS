@@ -284,6 +284,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       return undefined;
     }
 
+    // Do not auto-publish if another host is already live.
+    if (isLive && !isBroadcastingRef.current) {
+      const hostLabel = liveHostName ? ` (${liveHostName})` : '';
+      setStatus(`Live is already active${hostLabel}. Your recording will stay local unless the current host stops.`);
+      return undefined;
+    }
+
     stopTracks(localStreamRef.current);
     localStreamRef.current = buildOutboundStream(broadcastStream);
     sourceBroadcastStreamRef.current = broadcastStream;
@@ -301,7 +308,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     }
 
     return undefined;
-  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, normalizedSessionId, stopBroadcast]);
+  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, isLive, liveHostName, normalizedSessionId, stopBroadcast]);
 
   useEffect(() => {
     if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
@@ -453,8 +460,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
       <div className="live-session-actions">
         {canBroadcast && !isBroadcasting && !hasExternalBroadcast && (
-          <button type="button" className="btn-live-start" onClick={startBroadcast}>
-            Start Live
+          <button type="button" className="btn-live-start" onClick={startBroadcast} disabled={isLive}>
+            {isLive ? 'Live Already Active' : 'Start Live'}
           </button>
         )}
 
