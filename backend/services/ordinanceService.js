@@ -388,10 +388,22 @@ exports.deleteOrdinance = async (id, userId) => {
   const fs = require('fs');
   const path = require('path');
   const client = await pool.connect();
+
+  const tableExists = async (tableName) => {
+    const result = await client.query('SELECT to_regclass($1) AS table_name', [tableName]);
+    return Boolean(result.rows[0]?.table_name);
+  };
+
+  const runIfTableExists = async (tableName, sql, params = []) => {
+    if (await tableExists(tableName)) {
+      await client.query(sql, params);
+    }
+  };
+
   try {
     await client.query('BEGIN');
 
-    const existing = await Ordinance.findById(id);
+    const existing = await client.query('SELECT * FROM ordinances WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       await client.query('ROLLBACK');
       const err = new Error('Ordinance not found');
@@ -414,8 +426,49 @@ exports.deleteOrdinance = async (id, userId) => {
       });
     }
 
-    await Ordinance.deleteWorkflow(client, id);
-    await Ordinance.deleteApprovals(client, id);
+    // Legacy-safe cleanup for dependent references before hard delete.
+    await runIfTableExists(
+      'public.session_agenda_items',
+      'UPDATE session_agenda_items SET ordinance_id = NULL WHERE ordinance_id = $1',
+      [id]
+    );
+    await runIfTableExists(
+      'public.voting_sessions',
+      'UPDATE voting_sessions SET ordinance_id = NULL WHERE ordinance_id = $1',
+      [id]
+    );
+    await runIfTableExists(
+      'public.committee_meetings',
+      'UPDATE committee_meetings SET ordinance_id = NULL WHERE ordinance_id = $1',
+      [id]
+    );
+
+    await runIfTableExists(
+      'public.reading_sessions',
+      'DELETE FROM reading_sessions WHERE ordinance_id = $1',
+      [id]
+    );
+    await runIfTableExists(
+      'public.committee_reports',
+      'DELETE FROM committee_reports WHERE ordinance_id = $1',
+      [id]
+    );
+    await runIfTableExists(
+      'public.posting_records',
+      'DELETE FROM posting_records WHERE ordinance_id = $1',
+      [id]
+    );
+    await runIfTableExists(
+      'public.ordinance_workflow',
+      'DELETE FROM ordinance_workflow WHERE ordinance_id = $1',
+      [id]
+    );
+    await runIfTableExists(
+      'public.ordinance_approvals',
+      'DELETE FROM ordinance_approvals WHERE ordinance_id = $1',
+      [id]
+    );
+
     await Ordinance.deleteById(client, id);
     await AuditLog.create(client, userId, 'ORDINANCE_DELETE', `Ordinance "${existing.rows[0].title}" deleted`);
     await client.query('COMMIT');
