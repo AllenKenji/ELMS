@@ -388,6 +388,7 @@ exports.deleteOrdinance = async (id, userId) => {
   const fs = require('fs');
   const path = require('path');
   const client = await pool.connect();
+  const quoteIdentifier = (value) => `"${String(value).replace(/"/g, '""')}"`;
 
   const tableExists = async (tableName) => {
     const result = await client.query('SELECT to_regclass($1) AS table_name', [tableName]);
@@ -400,12 +401,65 @@ exports.deleteOrdinance = async (id, userId) => {
     }
   };
 
+  const cleanupUnknownOrdinanceReferences = async (ordinanceId) => {
+    const fkRefs = await client.query(
+      `SELECT
+         tc.table_schema,
+         tc.table_name,
+         kcu.column_name,
+         c.is_nullable,
+         rc.delete_rule
+       FROM information_schema.table_constraints tc
+       JOIN information_schema.key_column_usage kcu
+         ON tc.constraint_name = kcu.constraint_name
+        AND tc.table_schema = kcu.table_schema
+       JOIN information_schema.constraint_column_usage ccu
+         ON tc.constraint_name = ccu.constraint_name
+        AND tc.table_schema = ccu.table_schema
+       JOIN information_schema.referential_constraints rc
+         ON tc.constraint_name = rc.constraint_name
+        AND tc.table_schema = rc.constraint_schema
+       JOIN information_schema.columns c
+         ON c.table_schema = kcu.table_schema
+        AND c.table_name = kcu.table_name
+        AND c.column_name = kcu.column_name
+       WHERE tc.constraint_type = 'FOREIGN KEY'
+         AND ccu.table_schema = 'public'
+         AND ccu.table_name = 'ordinances'
+         AND ccu.column_name = 'id'
+         AND (
+           SELECT COUNT(*)
+           FROM information_schema.key_column_usage kcu2
+           WHERE kcu2.constraint_name = tc.constraint_name
+             AND kcu2.table_schema = tc.table_schema
+         ) = 1`
+    );
+
+    for (const ref of fkRefs.rows) {
+      if (ref.table_schema === 'public' && ref.table_name === 'ordinances') {
+        continue;
+      }
+
+      if (ref.delete_rule === 'CASCADE' || ref.delete_rule === 'SET NULL') {
+        continue;
+      }
+
+      const tableRef = `${quoteIdentifier(ref.table_schema)}.${quoteIdentifier(ref.table_name)}`;
+      const columnRef = quoteIdentifier(ref.column_name);
+
+      if (ref.is_nullable === 'YES') {
+        await client.query(`UPDATE ${tableRef} SET ${columnRef} = NULL WHERE ${columnRef} = $1`, [ordinanceId]);
+      } else {
+        await client.query(`DELETE FROM ${tableRef} WHERE ${columnRef} = $1`, [ordinanceId]);
+      }
+    }
+  };
+
   try {
     await client.query('BEGIN');
 
     const existing = await client.query('SELECT * FROM ordinances WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
-      await client.query('ROLLBACK');
       const err = new Error('Ordinance not found');
       err.status = 404;
       throw err;
@@ -468,6 +522,8 @@ exports.deleteOrdinance = async (id, userId) => {
       'DELETE FROM ordinance_approvals WHERE ordinance_id = $1',
       [id]
     );
+
+    await cleanupUnknownOrdinanceReferences(id);
 
     await Ordinance.deleteById(client, id);
     await AuditLog.create(client, userId, 'ORDINANCE_DELETE', `Ordinance "${existing.rows[0].title}" deleted`);

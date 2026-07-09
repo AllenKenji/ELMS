@@ -116,7 +116,14 @@ exports.remove = async (req, res) => {
   } catch (err) {
     console.error('Delete ordinance error:', err);
     if (err.status === 404) return res.status(404).json({ error: err.message });
-    res.status(500).json({ error: 'Error deleting ordinance' });
+    const details = [
+      err?.detail,
+      err?.constraint,
+      err?.table,
+      err?.column,
+      err?.message,
+    ].filter(Boolean);
+    res.status(500).json({ error: 'Error deleting ordinance', details });
   }
 };
 
