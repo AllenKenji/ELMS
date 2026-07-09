@@ -24,6 +24,7 @@ import UserManagement from './components/UserManagement';
 import AuditLogList from './components/AuditLogList';
 import SystemSettings from './components/SystemSettings';
 import CommitteeList from './components/Committees/CommitteeList';
+import CommitteeMeetingsPage from './pages/CommitteeMeetingsPage';
 import ReportsList from './components/Reports/ReportsList';
 import EventsCalendar from './components/Calendar/EventsCalendar';
 import DraftsPage from './components/Drafts/DraftsPage';
@@ -75,6 +76,7 @@ function App() {
           <Route path="/dashboard/audit-logs" element={<AuditLogList />} />
           <Route path="/dashboard/system-settings" element={<SystemSettings />} />
           <Route path="/dashboard/committees" element={<CommitteeList />} />
+          <Route path="/dashboard/committee-meetings" element={<CommitteeMeetingsPage />} />
           <Route path="/dashboard/reports" element={<ReportsList />} />
           <Route path="/dashboard/calendar" element={<EventsCalendar />} />
           <Route path="/dashboard/drafts" element={<DraftsPage />} />

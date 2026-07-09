@@ -119,6 +119,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
   const [submitting, setSubmitting] = useState(false);
   const [activeAction, setActiveAction] = useState(null);
   const [form, setForm] = useState({});
+  const [createdMeeting, setCreatedMeeting] = useState(null);
   const [votingStatus, setVotingStatus] = useState(null);
   const [votingLoading, setVotingLoading] = useState(false);
 
@@ -166,6 +167,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
 
   const handleActionClick = (action) => {
     setError('');
+    setCreatedMeeting(null);
 
     if (action === 'committee-report') {
       const endedMeeting = getLatestEndedMeeting(committeeMeetings, ordinanceId);
@@ -285,7 +287,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           return;
         }
 
-        await api.post(`/committees/${committeeId}/meetings`, {
+        const response = await api.post(`/committees/${committeeId}/meetings`, {
           title: form.meeting_title,
           meeting_date: form.meeting_date,
           meeting_time: form.meeting_time || '',
@@ -294,6 +296,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           meeting_mode: meetingMode,
           meeting_location: meetingLocation,
         });
+        setCreatedMeeting(response.data || null);
         selfHandled = true;
         await Promise.resolve(onMeetingCreated?.());
       }
@@ -303,8 +306,10 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         await api.post(`/ordinances/${ordinanceId}/${activeAction}`, body);
       }
 
-      setActiveAction(null);
-      setForm({});
+      if (activeAction !== 'create-meeting') {
+        setActiveAction(null);
+        setForm({});
+      }
       await fetchData();
       onStatusUpdate?.();
     } catch (err) {
@@ -360,7 +365,6 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
   const ord = workflowStatus?.ordinance || ordinance;
   const readingStage = ord?.reading_stage;
   const isRejected = readingStage === 'REJECTED';
-  const activeCommitteeMeetings = committeeMeetings.filter((meeting) => !meeting.ended);
   // Debug logs for chair/committee action visibility
   // console.log('User:', user);
   // console.log('Ordinance committee:', ord?.committee);
@@ -785,77 +789,88 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           <div className="status-modal-overlay">
             <div className="status-modal">
               <h3>Schedule Committee Meeting</h3>
-              <div className="form-group">
-                <label>Meeting Title <span className="required">*</span></label>
-                <input type="text" value={form.meeting_title || ''} onChange={e => setField('meeting_title', e.target.value)} disabled={submitting} placeholder="e.g. Committee Deliberation on Proposed Measure" required />
-              </div>
-              <div className="form-group">
-                <label>Meeting Date <span className="required">*</span></label>
-                <input type="date" value={form.meeting_date || ''} onChange={e => setField('meeting_date', e.target.value)} disabled={submitting} required />
-              </div>
-              <div className="form-group">
-                <label>Meeting Time</label>
-                <input type="time" value={form.meeting_time || ''} onChange={e => setField('meeting_time', e.target.value)} disabled={submitting} />
-              </div>
-              <div className="form-group">
-                <label>Where <span className="required">*</span></label>
-                <select value={form.meeting_mode || 'online'} onChange={e => setField('meeting_mode', e.target.value)} disabled={submitting}>
-                  <option value="online">Online</option>
-                  <option value="place">Place</option>
-                  <option value="both">Both</option>
-                </select>
-              </div>
-              {(form.meeting_mode || 'online') !== 'place' && (
-                <div className="form-group">
-                  <label>Meeting Link {(form.meeting_mode || 'online') !== 'place' && <span className="required">*</span>}</label>
-                  <input type="url" value={form.meeting_link || ''} onChange={e => setField('meeting_link', e.target.value)} disabled={submitting} placeholder="e.g. https://meet.google.com/abc-defg-hij" />
-                </div>
-              )}
-              {(form.meeting_mode || 'online') !== 'online' && (
-                <div className="form-group">
-                  <label>Meeting Place <span className="required">*</span></label>
-                  <input type="text" value={form.meeting_location || ''} onChange={e => setField('meeting_location', e.target.value)} disabled={submitting} placeholder="e.g. Session Hall, Committee Room A" />
-                </div>
-              )}
-              <div className="form-group">
-                <p style={{ margin: 0, color: '#666', fontSize: '0.95em' }}>
-                  Choose whether this meeting is online, in-person, or both.
-                </p>
-              </div>
-              <div className="lw-recorder-stack">
-                <h4>Recording Controls</h4>
-                {activeCommitteeMeetings.length > 0 ? (
-                  activeCommitteeMeetings.map((meeting) => (
-                    <div key={meeting.id} className="lw-recorder-card">
-                      <div className="lw-recorder-card-header">
-                        <strong>{meeting.title}</strong>
-                        <span>
-                          {meeting.meeting_date ? new Date(meeting.meeting_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No date'}
-                          {meeting.meeting_time ? ` at ${meeting.meeting_time}` : ''}
-                        </span>
+                {createdMeeting ? (
+                  <>
+                    <div className="workflow-created-meeting-panel">
+                      <h4>Meeting created</h4>
+                      <p>
+                        You can now record this committee meeting locally in the browser and upload the saved copy from the same window.
+                      </p>
+                      <div className="lw-recorder-stack">
+                        <div className="lw-recorder-card">
+                          <div className="lw-recorder-card-header">
+                            <strong>{createdMeeting.title}</strong>
+                            <span>
+                              {createdMeeting.meeting_date ? new Date(createdMeeting.meeting_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No date'}
+                              {createdMeeting.meeting_time ? ` at ${createdMeeting.meeting_time}` : ''}
+                            </span>
+                          </div>
+                          <LocalMeetingRecorder
+                            meetingTitle={createdMeeting.title}
+                            committeeId={createdMeeting.committee_id || ord?.committee_id}
+                            meetingId={createdMeeting.id}
+                            recordingUrl={createdMeeting.recording_url}
+                            recordingUploadedAt={createdMeeting.recording_uploaded_at}
+                            recordingUploadedByName={createdMeeting.recording_uploaded_by_name}
+                            onUploadComplete={onMeetingCreated}
+                          />
+                        </div>
                       </div>
-                      <LocalMeetingRecorder
-                        meetingTitle={meeting.title}
-                        committeeId={meeting.committee_id}
-                        meetingId={meeting.id}
-                        recordingUrl={meeting.recording_url}
-                        recordingUploadedAt={meeting.recording_uploaded_at}
-                        recordingUploadedByName={meeting.recording_uploaded_by_name}
-                        onUploadComplete={onMeetingCreated}
-                      />
                     </div>
-                  ))
+                    <div className="modal-actions">
+                      <button onClick={() => setActiveAction(null)} className="btn btn-primary">Done</button>
+                      <button onClick={() => {
+                        setCreatedMeeting(null);
+                        setForm({});
+                      }} className="btn btn-secondary">Create another</button>
+                    </div>
+                  </>
                 ) : (
-                  <p className="lw-recorder-empty">
-                    Create a meeting first, then reopen this action to record and upload it from the workflow tab.
-                  </p>
+                  <>
+                    <div className="form-group">
+                      <label>Meeting Title <span className="required">*</span></label>
+                      <input type="text" value={form.meeting_title || ''} onChange={e => setField('meeting_title', e.target.value)} disabled={submitting} placeholder="e.g. Committee Deliberation on Proposed Measure" required />
+                    </div>
+                    <div className="form-group">
+                      <label>Meeting Date <span className="required">*</span></label>
+                      <input type="date" value={form.meeting_date || ''} onChange={e => setField('meeting_date', e.target.value)} disabled={submitting} required />
+                    </div>
+                    <div className="form-group">
+                      <label>Meeting Time</label>
+                      <input type="time" value={form.meeting_time || ''} onChange={e => setField('meeting_time', e.target.value)} disabled={submitting} />
+                    </div>
+                    <div className="form-group">
+                      <label>Where <span className="required">*</span></label>
+                      <select value={form.meeting_mode || 'online'} onChange={e => setField('meeting_mode', e.target.value)} disabled={submitting}>
+                        <option value="online">Online</option>
+                        <option value="place">Place</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </div>
+                    {(form.meeting_mode || 'online') !== 'place' && (
+                      <div className="form-group">
+                        <label>Meeting Link {(form.meeting_mode || 'online') !== 'place' && <span className="required">*</span>}</label>
+                        <input type="url" value={form.meeting_link || ''} onChange={e => setField('meeting_link', e.target.value)} disabled={submitting} placeholder="e.g. https://meet.google.com/abc-defg-hij" />
+                      </div>
+                    )}
+                    {(form.meeting_mode || 'online') !== 'online' && (
+                      <div className="form-group">
+                        <label>Meeting Place <span className="required">*</span></label>
+                        <input type="text" value={form.meeting_location || ''} onChange={e => setField('meeting_location', e.target.value)} disabled={submitting} placeholder="e.g. Session Hall, Committee Room A" />
+                      </div>
+                    )}
+                    <div className="form-group">
+                      <p style={{ margin: 0, color: '#666', fontSize: '0.95em' }}>
+                        Choose whether this meeting is online, in-person, or both.
+                      </p>
+                    </div>
+                    <div className="modal-actions">
+                      <button onClick={handleSubmitAction} className="btn btn-primary" disabled={submitting}>Create Meeting</button>
+                      <button onClick={() => setActiveAction(null)} className="btn btn-secondary" disabled={submitting}>Cancel</button>
+                    </div>
+                    {error && <div className="alert alert-error">{error}</div>}
+                  </>
                 )}
-              </div>
-              <div className="modal-actions">
-                <button onClick={handleSubmitAction} className="btn btn-primary" disabled={submitting}>Create Meeting</button>
-                <button onClick={() => setActiveAction(null)} className="btn btn-secondary" disabled={submitting}>Cancel</button>
-              </div>
-              {error && <div className="alert alert-error">{error}</div>}
             </div>
           </div>
         )}
