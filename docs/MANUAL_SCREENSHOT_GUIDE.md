@@ -50,3 +50,49 @@ Use this guide to populate visual placeholders in the printable manual file at d
 - No confidential data visible
 - Page breaks look clean
 - Final PDF opens correctly
+
+## 6. Manual PDF Generation (Operator Steps)
+
+Follow this when you want to replace screenshots yourself and generate a fresh PDF without terminal commands.
+
+### 6.1 Replace Screenshot Files
+1. Save your screenshots in the `docs/` folder.
+2. Use the exact filenames expected by the printable manual:
+	- `proposed-measure-create.png`
+	- `proposed-measure-authors.png`
+	- `proposed-measure-attachments.png`
+	- `proposed-measure-submitted-status.png`
+	- `proposed-measure-committee-to-session.png`
+	- `admin-user-management-create-user.png`
+	- `session-create-form.png`
+	- `live-start-panel.png`
+	- `recording-chunk-diagnostics.png`
+	- `recording-download-local-copy.png`
+
+### 6.2 Open Printable Manual
+1. Open `docs/USER_MANUAL_PRINT.html` in Chrome or Edge.
+2. Confirm all screenshot sections display the correct images.
+3. If an old image still appears, do a hard refresh (`Ctrl+F5`).
+
+### 6.3 Print to PDF
+1. Press `Ctrl+P`.
+2. Set destination to **Save as PDF**.
+3. Use these print settings:
+	- Paper size: **A4**
+	- Scale: **100%**
+	- Margins: **Default**
+	- **Background graphics: ON**
+4. Save output as `docs/USER_MANUAL_PRINT.pdf`.
+
+### 6.4 Final Validation
+1. Open the generated PDF.
+2. Verify each screenshot appears in the correct section.
+3. Check text readability and page breaks.
+4. Confirm no sensitive data is visible.
+
+### 6.5 Optional: Change Image References in HTML
+If you prefer custom image names instead of replacing files with exact names:
+1. Open `docs/USER_MANUAL_PRINT.html`.
+2. Edit the `src` values of each screenshot image.
+3. Save the file and refresh the browser.
+4. Repeat the print steps above.
