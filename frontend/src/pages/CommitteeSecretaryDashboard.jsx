@@ -67,7 +67,7 @@ export default function CommitteeSecretaryDashboard() {
               <div key={committee.id} className="committee-section">
                 <h3>{committee.name}</h3>
                 <p>{committee.description}</p>
-                <CommitteeMinutesList committeeId={committee.id} />
+                <CommitteeMinutesList committeeId={committee.id} committee={committee} />
                 {/* Show ordinances assigned to this committee and their workflow */}
                 {committeeOrdinances[committee.id] && committeeOrdinances[committee.id].length > 0 && (
                   <div className="committee-ordinances">

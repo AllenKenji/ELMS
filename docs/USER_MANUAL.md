@@ -1,7 +1,7 @@
 # ELegislative User Manual
 
 ## 1. Purpose
-This manual explains how to use the ELegislative system for day-to-day legislative operations, including:
+This manual explains how to use the ELegislative system in a technical, click-by-click way for day-to-day legislative operations, including:
 - user access and roles
 - ordinance and resolution workflows
 - committee and session workflows
@@ -21,23 +21,23 @@ Common roles:
 
 ### 2.1 Role Capability Summary
 - Admin:
-   - create/edit/deactivate users
-   - full session and workflow administration
-   - can override and complete most legislative lifecycle actions
+   - create, edit, and deactivate users
+   - manage sessions, committees, measures, and audit controls
+   - override or complete workflow actions when needed
 - Secretary:
    - create and manage sessions, participants, minutes, and order of business
-   - manage workflow transitions such as readings, agenda inclusion, posting/effectivity
-   - manage recording and minutes attachments
+   - manage readings, agenda inclusion, recordings, and official records
+   - keep committee and session workflows moving
 - Vice Mayor:
-   - committee assignment actions in measure workflow
-   - executive approval or rejection actions
-   - participates in session operations
+   - assign committees to proposed measures
+   - approve or reject items at the executive stage
+   - participate in leadership and session operations
 - Councilor:
-   - create and update proposed measures (ordinances/resolutions)
-   - submit measures to workflow and cast votes
+   - create and update ordinances or resolutions
+   - submit measures into workflow and cast votes when allowed
    - participate in committee and session activities
 - Participant:
-   - join allowed sessions and view permitted content
+   - join assigned sessions and view permitted content
    - no direct workflow modification actions
 
 ### 2.2 Workflow Modification Matrix (Who Can Modify What)
@@ -76,11 +76,63 @@ The matrix below reflects current role guards configured in backend routes.
 - Some actions also require assignment context (for example: chairperson-specific committee updates).
 - If your LGU policy is stricter, Admin configuration may further limit permissions.
 
+### 2.4 What Each Role Clicks
+Use this table when you want the short version of the actual screens and buttons each role uses.
+
+| Role | What to open | What to click | What to finish |
+| --- | --- | --- | --- |
+| Admin | User Management, Sessions, Committees, Audit Logs | Click Create User, Edit, Delete, Save, or admin-only overrides | Confirm users, logs, and configuration are correct |
+| Secretary | Sessions, Minutes, Order of Business, Ordinances and Resolutions | Click Create Session, Edit, Add Participants, Create Minutes, Start Recording, Submit or Forward | Confirm official records, uploads, and agenda items are complete |
+| Councilor | Ordinances and Resolutions, Voting, Assigned Committees, Sessions | Click New Proposed Measure, Save Draft, Submit, Cast Vote, or open committee review items | Confirm the measure moved to the next workflow stage |
+| Committee Secretary | Committee Meetings, Committee Minutes, Assigned Ordinances or Resolutions | Click + Create Meeting, Start Local Recording, mark attendance, save minutes, submit committee report | Confirm quorum, attendance, and committee recommendation are recorded |
+| Vice Mayor | Committees, Proposed Measures, Session workflow | Click Assign Committee, Approve, Reject, or open committee setup screens | Confirm the committee assignment or executive action is finished |
+| Participant | Sessions and live or recording views | Click Join Session, Watch Live, or open an allowed session page | Review the session content without editing workflow data |
+
+### 2.5 Role Click Sequences
+Use these exact screen trails when you need the shortest literal path for each role.
+
+- Admin:
+   - User Management > Create User > Save
+   - Sessions > Create Session > Save
+   - Committees > Create Committee > Save
+   - Audit Logs > Refresh
+
+- Secretary:
+   - Sessions > Create Session > Save
+   - Sessions > Session List > Session Details > Participants > Add Participant > Save
+   - Ordinances and Resolutions > Proposed Measure List > Measure Details > Submit
+   - Minutes > Create Minutes > Save Minutes
+   - Sessions > Session List > Session Details > Recording > Start Local Recording > Stop and Save > Download local copy
+
+- Councilor:
+   - Ordinances and Resolutions > Proposed Measure List > Create New > Save Draft > Submit
+   - Ordinances and Resolutions > Proposed Measure List > Measure Details > Committee Review
+   - Voting > Vote Sessions > Vote Detail > Cast Vote
+   - Sessions > Session List > Session Details > Join Session
+
+- Committee Secretary:
+   - Committees > Committee List > Committee Details > Meetings > + Create Meeting
+   - Committees > Committee Details > Meetings > Meeting Detail > Start Local Recording > Stop and Save > Download local copy
+   - Committee Minutes > Minutes List > New Minutes > Save Minutes
+   - Committee Minutes > Minutes Detail > Submit Committee Report
+
+- Vice Mayor:
+   - Committees > Committee List > Committee Details > Edit
+   - Proposed Measures > Measure Details > Assign Committee
+   - Proposed Measures > Measure Details > Approve or Reject
+   - Sessions > Session List > Session Details > Review Agenda
+
+- Participant:
+   - Sessions > Session List > Session Details > Participants > Join Session
+   - Sessions > Session List > Session Details > Recording > Watch Live
+   - Sessions > Session List > Session Details > Recording > Open Recording
+
 ## 3. Signing In
 1. Open the ELegislative login page.
-2. Enter your account credentials.
+2. Type your username or email and password.
 3. Click Sign In.
-4. If login fails:
+4. Wait for the dashboard to load.
+5. If login fails:
    - verify username/email and password
    - confirm your account is active
    - ask Admin or Secretary to reset credentials if needed
@@ -146,228 +198,165 @@ Use the left sidebar or top navigation toolbar (depending on layout) to move bet
    - What it does: tracks who did what action and when for accountability.
    - Typical users: Admin, authorized oversight roles.
 
+### 4.2 Common Click Path Rules
+- Open the module from the sidebar first, then choose the record you want to work on.
+- Use page buttons such as Create New, Edit, Save, Submit, Delete, or Refresh after opening a record.
+- If a button is missing, check your role or assignment before assuming the feature is broken.
+
+### 4.3 UI Click Paths by Module
+Use these paths as the default click sequence for each major screen. Button labels may vary slightly by role, but the flow is the same.
+
+| Module | Screen Path | Primary Buttons |
+| --- | --- | --- |
+| Dashboard | Dashboard | Refresh, open any pending item card |
+| Ordinances and Resolutions | Ordinances and Resolutions > Proposed Measure List > Measure Details | Create New, New Proposed Measure, Save Draft, Submit, Forward, Edit, Delete |
+| Committees | Committees > Committee List > Committee Details | Create Committee, Edit, Delete, Add Member, View Meetings |
+| Committee Meetings | Committees > Committee Details > Meetings | + Create Meeting, Edit, Delete, Start Local Recording, Stop and Save, Download local copy |
+| Committee Minutes | Committee Minutes > Minutes List > Minutes Detail | New Minutes, Edit, Save Minutes, Delete, View |
+| Sessions | Sessions > Session List > Session Details | Create Session, Edit, Delete, Save, Add Participant, Join Session |
+| Session Details | Sessions > Session List > Session Details > Tabs | Details, Order of Business, Agenda, Recording, Ordinances, Participants |
+| Recording | Sessions > Session Details > Recording | Start Live, Start Local Recording, Stop and Save, Download local copy |
+| Order of Business | Order of Business > Order of Business List > Item Detail | Create Item, Edit, Reorder, Save, Delete, Add Document |
+| Voting | Voting > Vote Sessions > Vote Detail | Create Vote Session, Open Vote, Close Vote, Cast Vote, Delete Vote Session |
+| Reports | Reports > Report List > Report Detail | Create Report, Edit, Save, Delete, Export |
+| Notifications | Notifications > Notification List | Refresh, Select All, Delete Selected, Mark Read, Mark Unread |
+| Messages | Messages > Message List | New Message, Open, Reply, Delete |
+| User Management | User Management > User List > User Detail | Create User, Edit, Deactivate, Save, Delete |
+| Audit Logs | Audit Logs > Log List > Log Detail | Refresh, Filter, View Details |
+
 ## 4A. Workflow: Creating a Proposed Measure and Resolution
-Use this workflow when creating a new legislative proposal (ordinance or resolution).
+Ordinances and Resolutions > Proposed Measure List > Create New > Ordinance or Resolution > Title, Summary or Rationale, Legal Basis or Reference, Category or Subject Area > Save Draft
 
-### 4A.1 Create Draft
-1. Open Ordinances and Resolutions.
-2. Click Create New or New Proposed Measure.
-3. Select measure type:
-   - Ordinance
-   - Resolution
-4. Fill required draft fields:
-   - title
-   - summary or rationale
-   - legal basis or reference (if required)
-   - category or subject area
+Ordinances and Resolutions > Proposed Measure List > Measure Details > Author and Co-Authors > Save
 
-### 4A.2 Set Author and Co-Authors
-1. Confirm the main author/proponent.
-2. Add co-authors when applicable.
-3. Save draft metadata.
+Ordinances and Resolutions > Proposed Measure List > Measure Details > Attachments > Upload Document > Save
 
-### 4A.3 Attach Supporting Files
-1. Upload supporting documents (if available):
-   - draft text
-   - committee notes
-   - reference files
-2. Verify each attachment appears in the document list.
+Ordinances and Resolutions > Proposed Measure List > Measure Details > Submit > Draft becomes Submitted
 
-### 4A.4 Submit for Workflow
-1. Click Submit or Forward.
-2. Confirm status changes from Draft to Submitted (or equivalent).
-3. Confirm the item appears in pending review queues.
+Committee Review Queue > Measure Details > Committee Action Panel > APPROVE, REVISION, or REJECTION > Save Report
 
-### 4A.5 Committee Review Path
-1. Assigned committee opens the submitted item.
-2. Committee deliberates and records recommendation:
-   - APPROVE
-   - REVISION
-   - REJECTION
-3. Committee report is returned to secretary workflow.
+Sessions > Order of Business > Add to Agenda > Include in Session
 
-### 4A.6 Session Inclusion and Final Action
-1. Secretary includes approved/recommended item in session agenda.
-2. Item proceeds through session discussion, readings, or voting.
-3. Final status updates based on decision (for example: Approved, Returned for Revision, Rejected, Published).
+Sessions > Session Details > Agenda Item > Readings > Discussion > Voting > Save Final Result
 
-### 4A.7 Quick Validation Checklist
-- Title and measure type are correct.
-- Author and co-authors are complete.
-- Required attachments are uploaded.
-- Status changed successfully after submit.
-- Committee recommendation is recorded.
-- Session agenda inclusion is confirmed when ready.
+### 4A. Quick Validation Checklist
+- Create New opens the draft form.
+- Save Draft stores the ordinance or resolution.
+- Submit moves the item into review.
+- Save Report stores the committee recommendation.
+- Add to Agenda places the item in the session workflow.
 
 ## 4B. Workflow: Admin User Management (Create User)
-Use this workflow when the Admin needs to create a new account.
+User Management > User List > Create User > Full Name, Username or Email, Contact Details, and Temporary Password > Secretary, Vice Mayor, Councilor, Participant, or Admin > Active > Save
 
-### 4B.1 Open User Management
-1. Sign in using an Admin account.
-2. Open User Management.
-3. Click Create User or Add User.
+User Management > User List > User Detail > Confirm Role and Status > Save
 
-### 4B.2 Enter User Information
-1. Fill required fields:
-   - full name
-   - username or email
-   - contact details (if required)
-   - temporary password (or system-generated password)
-2. Verify there are no duplicate usernames or emails.
-
-### 4B.3 Assign Role and Access
-1. Select the role:
-   - Secretary
-   - Vice Mayor
-   - Councilor
-   - Participant
-   - Admin (only when authorized)
-2. Set status to Active.
-3. Save user account.
-
-### 4B.4 Validate New Account
-1. Confirm the user appears in the User Management list.
-2. Confirm role and status are correct.
-3. Ask the new user to sign in and change password on first login (if policy requires).
+Sign In > First Login > Change Password
 
 ## 5. Creating and Managing Sessions
-### 5.1 Create a Session
-1. Open Sessions.
-2. Click Create Session.
-3. Fill required fields:
-   - title
-   - date
-   - time
-   - location
-   - agenda
-4. Save.
+Sessions > Session List > Create Session > Title, Date, Time, Location, and Agenda > Save
 
-### 5.2 Edit a Session
-1. Open Sessions.
-2. Select the target session.
-3. Click Edit.
-4. Update details and save.
+Sessions > Session List > Session Details > Edit > Update Details > Save
 
-### 5.3 Session Details Tabs
-Inside Session Details, use tabs such as:
-- Details
-- Order of Business
-- Agenda
-- Recording
-- Ordinances
-- Participants
+Sessions > Session List > Session Details > Details / Order of Business / Agenda / Recording / Ordinances / Participants
 
 ## 6. Joining and Managing Participants
-### 6.1 Join a Session
-1. Open Session Details.
-2. Go to Participants or use Join Session button.
-3. Click Join Session.
+Sessions > Session List > Session Details > Participants > Join Session
 
-### 6.2 Participant Inclusion
-Participants may include:
-- users manually added to the session
-- authors and co-authors of proposed measures, when configured by workflow
+Sessions > Session List > Session Details > Participants > Add Participant > Select User > Save
+
+Sessions > Session List > Session Details > Participants > Add from OOB > Select User > Save
 
 ## 7. Committee Workflow
-Typical committee cycle:
-1. committee scheduling
-2. deliberation and hearing
-3. committee report drafting
-4. recommendation outcome:
-   - APPROVE
-   - REVISION
-   - REJECTION
-5. submission to Secretary for inclusion in next session flow
+Committees > Committee Meetings > + Create Meeting > Title, Date, Time, Meeting Mode, Meeting Link, Meeting Place > Create Meeting
+
+Committees > Committee Meetings > Meeting Detail > Attendance > Mark Present Members > Quorum indicator
+
+Committee Minutes > Minutes List > New Minutes > Recommendation and Notes > Save Minutes
+
+Committee Minutes > Minutes Detail > Submit Committee Report
 
 ## 8. Live Session Workflow
-### 8.1 Starting Live
-1. Open Session Details.
-2. Go to Recording tab.
-3. In Live Session panel, click Start Live (if your role is allowed).
-4. Confirm screen or window sharing when prompted.
+Sessions > Session Details > Recording > Start Live > Screen, Window, or Browser Tab > Share or Start Broadcast
 
-### 8.2 Viewing Live
-1. Open the same session in another allowed account.
-2. Go to Recording tab.
-3. Live stream appears when active.
-4. Verify host label: Live started by: <name>.
+Sessions > Session Details > Recording > Live Stream Panel > Verify Host Label and Video Preview
 
-### 8.3 Host Behavior Notes
-- If you share only one browser tab, switching away can produce black output.
-- For stable output when switching work context, share a window or entire screen.
+Sessions > Session Details > Recording > Stop Live
 
 ## 9. Local Recording Workflow
-### 9.1 Start Recording
-1. Open Session Details > Recording tab.
-2. In Session Recording panel, click Start Local Recording.
-3. Confirm capture source in browser prompt.
-4. Wait until Capture Diagnostics shows chunk and KB growth.
+Sessions > Session Details > Recording > Start Local Recording > Capture Source > Capture Diagnostics
 
-### 9.2 Stop and Save
-1. Click Stop and Save.
-2. Wait for recording finalization.
-3. In the recorder panel, click Download local copy.
-4. Confirm file appears in your browser download location.
+Sessions > Session Details > Recording > Stop and Save > Download local copy
 
-### 9.3 Attach to Server Minutes
-If server sync is enabled, recording uploads to session minutes automatically after local finalization.
+Sessions > Session Details > Recording > Upload to Session Minutes
 
 ## 10. Recording the Active Live Session (Secretary Use)
-When a live host is active:
-- Secretary can watch the active live stream in Recording tab.
-- Secretary recording is designed to capture the active live stream feed when available.
-- If no remote live stream exists, recorder may fall back to local capture path.
+Sessions > Session Details > Recording > Live Stream Panel > View Active Stream
+
+Sessions > Session Details > Recording > Start Local Recording > Stop and Save > Download local copy
 
 ## 11. Calendar-Based Access
-From calendar event cards:
-- Join Session opens the selected session.
-- Watch Live opens Session Details directly to the Recording tab for quick viewing.
+Calendar > Event Card > Join Session
+
+Calendar > Event Card > Watch Live
+
+Calendar > Event Card > Session Details > Recording
 
 ## 12. Minutes and Recordings
-- Recordings are attached to session minutes records.
-- If no minutes record exists, workflow may auto-create one on upload.
-- Uploaded recordings can be opened from Attached Session Minutes list.
+Minutes > Minutes List > Minutes Detail > View or Edit
+
+Minutes > Minutes Detail > Transcript, Attendees, and Recording Links
+
+Sessions > Session Details > Recording > Upload to Session Minutes > Attached Session Minutes List
 
 ## 13. Troubleshooting
 ### 13.1 Live shows black screen
-Check:
-- host is actively sharing a valid window or screen
-- host did not switch away from a single-tab share source
-- viewer account has session access
-- live diagnostics show receive video is present
+Sessions > Session Details > Recording > Live Stream Panel > verify host sharing source
+
+Sessions > Session Details > Recording > Live Stream Panel > confirm the host did not switch away from a single-tab share
+
+Sessions > Session Details > Recording > Live Stream Panel > verify the viewer account has session access
+
+Sessions > Session Details > Recording > Live Stream Diagnostics > confirm Receive Video is present
 
 ### 13.2 Recording diagnostics show 0 chunks
-Check:
-- recording actually started
-- capture permission granted by browser
-- capture source stays active and visible
-- browser is current desktop Chrome or Edge
+Sessions > Session Details > Recording > Start Local Recording > confirm the recorder state changes to active
+
+Browser prompt > Grant capture permission
+
+Sessions > Session Details > Recording > Capture Source > keep the selected window, tab, or screen active
+
+Browser > Use current desktop Chrome or Edge
 
 ### 13.3 File downloads but cannot open
-Check:
-- recorded duration is at least several seconds
-- chunk and KB diagnostics were increasing before stop
-- use Download local copy from recorder panel after stop
-- avoid opening old files with the same name from previous attempts
+Sessions > Session Details > Recording > verify the recording ran for several seconds before stopping
+
+Sessions > Session Details > Recording > Capture Diagnostics > confirm chunk count and KB size increased before Stop and Save
+
+Sessions > Session Details > Recording > Download local copy > open the newly downloaded file
+
+Downloads folder > avoid opening an older file with the same name
 
 ### 13.4 No local download link appears
-Check:
-- recording reached stop/finalize state
-- no page refresh occurred before finalize finished
-- try recording again and wait for final status message
+Sessions > Session Details > Recording > Stop and Save > wait for finalize to complete
+
+Browser > do not refresh the page during finalization
+
+Sessions > Session Details > Recording > retry the capture and wait for the final status message
 
 ### 13.5 Unauthorized errors (401)
-Check:
-- account session/token still valid
-- log out and log back in
-- verify user role has endpoint access
+Sign Out > Sign In > confirm the session token is refreshed
+
+User Management > User Detail > verify the assigned role has access to the target module
+
+If the screen still returns 401, recheck the module path against the current role guard.
 
 ## 14. Best Practices
-- Keep session details open while recording finalizes.
-- Record at least 5 to 10 seconds before stopping for validation.
-- Verify diagnostics and final file size after each test recording.
-- Use consistent role accounts for host and viewer testing.
-- Prefer window or entire screen capture over single-tab sharing for live reliability.
+- Sessions > Session Details > Recording > keep the screen open until Stop and Save finishes finalizing.
+- Sessions > Session Details > Recording > run each test capture for at least 5 to 10 seconds before stopping.
+- Sessions > Session Details > Recording > Capture Diagnostics > verify chunk count, KB growth, and final file size after each test.
+- Use separate host and viewer accounts for live testing so role access can be validated cleanly.
+- Browser prompt > prefer Window or Entire Screen capture over Single Tab sharing for more stable live output.
 
 ## 15. Quick Checklist for Secretaries
 Before session:
@@ -393,6 +382,41 @@ If issues persist after troubleshooting:
 3. report exact steps performed
 4. attach any browser console errors if available
 
+## 17. Screen Index
+This index lists the main routed screens that exist in the current app. Use it as the final completeness check for the manual.
+
+| Route | Screen Name | Typical Access |
+| --- | --- | --- |
+| `/` | Login | All users before sign-in |
+| `/forgot-password` | Forgot Password | Public auth screen |
+| `/register` | Register | Public auth screen |
+| `/dashboard` | Role Dashboard | Depends on signed-in role |
+| `/dashboard/committee-secretary` | Committee Secretary Panel | Committee Secretary |
+| `/dashboard/proposed-measures` | Proposed Measures | Admin, Secretary, Councilor, Vice Mayor, Committee Secretary |
+| `/dashboard/drafts` | Drafts | Admin, Secretary, Councilor |
+| `/dashboard/sessions` | Sessions | Admin, Secretary, Councilor, Vice Mayor, Resident |
+| `/dashboard/order-of-business` | Order of Business | Admin, Secretary, Councilor, Vice Mayor |
+| `/dashboard/committees` | Committees | Admin, Secretary, Councilor, Vice Mayor, Resident |
+| `/dashboard/committee-meetings` | Committee Meetings | Committee Secretary, Admin, Secretary, Vice Mayor, Councilor |
+| `/dashboard/ordinances` | Ordinances | Admin, Secretary, Councilor, Vice Mayor, Resident |
+| `/dashboard/resolutions` | Resolutions | Admin, Secretary, Councilor, Vice Mayor, Resident |
+| `/dashboard/calendar` | Events Calendar | All signed-in roles with access |
+| `/dashboard/reports` | Reports | Admin, Secretary, Councilor, Vice Mayor |
+| `/dashboard/minutes` | AI Meeting Minutes | Admin, Secretary, Committee Secretary |
+| `/dashboard/messages` | Messages | Signed-in users with messaging access |
+| `/dashboard/notifications` | Notifications | All signed-in users |
+| `/dashboard/users` | User Management | Admin |
+| `/dashboard/audit-logs` | Audit Logs | Admin |
+| `/dashboard/system-settings` | System Settings | Admin |
+
+## 18. Manual Completion Check
+The manual is complete when all of the following are covered:
+- login and account recovery screens
+- every routed screen in the current app
+- role-based click paths for the main workflows
+- technical steps for session, committee, minutes, recording, and voting operations
+- troubleshooting and validation steps for live and local recording
+
 ---
-Document version: 1.0
-Last updated: 2026-07-08
+Document version: 1.1
+Last updated: 2026-07-09

@@ -3,13 +3,36 @@
  */
 const pool = require('../db');
 
-exports.create = async (title, meetingDate, participants, transcript, createdBy, committeeId) => {
+exports.create = async (
+  title,
+  meetingDate,
+  participants,
+  transcript,
+  createdBy,
+  committeeId,
+  attendees = null,
+  quorumRequired = null,
+  quorumPresent = null,
+  quorumMet = false
+) => {
   return pool.query(
     `INSERT INTO committee_minutes
-       (title, meeting_date, participants, transcript, status, created_by, committee_id, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, 'Draft', $5, $6, NOW(), NOW())
+       (title, meeting_date, participants, transcript, status, created_by, committee_id,
+        attendees_json, quorum_required, quorum_present, quorum_met, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 'Draft', $5, $6, $7::jsonb, $8, $9, $10, NOW(), NOW())
      RETURNING *`,
-    [title, meetingDate || null, participants || null, transcript, createdBy, committeeId || null]
+    [
+      title,
+      meetingDate || null,
+      participants || null,
+      transcript,
+      createdBy,
+      committeeId || null,
+      JSON.stringify(attendees || []),
+      quorumRequired,
+      quorumPresent,
+      Boolean(quorumMet),
+    ]
   );
 };
 
@@ -55,13 +78,41 @@ exports.findById = async (id) => {
   );
 };
 
-exports.update = async (id, title, meetingDate, participants, status) => {
+exports.update = async (
+  id,
+  title,
+  meetingDate,
+  participants,
+  status,
+  attendees = null,
+  quorumRequired = null,
+  quorumPresent = null,
+  quorumMet = false
+) => {
   return pool.query(
     `UPDATE committee_minutes
-     SET title = $1, meeting_date = $2, participants = $3, status = $4, updated_at = NOW()
-     WHERE id = $5
+     SET title = $1,
+         meeting_date = $2,
+         participants = $3,
+         status = $4,
+         attendees_json = $5::jsonb,
+         quorum_required = $6,
+         quorum_present = $7,
+         quorum_met = $8,
+         updated_at = NOW()
+     WHERE id = $9
      RETURNING *`,
-    [title, meetingDate || null, participants || null, status, id]
+    [
+      title,
+      meetingDate || null,
+      participants || null,
+      status,
+      JSON.stringify(attendees || []),
+      quorumRequired,
+      quorumPresent,
+      Boolean(quorumMet),
+      id,
+    ]
   );
 };
 

@@ -3,7 +3,7 @@ import CommitteeMinutesForm from './CommitteeMinutesForm';
 import useCommitteeMinutes from '../../hooks/useCommitteeMinutes';
 import '../../styles/Minutes.css';
 
-export default function CommitteeMinutesList({ committeeId }) {
+export default function CommitteeMinutesList({ committeeId, committee }) {
   const {
     minutes,
     loading,
@@ -82,6 +82,7 @@ export default function CommitteeMinutesList({ committeeId }) {
             <CommitteeMinutesForm
               onSubmit={handleCreate}
               onCancel={() => setShowForm(false)}
+              committeeMembers={committee?.members || []}
             />
           </div>
         </div>
@@ -101,6 +102,8 @@ export default function CommitteeMinutesList({ committeeId }) {
                 <th>Title</th>
                 <th>Meeting Date</th>
                 <th>Status</th>
+                <th>Attendance</th>
+                <th>Quorum</th>
                 <th>Created By</th>
                 <th>Actions</th>
               </tr>
@@ -111,6 +114,8 @@ export default function CommitteeMinutesList({ committeeId }) {
                   <td>{record.title}</td>
                   <td>{record.meeting_date ? new Date(record.meeting_date).toLocaleDateString() : '—'}</td>
                   <td>{record.status}</td>
+                  <td>{record.quorum_present ?? (Array.isArray(record.attendees_json) ? record.attendees_json.length : '—')} present</td>
+                  <td>{record.quorum_met ? 'Met' : record.quorum_required ? 'Not met' : '—'}</td>
                   <td>{record.created_by_name || '—'}</td>
                   <td className="minutes-actions">
                     <button
@@ -139,6 +144,7 @@ export default function CommitteeMinutesList({ committeeId }) {
               initialData={editingRecord}
               onSubmit={data => handleEdit(editingRecord.id, data)}
               onCancel={() => setEditingRecord(null)}
+              committeeMembers={committee?.members || []}
             />
           </div>
         </div>

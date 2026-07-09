@@ -3,6 +3,23 @@
  */
 const CommitteeMinutes = require('../models/CommitteeMinutes');
 
+function parseAttendanceInput(attendees) {
+  if (Array.isArray(attendees)) {
+    return attendees;
+  }
+
+  if (typeof attendees === 'string' && attendees.trim()) {
+    try {
+      const parsed = JSON.parse(attendees);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  return [];
+}
+
 exports.getAll = async (req, res) => {
   try {
     const { committee_id } = req.query;
@@ -17,15 +34,20 @@ exports.getAll = async (req, res) => {
 
 exports.create = async (req, res) => {
   try {
-    const { title, meeting_date, participants, transcript, committee_id } = req.body;
+    const { title, meeting_date, participants, transcript, committee_id, attendees, quorum_required, quorum_present, quorum_met } = req.body;
     if (!committee_id) return res.status(400).json({ error: 'committee_id is required' });
+    const parsedAttendees = parseAttendanceInput(attendees);
     const result = await CommitteeMinutes.create(
       title,
       meeting_date,
       participants,
       transcript,
       req.user.id,
-      committee_id
+      committee_id,
+      parsedAttendees,
+      quorum_required === undefined || quorum_required === null || quorum_required === '' ? null : Number(quorum_required),
+      quorum_present === undefined || quorum_present === null || quorum_present === '' ? null : Number(quorum_present),
+      quorum_met === true || quorum_met === 'true'
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -47,13 +69,18 @@ exports.getById = async (req, res) => {
 
 exports.update = async (req, res) => {
   try {
-    const { title, meeting_date, participants, status } = req.body;
+    const { title, meeting_date, participants, status, attendees, quorum_required, quorum_present, quorum_met } = req.body;
+    const parsedAttendees = parseAttendanceInput(attendees);
     const result = await CommitteeMinutes.update(
       req.params.id,
       title,
       meeting_date,
       participants,
-      status
+      status,
+      parsedAttendees,
+      quorum_required === undefined || quorum_required === null || quorum_required === '' ? null : Number(quorum_required),
+      quorum_present === undefined || quorum_present === null || quorum_present === '' ? null : Number(quorum_present),
+      quorum_met === true || quorum_met === 'true'
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Committee minutes not found' });
     res.json(result.rows[0]);

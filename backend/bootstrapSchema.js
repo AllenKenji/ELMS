@@ -318,6 +318,16 @@ async function ensureSessionMinutesBaseSchema() {
   `).catch(() => {});
 }
 
+async function ensureCommitteeMinutesAttendanceSchema() {
+  await pool.query(`
+    ALTER TABLE committee_minutes
+    ADD COLUMN IF NOT EXISTS attendees_json JSONB,
+    ADD COLUMN IF NOT EXISTS quorum_required INTEGER,
+    ADD COLUMN IF NOT EXISTS quorum_present INTEGER,
+    ADD COLUMN IF NOT EXISTS quorum_met BOOLEAN DEFAULT FALSE;
+  `).catch(() => {});
+}
+
 async function ensureSessionMinutesRecordingSchema() {
   await pool.query(`
     ALTER TABLE session_minutes
@@ -677,6 +687,7 @@ async function bootstrapSchema() {
   await ensureOrderOfBusinessDocumentsSchema();
   await ensureCommitteeMeetingRecordingSchema();
   await ensureSessionMinutesBaseSchema();
+  await ensureCommitteeMinutesAttendanceSchema();
   await ensureSessionMinutesRecordingSchema();
   await ensureSessionRecordingsSchema();
 }

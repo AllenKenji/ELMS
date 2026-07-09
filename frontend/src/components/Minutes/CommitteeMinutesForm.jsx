@@ -1,16 +1,60 @@
 import { useState } from 'react';
 import '../../styles/Minutes.css';
 
-export default function CommitteeMinutesForm({ onSubmit, onCancel, initialData }) {
+function normalizeAttendees(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item && typeof item === 'object') {
+          return {
+            user_id: item.user_id ?? item.id ?? item.member_id ?? null,
+            name: item.name || item.full_name || item.user_name || item.label || 'Unknown attendee',
+            role: item.role || '',
+          };
+        }
+
+        return {
+          user_id: item,
+          name: String(item),
+          role: '',
+        };
+      })
+      .filter((item) => item.user_id !== null && item.user_id !== undefined);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    try {
+      const parsed = JSON.parse(trimmed);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return trimmed.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+  }
+
+  return [];
+}
+
+export default function CommitteeMinutesForm({ onSubmit, onCancel, initialData, committeeMembers = [] }) {
+  const initialAttendees = normalizeAttendees(initialData?.attendees_json || initialData?.attendees);
+  const totalMembers = Array.isArray(committeeMembers) ? committeeMembers.length : 0;
+  const defaultQuorumRequired = totalMembers > 0 ? Math.ceil(totalMembers / 2) : 0;
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
     meeting_date: initialData?.meeting_date || '',
     participants: initialData?.participants || '',
     transcript: initialData?.transcript || '',
+    attendees: initialAttendees,
+    quorum_required: initialData?.quorum_required ?? defaultQuorumRequired,
   });
   const [formErrors, setFormErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  const quorumPresent = formData.attendees.length;
+  const quorumRequired = Number(formData.quorum_required || 0);
+  const quorumMet = quorumRequired > 0 ? quorumPresent >= quorumRequired : false;
 
   const validate = () => {
     const errors = {};
@@ -34,6 +78,15 @@ export default function CommitteeMinutesForm({ onSubmit, onCancel, initialData }
     if (formErrors[name]) {
       setFormErrors((prev) => ({ ...prev, [name]: '' }));
     }
+  };
+
+  const toggleAttendee = (memberLabel) => {
+    setFormData((prev) => {
+      const selected = prev.attendees.some((item) => String(item.user_id) === String(memberLabel.user_id))
+        ? prev.attendees.filter((item) => String(item.user_id) !== String(memberLabel.user_id))
+        : [...prev.attendees, memberLabel];
+      return { ...prev, attendees: selected };
+    });
   };
 
   const handleFileUpload = (e) => {
@@ -60,6 +113,10 @@ export default function CommitteeMinutesForm({ onSubmit, onCancel, initialData }
         meeting_date: formData.meeting_date || undefined,
         participants: formData.participants.trim() || undefined,
         transcript: formData.transcript.trim(),
+        attendees: formData.attendees,
+        quorum_required: quorumRequired || undefined,
+        quorum_present: quorumPresent,
+        quorum_met: quorumMet,
       };
       await onSubmit(payload);
     } catch (err) {
@@ -119,6 +176,37 @@ export default function CommitteeMinutesForm({ onSubmit, onCancel, initialData }
           disabled={loading}
         />
         <span className="char-count">{formData.participants.length}/500</span>
+      </div>
+      <div className="form-group">
+        <label>Attendance</label>
+        {committeeMembers.length > 0 ? (
+          <div className="attendance-picker">
+            {committeeMembers.map((member) => {
+              const label = member.name || member.full_name || member.user_name || `Member ${member.user_id}`;
+              const checked = formData.attendees.some((attendee) => String(attendee.user_id) === String(member.user_id));
+              return (
+                <label key={`${member.user_id}-${label}`} className="attendance-item">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleAttendee({ user_id: member.user_id, name: label, role: member.role || '' })}
+                    disabled={loading}
+                  />
+                  <span>{label}{member.role ? ` (${member.role})` : ''}</span>
+                </label>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="field-hint">Attendance checkboxes are unavailable until the committee roster is loaded. Use the participants field above as a fallback.</p>
+        )}
+        <div className="quorum-summary">
+          <span>Present: {quorumPresent}</span>
+          <span>Quorum required: {quorumRequired || '—'}</span>
+          <span className={quorumMet ? 'quorum-met' : 'quorum-missing'}>
+            {quorumRequired > 0 ? (quorumMet ? 'Quorum met' : 'Quorum not met') : 'Quorum unavailable'}
+          </span>
+        </div>
       </div>
       <div className="form-group">
         <label htmlFor="committee-minutes-file">Upload Transcript File</label>

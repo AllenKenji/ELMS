@@ -6,10 +6,13 @@ const roleNameToId = {
   Councilor: 3,
   'Vice Mayor': 4,
   Resident: 5,
+  Participant: 5,
 };
 
 const roleIdToName = Object.fromEntries(
-  Object.entries(roleNameToId).map(([name, id]) => [id, name])
+  Object.entries(roleNameToId)
+    .filter(([name]) => name !== 'Participant')
+    .map(([name, id]) => [id, name])
 );
 
 /**
@@ -32,6 +35,9 @@ function authorizeRoles(...allowedRoles) {
         const asNumber = Number(role);
         if (!Number.isNaN(asNumber) && roleIdToName[asNumber]) {
           return roleIdToName[asNumber];
+        }
+        if (role.trim().toLowerCase() === 'participant') {
+          return 'Resident';
         }
         return role;
       }

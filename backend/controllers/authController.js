@@ -7,6 +7,19 @@ const pool = require('../db');
 const AuditLog = require('../models/AuditLog');
 const { getIO } = require('../socket');
 
+function normalizeRoleName(roleName) {
+  const normalized = String(roleName || '').trim();
+  if (!normalized) {
+    return 'Unknown';
+  }
+
+  if (normalized.toLowerCase() === 'participant') {
+    return 'Resident';
+  }
+
+  return normalized;
+}
+
 /**
  * Register a new user.
  * POST /auth/register
@@ -48,7 +61,7 @@ exports.login = async (req, res) => {
     if (!valid) return res.status(400).json({ error: 'Invalid password' });
 
     const roleResult = await pool.query('SELECT role_name FROM roles WHERE id=$1', [user.role_id]);
-    const roleName = roleResult.rows[0]?.role_name || 'Unknown';
+    const roleName = normalizeRoleName(roleResult.rows[0]?.role_name);
 
     const accessToken = jwt.sign(
       { id: user.id, name: user.name, email: user.email, role: roleName },
@@ -104,8 +117,9 @@ exports.refresh = (req, res) => {
         const user = result.rows[0];
         if (!user) return res.status(404).json({ error: 'User not found' });
 
+        const normalizedRoleName = normalizeRoleName(user.role_name);
         const newAccessToken = jwt.sign(
-          { id: user.id, name: user.name, email: user.email, role: user.role_name || 'Unknown' },
+          { id: user.id, name: user.name, email: user.email, role: normalizedRoleName },
           process.env.JWT_SECRET,
           { expiresIn: '15m' }
         );
@@ -132,7 +146,7 @@ exports.logout = async (req, res) => {
     if (!user) return res.status(400).json({ error: 'User not found' });
 
     const roleResult = await pool.query('SELECT role_name FROM roles WHERE id=$1', [user.role_id]);
-    const roleName = roleResult.rows[0]?.role_name || 'Unknown';
+    const roleName = normalizeRoleName(roleResult.rows[0]?.role_name);
 
     await AuditLog.create(null, user.id, 'LOGOUT', `User ${user.email} logged out as ${roleName}`);
 
