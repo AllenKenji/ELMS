@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom';
 import '../../styles/PendingApprovalWidget.css';
 
 export default function PendingApprovalWidget({ items, loading }) {
+  const navigate = useNavigate();
+
   if (loading) {
     return (
       <div className="pending-widget">
@@ -32,6 +35,17 @@ export default function PendingApprovalWidget({ items, loading }) {
     return labels[priority] || 'Unknown';
   };
 
+  const handleOpenItem = (item) => {
+    if (!item) return;
+
+    if (item.status === 'Draft') {
+      navigate('/dashboard/drafts');
+      return;
+    }
+
+    navigate('/dashboard/proposed-measures');
+  };
+
   return (
     <div className="pending-widget">
       <div className="widget-header">
@@ -57,9 +71,18 @@ export default function PendingApprovalWidget({ items, loading }) {
                 </p>
                 <p className="pending-proposer">by {item.proposer || 'Unknown'}</p>
               </div>
-              <span className="pending-priority" style={{ backgroundColor: getPriorityColor(item.priority) }}>
-                {getPriorityLabel(item.priority)}
-              </span>
+              <div className="pending-actions">
+                <span className="pending-priority" style={{ backgroundColor: getPriorityColor(item.priority) }}>
+                  {getPriorityLabel(item.priority)}
+                </span>
+                <button
+                  type="button"
+                  className="pending-open-btn"
+                  onClick={() => handleOpenItem(item)}
+                >
+                  Open
+                </button>
+              </div>
             </div>
           ))}
         </div>
