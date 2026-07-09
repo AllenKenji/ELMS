@@ -483,7 +483,7 @@ exports.deleteOrdinance = async (id, userId) => {
     // Legacy-safe cleanup for dependent references before hard delete.
     await runIfTableExists(
       'public.session_agenda_items',
-      'UPDATE session_agenda_items SET ordinance_id = NULL WHERE ordinance_id = $1',
+      'DELETE FROM session_agenda_items WHERE ordinance_id = $1',
       [id]
     );
     await runIfTableExists(
