@@ -26,6 +26,8 @@ export default function NotificationList() {
   const [typeFilter, setTypeFilter] = useState('');
   const [readFilter, setReadFilter] = useState(''); // '', 'read', 'unread'
   const [sortBy, setSortBy] = useState('newest');
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Fetch notifications
   useEffect(() => {
@@ -108,6 +110,12 @@ export default function NotificationList() {
     setFilteredNotifications(filtered);
   }, [notifications, searchTerm, typeFilter, readFilter, sortBy]);
 
+  useEffect(() => {
+    // Drop selections that are no longer visible in the full list.
+    const existing = new Set(notifications.map((n) => n.id));
+    setSelectedIds((prev) => prev.filter((id) => existing.has(id)));
+  }, [notifications]);
+
   const handleMarkRead = async (id, isRead) => {
     try {
       await api.patch(`/notifications/${id}/read`, { is_read: !isRead });
@@ -134,6 +142,43 @@ export default function NotificationList() {
       setNotifications(notifications.map(n => ({ ...n, is_read: true })));
     } catch (err) {
       console.error('Error:', err);
+    }
+  };
+
+  const handleToggleSelect = (id) => {
+    setSelectedIds((prev) => (
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    ));
+  };
+
+  const visibleIds = filteredNotifications.map((n) => n.id);
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+
+  const handleToggleSelectAllVisible = () => {
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+      return;
+    }
+
+    setSelectedIds((prev) => [...new Set([...prev, ...visibleIds])]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+
+    const confirmed = window.confirm(`Delete ${selectedIds.length} selected notification(s)? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      setBulkDeleting(true);
+      await api.post('/notifications/bulk-delete', { ids: selectedIds });
+      setNotifications((prev) => prev.filter((n) => !selectedIds.includes(n.id)));
+      setSelectedIds([]);
+    } catch (err) {
+      setError(err?.message || 'Failed to delete selected notifications');
+      console.error('Bulk delete notifications error:', err);
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -255,6 +300,27 @@ export default function NotificationList() {
         </p>
       </div>
 
+      {filteredNotifications.length > 0 && (
+        <div className="bulk-actions">
+          <label className="bulk-select-all">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={handleToggleSelectAllVisible}
+            />
+            Select all visible
+          </label>
+
+          <button
+            className="btn-bulk-delete"
+            onClick={handleBulkDelete}
+            disabled={selectedIds.length === 0 || bulkDeleting}
+          >
+            {bulkDeleting ? 'Deleting...' : `Delete selected (${selectedIds.length})`}
+          </button>
+        </div>
+      )}
+
       {/* Loading / Empty State */}
       {loading ? (
         <div className="loading-spinner">
@@ -279,6 +345,15 @@ export default function NotificationList() {
               key={notif.id}
               className={`notification-card ${notif.is_read ? '' : 'unread'}`}
             >
+              <label className="notif-select">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(notif.id)}
+                  onChange={() => handleToggleSelect(notif.id)}
+                  aria-label={`Select notification ${notif.title}`}
+                />
+              </label>
+
               {/* Card Header */}
               <div className="card-header">
                 <div className="header-left">

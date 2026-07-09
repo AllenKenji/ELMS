@@ -110,6 +110,33 @@ exports.deleteNotification = async (id, userId) => {
 };
 
 /**
+ * Soft-delete multiple notifications.
+ * @param {Array<number|string>} ids
+ * @param {number} userId
+ * @returns {Promise<{deleted:number, requested:number}>}
+ */
+exports.bulkDeleteNotifications = async (ids, userId) => {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    const err = new Error('Notification ids must be a non-empty array');
+    err.status = 400;
+    throw err;
+  }
+
+  const normalizedIds = [...new Set(ids
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0))];
+
+  if (normalizedIds.length === 0) {
+    const err = new Error('Notification ids must contain valid numeric IDs');
+    err.status = 400;
+    throw err;
+  }
+
+  const result = await Notification.softDeleteMany(normalizedIds, userId);
+  return { deleted: result.rowCount || 0, requested: normalizedIds.length };
+};
+
+/**
  * Get unread notification count for a user.
  * @param {number} userId
  * @returns {Promise<number>}

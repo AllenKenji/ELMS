@@ -11,6 +11,8 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Fetch unread count
   useEffect(() => {
@@ -69,9 +71,11 @@ export default function NotificationBell() {
       try {
         const res = await api.get('/notifications?unread=true');
         setNotifications(res.data || []);
+        setSelectedIds([]);
       } catch (err) {
         if (err?.status === 401 || err?.response?.status === 401) {
           setNotifications([]);
+          setSelectedIds([]);
           return;
         }
         console.error('Error fetching notifications:', err);
@@ -98,8 +102,47 @@ export default function NotificationBell() {
     try {
       await api.delete(`/notifications/${id}`);
       setNotifications(notifications.filter(n => n.id !== id));
+      setSelectedIds((prev) => prev.filter((selectedId) => selectedId !== id));
     } catch (err) {
       console.error('Error deleting notification:', err);
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds((prev) => (
+      prev.includes(id) ? prev.filter((selectedId) => selectedId !== id) : [...prev, id]
+    ));
+  };
+
+  const selectAllVisible = () => {
+    const visibleIds = notifications.map((n) => n.id);
+    setSelectedIds(visibleIds);
+  };
+
+  const selectUnreadVisible = () => {
+    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
+    setSelectedIds(unreadIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+
+    const confirmed = window.confirm(`Delete ${selectedIds.length} selected notification(s)? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      setBulkDeleting(true);
+      await api.post('/notifications/bulk-delete', { ids: selectedIds });
+      setNotifications((prev) => prev.filter((n) => !selectedIds.includes(n.id)));
+      setSelectedIds([]);
+    } catch (err) {
+      console.error('Error bulk deleting notifications:', err);
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -173,6 +216,27 @@ export default function NotificationBell() {
               )}
             </div>
 
+            {user && notifications.length > 0 && (
+              <div className="dropdown-bulk-actions">
+                <button className="bulk-action-btn" onClick={selectUnreadVisible}>
+                  Select unread
+                </button>
+                <button className="bulk-action-btn" onClick={selectAllVisible}>
+                  Select all
+                </button>
+                <button className="bulk-action-btn" onClick={clearSelection}>
+                  Clear
+                </button>
+                <button
+                  className="bulk-action-btn delete"
+                  onClick={handleBulkDelete}
+                  disabled={selectedIds.length === 0 || bulkDeleting}
+                >
+                  {bulkDeleting ? 'Deleting...' : `Delete (${selectedIds.length})`}
+                </button>
+              </div>
+            )}
+
             {/* Notifications List */}
             {!user ? (
               <div className="dropdown-empty">
@@ -191,6 +255,15 @@ export default function NotificationBell() {
                     key={notif.id}
                     className={`notification-item ${notif.is_read ? '' : 'unread'}`}
                   >
+                    <label className="notif-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(notif.id)}
+                        onChange={() => toggleSelect(notif.id)}
+                        aria-label={`Select notification ${notif.title}`}
+                      />
+                    </label>
+
                     <div
                       className="notif-icon"
                       style={{ color: getTypeColor(notif.type) }}

@@ -78,6 +78,45 @@
   font-size: 1rem;
 }
 
+.dropdown-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: #fafafa;
+}
+
+.bulk-action-btn {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid #d0d0d0;
+  background: white;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-action-btn:hover {
+  border-color: #4a90e2;
+  color: #2e6fb6;
+}
+
+.bulk-action-btn.delete {
+  border-color: #e5b8b6;
+  color: #a63a35;
+}
+
+.bulk-action-btn.delete:hover:not(:disabled) {
+  border-color: #d9534f;
+  background: #fff5f5;
+}
+
+.bulk-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .mark-all-btn {
   padding: 0.4rem 0.8rem;
   background-color: #4a90e2;
@@ -129,6 +168,17 @@
 
 .notification-item.unread {
   background-color: #f0f8ff;
+}
+
+.notif-select {
+  display: flex;
+  align-items: center;
+}
+
+.notif-select input {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
 }
 
 .notif-icon {

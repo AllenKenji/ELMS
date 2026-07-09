@@ -93,6 +93,25 @@ exports.remove = async (req, res) => {
 };
 
 /**
+ * Soft-delete multiple notifications.
+ * POST /notifications/bulk-delete
+ */
+exports.bulkRemove = async (req, res) => {
+  try {
+    const result = await notificationService.bulkDeleteNotifications(req.body?.ids, req.user.id);
+    res.json({
+      message: 'Notifications deleted',
+      deleted: result.deleted,
+      requested: result.requested,
+    });
+  } catch (err) {
+    console.error('Bulk delete notifications error:', err);
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error deleting notifications' });
+  }
+};
+
+/**
  * Get unread notification count.
  * GET /notifications/count/unread
  */

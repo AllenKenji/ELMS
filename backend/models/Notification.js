@@ -78,6 +78,18 @@ exports.softDelete = async (id, userId) => {
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
+exports.softDeleteMany = async (ids, userId) => {
+  return pool.query(
+    `UPDATE notifications
+     SET deleted_at = NOW(), updated_at = NOW()
+     WHERE user_id = $1
+       AND id = ANY($2::int[])
+       AND deleted_at IS NULL`,
+    [userId, ids]
+  );
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
 exports.getUnreadCount = async (userId) => {
   return pool.query(
     `SELECT COUNT(*) as count FROM notifications

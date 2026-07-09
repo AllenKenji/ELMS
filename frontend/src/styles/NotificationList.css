@@ -144,6 +144,43 @@
   margin: 0;
 }
 
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.bulk-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #333;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.btn-bulk-delete {
+  padding: 0.6rem 1rem;
+  border: 1px solid #d9534f;
+  background-color: #fff5f5;
+  color: #b52b27;
+  border-radius: 4px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-bulk-delete:hover:not(:disabled) {
+  background-color: #fce8e7;
+}
+
+.btn-bulk-delete:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;
@@ -215,6 +252,18 @@
 .notification-card.unread {
   background-color: #f0f8ff;
   border-color: #4a90e2;
+}
+
+.notif-select {
+  position: absolute;
+  right: 0.75rem;
+  top: 0.75rem;
+}
+
+.notif-select input {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 /* Card Header */
@@ -345,6 +394,16 @@
   .list-filters {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .bulk-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-bulk-delete {
+    width: 100%;
+    text-align: center;
   }
 
   .search-box {

@@ -5,6 +5,7 @@ const notificationController = require('../controllers/notificationController');
 
 router.post('/', authenticateToken, notificationController.create);
 router.get('/', authenticateToken, notificationController.getAll);
+router.post('/bulk-delete', authenticateToken, notificationController.bulkRemove);
 router.patch('/mark-all/read', authenticateToken, notificationController.markAllRead);
 router.get('/count/unread', authenticateToken, notificationController.getUnreadCount);
 router.get('/:id', authenticateToken, notificationController.getById);
