@@ -278,20 +278,33 @@ export default function OrdinanceForm({
       });
 
       const suggestion = res?.data?.suggestion || {};
-      const current = normalizeFormData();
+      const rawText = String(res?.data?.raw_text || '').trim();
+
+      const fallbackLines = rawText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
+      const fallbackTitle = fallbackLines[0] || '';
+      const fallbackDescription = fallbackLines.slice(1, 6).join(' ').slice(0, 700);
+      const nextContent = suggestion.content || rawText;
+
+      if (!nextContent) {
+        setError('No readable text found. Try a clearer image or export the PDF as text-based PDF.');
+        return;
+      }
 
       setFormData((prev) => ({
         ...prev,
-        title: suggestion.title || current.title,
+        title: suggestion.title || fallbackTitle || prev.title,
         ordinance_number: '',
-        description: suggestion.description || current.description,
-        content: suggestion.content || current.content,
+        description: suggestion.description || fallbackDescription || prev.description,
+        content: nextContent || prev.content,
         remarks: suggestion.remarks || prev.remarks,
       }));
       setFormErrors({});
       setSuccess('Document scanned. Review and edit the extracted text before submitting.');
     } catch (err) {
-      const msg = err?.response?.data?.error || 'Failed to scan document.';
+      const msg = err?.message || err?.response?.data?.error || 'Failed to scan document.';
       setError(msg);
     } finally {
       setScanningDocument(false);
