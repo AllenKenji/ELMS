@@ -2,6 +2,34 @@
  * PDF Service - Generates professional PDF documents for ordinances and resolutions.
  */
 const PDFDocument = require('pdfkit');
+const path = require('path');
+
+function toPlainText(value) {
+  if (!value) return '';
+  return String(value)
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
+function pickFirstNonEmpty(...values) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
 
 /**
  * Formats a date value for display in the PDF.
@@ -18,33 +46,72 @@ function formatDate(value) {
 }
 
 /**
- * Writes the common document header (logo area, system name, divider).
+ * Writes the common document header (logo area, locality name, divider).
  * @param {PDFDocument} doc
  * @param {string} documentType  e.g. 'ORDINANCE' or 'RESOLUTION'
+ * @param {object} headerConfig
  */
-function writeHeader(doc, documentType) {
-  // Add left and right logos (replace with actual file paths)
-  const leftLogoPath = 'public/logo-left.png'; // Update with actual path
-  const rightLogoPath = 'public/logo-right.png'; // Update with actual path
-  const logoSize = 50;
+function writeHeader(doc, documentType, headerConfig = {}) {
+  // Add left and right logos using absolute paths for reliable rendering.
+  const leftLogoPath = path.join(__dirname, '..', 'public', 'logo-left.png');
+  const rightLogoPath = path.join(__dirname, '..', 'public', 'logo-right.png');
+  const logoSize = 58;
   const { width: pageWidth, margins: { left: marginLeft, right: marginRight } } = doc.page;
-  const {y} = doc;
+  const { y } = doc;
+  const logoY = y + 4;
+
+  const republicLine = pickFirstNonEmpty(
+    headerConfig.republicLine,
+    process.env.PDF_REPUBLIC_LINE,
+    'Republic of the Philippines'
+  );
+  const municipalityLine = pickFirstNonEmpty(
+    headerConfig.municipality,
+    process.env.PDF_MUNICIPALITY,
+    process.env.PDF_CITY,
+    'Municipality / City'
+  );
+  const barangayLine = pickFirstNonEmpty(
+    headerConfig.barangay,
+    process.env.PDF_BARANGAY,
+    'Barangay Name'
+  );
+  const bodyLine = pickFirstNonEmpty(
+    headerConfig.body,
+    process.env.PDF_LEGISLATIVE_BODY,
+    'Sangguniang Barangay'
+  );
+
   try {
-    doc.image(leftLogoPath, marginLeft, y, { width: logoSize, height: logoSize });
+    doc.image(leftLogoPath, marginLeft, logoY, { width: logoSize, height: logoSize, align: 'left' });
+    doc
+      .rect(marginLeft - 2, logoY - 2, logoSize + 4, logoSize + 4)
+      .lineWidth(0.6)
+      .strokeColor('#cdd7e2')
+      .stroke();
   } catch {}
+
   try {
-    doc.image(rightLogoPath, pageWidth - marginRight - logoSize, y, { width: logoSize, height: logoSize });
+    const rightX = pageWidth - marginRight - logoSize;
+    doc.image(rightLogoPath, rightX, logoY, { width: logoSize, height: logoSize, align: 'right' });
+    doc
+      .rect(rightX - 2, logoY - 2, logoSize + 4, logoSize + 4)
+      .lineWidth(0.6)
+      .strokeColor('#cdd7e2')
+      .stroke();
   } catch {}
 
   // Move y below logos
-  doc.y = y + logoSize + 5;
+  doc.y = y + logoSize + 8;
 
   doc
     .fontSize(10)
-    .fillColor('#666666')
-    .text('Republic of the Philippines', { align: 'center' })
-    .text('E-Legislative Monitoring System', { align: 'center' })
-    .moveDown(0.3);
+    .fillColor('#444444')
+    .text(republicLine, { align: 'center' })
+    .text(municipalityLine, { align: 'center' })
+    .text(barangayLine, { align: 'center' })
+    .text(bodyLine, { align: 'center' })
+    .moveDown(0.35);
 
   doc
     .moveTo(doc.page.margins.left, doc.y)
@@ -54,11 +121,42 @@ function writeHeader(doc, documentType) {
     .moveDown(0.5);
 
   doc
-    .fontSize(18)
-    .fillColor('#1a1a2e')
+    .fontSize(17)
+    .fillColor('#10213a')
     .font('Helvetica-Bold')
     .text(documentType, { align: 'center' })
-    .moveDown(0.3);
+    .moveDown(0.35);
+}
+
+function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
+  const { left, right } = doc.page.margins;
+  const pageRight = doc.page.width - right;
+
+  doc
+    .roundedRect(left, doc.y, pageRight - left, 78, 6)
+    .lineWidth(1)
+    .strokeColor('#cfd7e3')
+    .stroke();
+
+  doc.moveDown(0.3);
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor('#2f4765')
+    .text(`${numberLabel}: ${numberValue || 'Pending Assignment'}`, {
+      align: 'center',
+    });
+
+  doc
+    .moveDown(0.25)
+    .font('Helvetica-Bold')
+    .fontSize(13)
+    .fillColor('#111827')
+    .text(title || 'Untitled Document', {
+      align: 'center',
+      lineGap: 2,
+    })
+    .moveDown(0.8);
 }
 
 /**
@@ -86,21 +184,133 @@ function writeMetaRow(doc, label, value) {
  * @param {string} body
  */
 function writeSection(doc, heading, body) {
+  const plainBody = toPlainText(body);
   doc
     .moveDown(0.6)
     .font('Helvetica-Bold')
     .fontSize(11)
-    .fillColor('#1a1a2e')
+    .fillColor('#10213a')
     .text(heading)
     .moveDown(0.2)
     .font('Helvetica')
-    .fontSize(10)
-    .fillColor('#333333')
-    .text(body || 'N/A', {
+    .fontSize(10.5)
+    .fillColor('#1f2937')
+    .text(plainBody || 'N/A', {
       align: 'justify',
-      lineGap: 2,
+      lineGap: 3,
     })
     .moveDown(0.2);
+}
+
+function writeSignatureBlock(doc, proposerName) {
+  doc.moveDown(1.3);
+
+  const { left, right } = doc.page.margins;
+  const pageRight = doc.page.width - right;
+  const width = pageRight - left;
+  const colWidth = width / 2 - 10;
+  const lineY = doc.y + 34;
+
+  doc
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#111827')
+    .text('Prepared / Proposed by:', left, doc.y, { width: colWidth })
+    .text('Certified by:', left + colWidth + 20, doc.y - 12, { width: colWidth });
+
+  doc
+    .moveTo(left, lineY)
+    .lineTo(left + colWidth, lineY)
+    .strokeColor('#8ca0b8')
+    .stroke();
+
+  doc
+    .moveTo(left + colWidth + 20, lineY)
+    .lineTo(left + colWidth + 20 + colWidth, lineY)
+    .strokeColor('#8ca0b8')
+    .stroke();
+
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor('#1f2937')
+    .text(proposerName || 'Name / Signature', left, lineY + 4, {
+      width: colWidth,
+      align: 'center',
+    })
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor('#4b5563')
+    .text('Author / Proponent', left, lineY + 18, {
+      width: colWidth,
+      align: 'center',
+    })
+    .text('Secretary', left + colWidth + 20, lineY + 10, {
+      width: colWidth,
+      align: 'center',
+    });
+}
+
+function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
+  doc.moveDown(0.8);
+
+  const { left, right } = doc.page.margins;
+  const pageRight = doc.page.width - right;
+  const width = pageRight - left;
+  const colWidth = width / 3 - 8;
+  const startY = doc.y;
+  const lineY = startY + 28;
+
+  const viceMayorName = pickFirstNonEmpty(
+    officials.viceMayor,
+    process.env.PDF_VICE_MAYOR_NAME,
+    'Vice Mayor'
+  );
+  const secretaryName = pickFirstNonEmpty(
+    officials.secretary,
+    process.env.PDF_SECRETARY_NAME,
+    'Secretary'
+  );
+  const mayorName = pickFirstNonEmpty(
+    officials.mayor,
+    process.env.PDF_MAYOR_NAME,
+    'Mayor'
+  );
+
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor('#10213a')
+    .text('ENACTED BY:', left, startY, { width: colWidth, align: 'center' })
+    .text('ATTESTED BY:', left + colWidth + 12, startY, { width: colWidth, align: 'center' })
+    .text('APPROVED BY:', left + 2 * (colWidth + 12), startY, { width: colWidth, align: 'center' });
+
+  for (let i = 0; i < 3; i += 1) {
+    const x = left + i * (colWidth + 12);
+    doc
+      .moveTo(x, lineY)
+      .lineTo(x + colWidth, lineY)
+      .strokeColor('#8ca0b8')
+      .lineWidth(1)
+      .stroke();
+  }
+
+  doc
+    .font('Helvetica-Bold')
+    .fontSize(10)
+    .fillColor('#1f2937')
+    .text(viceMayorName, left, lineY + 4, { width: colWidth, align: 'center' })
+    .text(secretaryName, left + colWidth + 12, lineY + 4, { width: colWidth, align: 'center' })
+    .text(mayorName, left + 2 * (colWidth + 12), lineY + 4, { width: colWidth, align: 'center' })
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor('#4b5563')
+    .text('Presiding Officer', left, lineY + 18, { width: colWidth, align: 'center' })
+    .text('Secretary', left + colWidth + 12, lineY + 18, { width: colWidth, align: 'center' })
+    .text('Municipal / City Mayor', left + 2 * (colWidth + 12), lineY + 18, {
+      width: colWidth,
+      align: 'center',
+    });
 }
 
 /**
@@ -138,20 +348,18 @@ function writeFooter(doc) {
  * @param {object} ordinance  - Ordinance record from the database
  * @param {import('stream').Writable} stream - Destination stream (e.g. HTTP response)
  */
-function generateOrdinancePdf(ordinance, stream) {
+function generateOrdinancePdf(ordinance, stream, options = {}) {
   const doc = new PDFDocument({ margin: 60, bufferPages: true });
   doc.pipe(stream);
 
-  writeHeader(doc, 'BARANGAY ORDINANCE');
+  writeHeader(doc, 'BARANGAY ORDINANCE', options.header);
 
-  // Title
-  doc
-    .moveDown(0.5)
-    .font('Helvetica-Bold')
-    .fontSize(13)
-    .fillColor('#1a1a2e')
-    .text(ordinance.title || 'Untitled Ordinance', { align: 'center' })
-    .moveDown(0.8);
+  writeDocumentTitleBlock(
+    doc,
+    'Ordinance Number',
+    ordinance.ordinance_number,
+    toPlainText(ordinance.title)
+  );
 
   // Metadata block
   doc
@@ -161,7 +369,6 @@ function generateOrdinancePdf(ordinance, stream) {
     .stroke()
     .moveDown(0.4);
 
-  writeMetaRow(doc, 'Ordinance Number', ordinance.ordinance_number || 'Pending Assignment');
   writeMetaRow(doc, 'Status', ordinance.status);
   writeMetaRow(doc, 'Proposed By', ordinance.proposer_name || 'N/A');
   // Co-authors
@@ -186,14 +393,17 @@ function generateOrdinancePdf(ordinance, stream) {
 
   // Sections
   if (ordinance.description) {
-    writeSection(doc, 'Description', ordinance.description);
+    writeSection(doc, 'Purpose / Description', ordinance.description);
   }
 
-  writeSection(doc, 'Full Content', ordinance.content);
+  writeSection(doc, 'Body of Ordinance', ordinance.content);
 
   if (ordinance.remarks) {
     writeSection(doc, 'Remarks', ordinance.remarks);
   }
+
+  writeSignatureBlock(doc, ordinance.proposer_name);
+  writeEnactmentAndApprovalBlocks(doc, options.officials);
 
   writeFooter(doc);
   doc.end();
@@ -204,20 +414,18 @@ function generateOrdinancePdf(ordinance, stream) {
  * @param {object} resolution  - Resolution record from the database
  * @param {import('stream').Writable} stream - Destination stream (e.g. HTTP response)
  */
-function generateResolutionPdf(resolution, stream) {
+function generateResolutionPdf(resolution, stream, options = {}) {
   const doc = new PDFDocument({ margin: 60, bufferPages: true });
   doc.pipe(stream);
 
-  writeHeader(doc, 'BARANGAY RESOLUTION');
+  writeHeader(doc, 'BARANGAY RESOLUTION', options.header);
 
-  // Title
-  doc
-    .moveDown(0.5)
-    .font('Helvetica-Bold')
-    .fontSize(13)
-    .fillColor('#1a1a2e')
-    .text(resolution.title || 'Untitled Resolution', { align: 'center' })
-    .moveDown(0.8);
+  writeDocumentTitleBlock(
+    doc,
+    'Resolution Number',
+    resolution.resolution_number,
+    toPlainText(resolution.title)
+  );
 
   // Metadata block
   doc
@@ -227,9 +435,12 @@ function generateResolutionPdf(resolution, stream) {
     .stroke()
     .moveDown(0.4);
 
-  writeMetaRow(doc, 'Resolution Number', resolution.resolution_number || 'Pending Assignment');
   writeMetaRow(doc, 'Status', resolution.status);
   writeMetaRow(doc, 'Proposed By', resolution.proposer_name || 'N/A');
+  if (Array.isArray(resolution.co_authors) && resolution.co_authors.length > 0) {
+    const coAuthorNames = resolution.co_authors.map(c => c.name + (c.email ? ` <${c.email}>` : '')).join(', ');
+    writeMetaRow(doc, 'Co-authors', coAuthorNames);
+  }
   writeMetaRow(doc, 'Date Created', formatDate(resolution.created_at));
   if (resolution.approved_date) {
     writeMetaRow(doc, 'Date Approved', formatDate(resolution.approved_date));
@@ -247,14 +458,17 @@ function generateResolutionPdf(resolution, stream) {
 
   // Sections
   if (resolution.description) {
-    writeSection(doc, 'Description', resolution.description);
+    writeSection(doc, 'Purpose / Description', resolution.description);
   }
 
-  writeSection(doc, 'Full Text', resolution.content);
+  writeSection(doc, 'Body of Resolution', resolution.content);
 
   if (resolution.remarks) {
     writeSection(doc, 'Notes', resolution.remarks);
   }
+
+  writeSignatureBlock(doc, resolution.proposer_name);
+  writeEnactmentAndApprovalBlocks(doc, options.officials);
 
   writeFooter(doc);
   doc.end();

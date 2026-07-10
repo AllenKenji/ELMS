@@ -18,6 +18,7 @@ exports.getWorkflowStatus = async (req, res) => {
  */
 const ordinanceService = require('../services/ordinanceService');
 const { generateOrdinancePdf } = require('../services/pdfService');
+const settingsService = require('../services/settingsService');
 
 /**
  * Create a new ordinance.
@@ -255,12 +256,29 @@ exports.updateApproval = async (req, res) => {
 exports.generatePdf = async (req, res) => {
   try {
     const ordinance = await ordinanceService.getOrdinanceById(req.params.id);
+    let settings = null;
+    try {
+      settings = await settingsService.getSettings();
+    } catch {
+      settings = null;
+    }
     const filename = `ordinance-${ordinance.ordinance_number || ordinance.id}.pdf`;
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-    generateOrdinancePdf(ordinance, res);
+    generateOrdinancePdf(ordinance, res, {
+      header: {
+        municipality: settings?.municipality_name || settings?.city_name || process.env.PDF_MUNICIPALITY,
+        barangay: settings?.barangay_name || process.env.PDF_BARANGAY,
+        body: settings?.legislative_body || process.env.PDF_LEGISLATIVE_BODY,
+      },
+      officials: {
+        viceMayor: settings?.vice_mayor_name || process.env.PDF_VICE_MAYOR_NAME,
+        mayor: settings?.mayor_name || process.env.PDF_MAYOR_NAME,
+        secretary: settings?.secretary_name || process.env.PDF_SECRETARY_NAME,
+      },
+    });
   } catch (err) {
     console.error('Generate ordinance PDF error:', err);
     if (err.status === 404) return res.status(404).json({ error: err.message });
