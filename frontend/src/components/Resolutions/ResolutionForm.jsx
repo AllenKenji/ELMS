@@ -163,13 +163,14 @@ export default function ResolutionForm({
   const handleApplyTemplate = async () => {
     if (!selectedTemplateId) return;
 
-    const hasCurrentContent =
+    const hasCurrentContent = Boolean(
       formData.title.trim() ||
       hasMeaningfulRichText(formData.description) ||
       hasMeaningfulRichText(formData.content) ||
       formData.co_authors.length > 0 ||
       formData.attachments_text.trim() ||
-      formData.remarks.trim();
+      formData.remarks.trim()
+    );
 
     if (hasCurrentContent && !window.confirm('Replace current form data with the selected template?')) {
       return;
@@ -619,27 +620,25 @@ export default function ResolutionForm({
             </div>
           )}
 
-          {!resolutionId && (
-            <div className="form-group">
-              <label htmlFor="ocr_document">Scan Old PDF/Image (OCR Import)</label>
-              <input
-                id="ocr_document"
-                type="file"
-                accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
-                onChange={(e) => setScanFile(e.target.files?.[0] || null)}
-                disabled={loading || scanningDocument}
-              />
-              <p className="field-helper">Upload an old resolution document to auto-fill title, description, and content.</p>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={handleScanDocument}
-                disabled={!scanFile || loading || scanningDocument}
-              >
-                {scanningDocument ? 'Scanning...' : 'Scan and Fill Form'}
-              </button>
-            </div>
-          )}
+          <div className="form-group">
+            <label htmlFor="ocr_document">Scan Old PDF/Image (OCR Import)</label>
+            <input
+              id="ocr_document"
+              type="file"
+              accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
+              onChange={(e) => setScanFile(e.target.files?.[0] || null)}
+              disabled={loading || scanningDocument}
+            />
+            <p className="field-helper">Upload an old resolution document to auto-fill title, description, and content.</p>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleScanDocument}
+              disabled={!scanFile || loading || scanningDocument}
+            >
+              {scanningDocument ? 'Scanning...' : 'Scan and Fill Form'}
+            </button>
+          </div>
 
           <div className="form-group">
             <label>Co-authors / Sponsors (Optional)</label>

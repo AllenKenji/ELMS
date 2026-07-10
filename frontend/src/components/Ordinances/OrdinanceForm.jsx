@@ -649,28 +649,26 @@ export default function OrdinanceForm({
           </div>
         )}
 
-        {!ordinanceId && (
-          <div className="form-group">
-            <label htmlFor="ocr_document">Scan Old PDF/Image (OCR Import)</label>
-            <input
-              id="ocr_document"
-              type="file"
-              accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
-              onChange={(e) => setScanFile(e.target.files?.[0] || null)}
-              disabled={loading || scanningDocument}
-            />
-            <div className="form-hint">Upload an old ordinance document to auto-fill title, description, and content.</div>
-            <button
-              type="button"
-              className="btn-reset"
-              onClick={handleScanDocument}
-              disabled={!scanFile || loading || scanningDocument}
-              style={{ marginTop: 8 }}
-            >
-              {scanningDocument ? 'Scanning...' : 'Scan and Fill Form'}
-            </button>
-          </div>
-        )}
+        <div className="form-group">
+          <label htmlFor="ocr_document">Scan Old PDF/Image (OCR Import)</label>
+          <input
+            id="ocr_document"
+            type="file"
+            accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
+            onChange={(e) => setScanFile(e.target.files?.[0] || null)}
+            disabled={loading || scanningDocument}
+          />
+          <div className="form-hint">Upload an old ordinance document to auto-fill title, description, and content.</div>
+          <button
+            type="button"
+            className="btn-reset"
+            onClick={handleScanDocument}
+            disabled={!scanFile || loading || scanningDocument}
+            style={{ marginTop: 8 }}
+          >
+            {scanningDocument ? 'Scanning...' : 'Scan and Fill Form'}
+          </button>
+        </div>
 
         <div className="form-group">
           <label>Co-authors / Sponsors (Optional)</label>
