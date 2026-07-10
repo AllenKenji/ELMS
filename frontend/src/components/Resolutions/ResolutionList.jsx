@@ -28,6 +28,7 @@ export default function ResolutionList() {
   const [showForm, setShowForm] = useState(false);
   const [selectedResolution, setSelectedResolution] = useState(null);
   const [editingResolution, setEditingResolution] = useState(null);
+  const [patternInitialData, setPatternInitialData] = useState(null);
 
   // Fetch resolutions
   const fetchResolutions = async () => {
@@ -98,6 +99,30 @@ export default function ResolutionList() {
     } catch (err) {
       setError('Failed to delete resolution');
       console.error('Error:', err);
+    }
+  };
+
+  const handleUseAsPattern = async (resolution) => {
+    try {
+      setError('');
+      const res = await api.get(`/resolutions/${resolution.id}`);
+      const detail = res?.data || resolution;
+
+      setPatternInitialData({
+        title: detail.title || '',
+        resolution_number: '',
+        description: detail.description || '',
+        content: detail.content || '',
+        co_authors: detail.co_authors || [],
+        attachments: detail.attachments || [],
+        remarks: detail.remarks || '',
+      });
+      setEditingResolution(null);
+      setShowForm(true);
+      setSelectedResolution(null);
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Failed to load resolution pattern.');
+      console.error('Pattern load error:', err);
     }
   };
 
@@ -241,6 +266,7 @@ export default function ResolutionList() {
                   <button
                     className="btn-edit-card"
                     onClick={() => {
+                      setPatternInitialData(null);
                       setEditingResolution(resolution);
                       setShowForm(true);
                     }}
@@ -248,6 +274,12 @@ export default function ResolutionList() {
                     Edit
                   </button>
                 )}
+                <button
+                  className="btn-edit-card"
+                  onClick={() => handleUseAsPattern(resolution)}
+                >
+                  Use as Pattern
+                </button>
                 {canDelete && (
                   <button
                     className="btn-delete-card"
@@ -266,15 +298,17 @@ export default function ResolutionList() {
       {showForm && (
         <ResolutionForm
           resolutionId={editingResolution?.id}
-          initialData={editingResolution}
+          initialData={editingResolution || patternInitialData}
           onSuccess={() => {
             setShowForm(false);
             setEditingResolution(null);
+            setPatternInitialData(null);
             fetchResolutions();
           }}
           onCancel={() => {
             setShowForm(false);
             setEditingResolution(null);
+            setPatternInitialData(null);
           }}
         />
       )}
@@ -283,6 +317,7 @@ export default function ResolutionList() {
       {selectedResolution && (
         <ResolutionDetails
           resolutionId={selectedResolution.id}
+          onUseAsPattern={() => handleUseAsPattern(selectedResolution)}
           onClose={() => setSelectedResolution(null)}
           onStatusChange={() => fetchResolutions()}
         />

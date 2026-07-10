@@ -61,7 +61,7 @@ const SECRETARY_STATUS_OPTIONS = {
   Published: [],
 };
 
-export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange }) {
+export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange, onUseAsPattern }) {
   const { user } = useAuth();
   const [ordinance, setOrdinance] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -745,6 +745,14 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange 
                         className="btn-action-details btn-accent"
                       >
                         📅 Create Meeting
+                      </button>
+                    )}
+                    {onUseAsPattern && (
+                      <button
+                        onClick={() => onUseAsPattern(ordinance)}
+                        className="btn-action-details btn-secondary"
+                      >
+                        🧩 Use as Pattern
                       </button>
                     )}
                     {/* Create Committee Report button for chair/admin in committee report stage */}

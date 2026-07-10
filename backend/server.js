@@ -54,6 +54,7 @@ app.use('/settings', require('./routes/settings'));
 app.use('/messages', require('./routes/messages'));
 app.use('/votes', require('./routes/votes'));
 app.use('/committees', require('./routes/committees'));
+app.use('/templates', require('./routes/templates'));
 
 app.use('/reports', require('./routes/reports'));
 app.use('/minutes', require('./routes/minutes'));

@@ -86,6 +86,16 @@ export default function ResolutionForm({
 
   const [loading, setLoading] = useState(false);
   const [councilorUsers, setCouncilorUsers] = useState([]);
+  const [templateOptions, setTemplateOptions] = useState([]);
+  const [recentTemplates, setRecentTemplates] = useState([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [templateSort, setTemplateSort] = useState('favorites');
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [applyingTemplate, setApplyingTemplate] = useState(false);
+  const [savingFavorite, setSavingFavorite] = useState(false);
+  const [scanFile, setScanFile] = useState(null);
+  const [scanningDocument, setScanningDocument] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [formErrors, setFormErrors] = useState({});
@@ -103,6 +113,182 @@ export default function ResolutionForm({
 
     fetchCouncilors();
   }, []);
+
+  useEffect(() => {
+    setFormData(normalizeFormData(initialData));
+  }, [initialData]);
+
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        setLoadingTemplates(true);
+        const res = await api.get('/templates/resolution', {
+          params: {
+            favoritesOnly,
+            limit: 100,
+          },
+        });
+        const items = (res.data || [])
+          .filter((item) => Number(item.id) !== Number(resolutionId))
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        setTemplateOptions(items);
+      } catch {
+        setTemplateOptions([]);
+      } finally {
+        setLoadingTemplates(false);
+      }
+    };
+
+    fetchTemplates();
+  }, [resolutionId, favoritesOnly]);
+
+  useEffect(() => {
+    const fetchRecentTemplates = async () => {
+      try {
+        const res = await api.get('/templates/resolution/history', {
+          params: {
+            limit: 6,
+          },
+        });
+        const items = (res.data || []).filter((item) => Number(item.id) !== Number(resolutionId));
+        setRecentTemplates(items);
+      } catch {
+        setRecentTemplates([]);
+      }
+    };
+
+    fetchRecentTemplates();
+  }, [resolutionId]);
+
+  const handleApplyTemplate = async () => {
+    if (!selectedTemplateId) return;
+
+    const hasCurrentContent =
+      formData.title.trim() ||
+      hasMeaningfulRichText(formData.description) ||
+      hasMeaningfulRichText(formData.content) ||
+      formData.co_authors.length > 0 ||
+      formData.attachments_text.trim() ||
+      formData.remarks.trim();
+
+    if (hasCurrentContent && !window.confirm('Replace current form data with the selected template?')) {
+      return;
+    }
+
+    try {
+      setApplyingTemplate(true);
+      setError('');
+      setSuccess('');
+      const res = await api.get(`/resolutions/${selectedTemplateId}`);
+      const templateData = normalizeFormData(res.data);
+
+      setFormData({
+        ...templateData,
+        resolution_number: '',
+        attachments_files: [],
+      });
+      await api.post(`/templates/resolution/${selectedTemplateId}/use`);
+      setFormErrors({});
+      setSuccess('Template loaded. Update any details, then submit as a new resolution.');
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to load selected template.';
+      setError(msg);
+    } finally {
+      setApplyingTemplate(false);
+    }
+  };
+
+  const selectedTemplate = templateOptions.find((item) => String(item.id) === String(selectedTemplateId));
+  const recentTemplateIds = new Set(recentTemplates.map((item) => String(item.id)));
+
+  const sortedTemplateOptions = [...templateOptions].sort((a, b) => {
+    if (templateSort === 'used') {
+      const usedDiff = Number(b.used_count || 0) - Number(a.used_count || 0);
+      if (usedDiff !== 0) return usedDiff;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    }
+
+    if (templateSort === 'recent') {
+      const recentA = a.last_used_at ? new Date(a.last_used_at).getTime() : 0;
+      const recentB = b.last_used_at ? new Date(b.last_used_at).getTime() : 0;
+      if (recentB !== recentA) return recentB - recentA;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    }
+
+    const favDiff = Number(Boolean(b.is_favorite)) - Number(Boolean(a.is_favorite));
+    if (favDiff !== 0) return favDiff;
+    const recentA = a.last_used_at ? new Date(a.last_used_at).getTime() : 0;
+    const recentB = b.last_used_at ? new Date(b.last_used_at).getTime() : 0;
+    if (recentB !== recentA) return recentB - recentA;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  });
+
+  const handleToggleFavorite = async () => {
+    if (!selectedTemplateId) return;
+
+    try {
+      setSavingFavorite(true);
+      const nextValue = !(selectedTemplate?.is_favorite);
+      await api.post(`/templates/resolution/${selectedTemplateId}/favorite`, {
+        is_favorite: nextValue,
+      });
+
+      setTemplateOptions((prev) => prev.map((item) => (
+        String(item.id) === String(selectedTemplateId)
+          ? { ...item, is_favorite: nextValue }
+          : item
+      )));
+
+      setRecentTemplates((prev) => prev.map((item) => (
+        String(item.id) === String(selectedTemplateId)
+          ? { ...item, is_favorite: nextValue }
+          : item
+      )));
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to update favorite template.';
+      setError(msg);
+    } finally {
+      setSavingFavorite(false);
+    }
+  };
+
+  const handleScanDocument = async () => {
+    if (!scanFile) return;
+
+    try {
+      setScanningDocument(true);
+      setError('');
+      setSuccess('');
+
+      const payload = new FormData();
+      payload.append('document', scanFile);
+
+      const res = await api.post('/templates/resolution/scan', payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const suggestion = res?.data?.suggestion || {};
+      const current = normalizeFormData();
+
+      setFormData((prev) => ({
+        ...prev,
+        title: suggestion.title || current.title,
+        resolution_number: '',
+        description: suggestion.description || current.description,
+        content: suggestion.content || current.content,
+        remarks: suggestion.remarks || prev.remarks,
+      }));
+      setFormErrors({});
+      setSuccess('Document scanned. Review and edit the extracted text before submitting.');
+    } catch (err) {
+      const msg = err?.response?.data?.error || 'Failed to scan document.';
+      setError(msg);
+    } finally {
+      setScanningDocument(false);
+    }
+  };
 
   const validateForm = () => {
     const newErrors = {};
@@ -328,6 +514,132 @@ export default function ResolutionForm({
             />
             <p className="field-helper">Automatic if left blank</p>
           </div>
+
+          {!resolutionId && (
+            <div className="form-group">
+              <label htmlFor="resolution_template">Use Existing Resolution as Pattern (Optional)</label>
+              <div className="template-toolbar">
+                <label className="template-toolbar-item">
+                  <input
+                    type="checkbox"
+                    checked={favoritesOnly}
+                    onChange={(e) => setFavoritesOnly(e.target.checked)}
+                    disabled={loading || loadingTemplates || applyingTemplate}
+                  />
+                  Favorites only
+                </label>
+                <label className="template-toolbar-item">
+                  Sort by
+                  <select
+                    value={templateSort}
+                    onChange={(e) => setTemplateSort(e.target.value)}
+                    disabled={loading || loadingTemplates || applyingTemplate}
+                  >
+                    <option value="favorites">Favorites First</option>
+                    <option value="used">Most Used</option>
+                    <option value="recent">Recently Used</option>
+                  </select>
+                </label>
+              </div>
+              <select
+                id="resolution_template"
+                value={selectedTemplateId}
+                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                disabled={loading || loadingTemplates || applyingTemplate}
+              >
+                <option value="">
+                  {loadingTemplates ? 'Loading old resolutions...' : 'Select an existing resolution'}
+                </option>
+                {sortedTemplateOptions.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {`${item.is_favorite ? '★ ' : ''}${item.measure_number || 'No Number'} - ${item.title} (${item.used_count || 0}x)`}
+                  </option>
+                ))}
+              </select>
+              <div className="template-legend" aria-label="Template legend">
+                <span className="template-legend-item">★ Favorites</span>
+                <span className="template-legend-item">📊 Usage</span>
+                <span className="template-legend-item">🕒 Recent</span>
+              </div>
+              {selectedTemplate && (
+                <div className="template-summary-row">
+                  <span className="template-summary-item">
+                    <span className="template-summary-icon">📄</span>
+                    <strong>{selectedTemplate.measure_number || 'No Number'}</strong>
+                  </span>
+                  {selectedTemplate.is_favorite && <span className="template-pill template-pill-favorite">★ Favorite</span>}
+                  {Number(selectedTemplate.used_count || 0) > 0 && (
+                    <span className="template-pill template-pill-used">📊 Used {selectedTemplate.used_count} times</span>
+                  )}
+                  {recentTemplateIds.has(String(selectedTemplate.id)) && (
+                    <span className="template-pill template-pill-recent">🕒 Recently used</span>
+                  )}
+                </div>
+              )}
+              {recentTemplates.length > 0 && (
+                <div className="template-recent-wrap">
+                  <p className="field-helper" style={{ marginBottom: 6 }}>Recent patterns:</p>
+                  <div className="template-recent-list">
+                    {recentTemplates.map((item) => (
+                      <button
+                        key={`recent-${item.id}`}
+                        type="button"
+                        className="template-recent-chip"
+                        onClick={() => setSelectedTemplateId(String(item.id))}
+                        disabled={loading || loadingTemplates || applyingTemplate}
+                      >
+                        <span>{item.is_favorite ? '★' : '🧩'}</span>
+                        <span>{item.measure_number || 'No Number'}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="field-helper">Copies title, description, content, co-authors, and attachment links from an old resolution.</p>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleApplyTemplate}
+                  disabled={!selectedTemplateId || loading || loadingTemplates || applyingTemplate}
+                >
+                  {applyingTemplate ? 'Loading Template...' : 'Apply Pattern'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleToggleFavorite}
+                  disabled={!selectedTemplateId || savingFavorite || loadingTemplates}
+                >
+                  {savingFavorite
+                    ? 'Saving...'
+                    : (selectedTemplate?.is_favorite ? 'Unfavorite Pattern' : 'Favorite Pattern')}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!resolutionId && (
+            <div className="form-group">
+              <label htmlFor="ocr_document">Scan Old PDF/Image (OCR Import)</label>
+              <input
+                id="ocr_document"
+                type="file"
+                accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
+                onChange={(e) => setScanFile(e.target.files?.[0] || null)}
+                disabled={loading || scanningDocument}
+              />
+              <p className="field-helper">Upload an old resolution document to auto-fill title, description, and content.</p>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleScanDocument}
+                disabled={!scanFile || loading || scanningDocument}
+              >
+                {scanningDocument ? 'Scanning...' : 'Scan and Fill Form'}
+              </button>
+            </div>
+          )}
 
           <div className="form-group">
             <label>Co-authors / Sponsors (Optional)</label>

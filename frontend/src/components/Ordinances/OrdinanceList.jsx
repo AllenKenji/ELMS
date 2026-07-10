@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import OrdinanceForm from './OrdinanceForm';
 import OrdinanceDetails from './OrdinanceDetails';
 import '../../styles/OrdinanceList.css';
 
@@ -34,6 +35,8 @@ export default function OrdinanceList() {
   const [selectedOrdinance, setSelectedOrdinance] = useState(null);
   const [sortBy, setSortBy] = useState('date');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showPatternForm, setShowPatternForm] = useState(false);
+  const [patternInitialData, setPatternInitialData] = useState(null);
 
   // Memoize fetchOrdinances to prevent dependency issues
   const fetchOrdinances = useCallback(async () => {
@@ -56,7 +59,7 @@ export default function OrdinanceList() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user?.id, user?.role]);
 
   useEffect(() => {
     fetchOrdinances();
@@ -79,6 +82,47 @@ export default function OrdinanceList() {
       console.error('Error deleting ordinance:', err);
     }
   };
+
+  const handleUseAsPattern = async (ordinance) => {
+    try {
+      setError('');
+      const res = await api.get(`/ordinances/${ordinance.id}`);
+      const detail = res?.data || ordinance;
+
+      setPatternInitialData({
+        title: detail.title || '',
+        ordinance_number: '',
+        description: detail.description || '',
+        content: detail.content || '',
+        co_authors: detail.co_authors || [],
+        attachments: detail.attachments || [],
+        remarks: detail.remarks || '',
+      });
+      setShowPatternForm(true);
+      setShowDetailsModal(false);
+      setSelectedOrdinance(null);
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Failed to load ordinance pattern.');
+      console.error('Error loading pattern:', err);
+    }
+  };
+
+  if (showPatternForm) {
+    return (
+      <OrdinanceForm
+        initialData={patternInitialData}
+        onSuccess={() => {
+          setShowPatternForm(false);
+          setPatternInitialData(null);
+          fetchOrdinances();
+        }}
+        onCancel={() => {
+          setShowPatternForm(false);
+          setPatternInitialData(null);
+        }}
+      />
+    );
+  }
 
   // Filter ordinances based on search and status
   let filteredOrdinances = ordinances.filter(o => {
@@ -286,6 +330,13 @@ export default function OrdinanceList() {
                       >
                         👁️ View
                       </button>
+                      <button
+                        onClick={() => handleUseAsPattern(ordinance)}
+                        className="btn-small btn-secondary"
+                        aria-label={`Use ${ordinance.title} as pattern`}
+                      >
+                        🧩 Use as Pattern
+                      </button>
                       {canDelete && (
                         <button
                           onClick={() => handleDelete(ordinance)}
@@ -306,6 +357,7 @@ export default function OrdinanceList() {
           {showDetailsModal && selectedOrdinance && (
             <OrdinanceDetails
               ordinanceId={selectedOrdinance.id}
+              onUseAsPattern={() => handleUseAsPattern(selectedOrdinance)}
               onClose={() => {
                 setShowDetailsModal(false);
                 setSelectedOrdinance(null);

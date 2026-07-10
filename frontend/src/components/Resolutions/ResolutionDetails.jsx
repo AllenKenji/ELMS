@@ -61,7 +61,7 @@ const SECRETARY_STATUS_OPTIONS = {
   Published: [],
 };
 
-export default function ResolutionDetails({ resolutionId, onClose, onStatusChange }) {
+export default function ResolutionDetails({ resolutionId, onClose, onStatusChange, onUseAsPattern }) {
   const { user } = useAuth();
   const [resolution, setResolution] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -583,6 +583,9 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                     )}
                     {canCreateMeeting && (
                       <button onClick={() => setShowCreateMeetingModal(true)} className="btn-action-details btn-accent">📅 Create Meeting</button>
+                    )}
+                    {onUseAsPattern && (
+                      <button onClick={() => onUseAsPattern(resolution)} className="btn-action-details btn-secondary">🧩 Use as Pattern</button>
                     )}
                     {resolution?.reading_stage === 'COMMITTEE_REPORT_SUBMITTED' &&
                       (user?.role?.toLowerCase() === 'admin' || resolution?.committee?.chair_id === user?.id) && (
