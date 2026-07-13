@@ -264,6 +264,60 @@ async function ensureOrderOfBusinessDocumentsSchema() {
   await pool.query(sql);
 }
 
+async function ensureCommitteeMeetingsBaseSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS committee_meetings (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      meeting_date DATE NOT NULL,
+      meeting_time TEXT,
+      committee_id INTEGER NOT NULL REFERENCES committees(id) ON DELETE CASCADE,
+      ordinance_id INTEGER REFERENCES ordinances(id) ON DELETE SET NULL,
+      resolution_id INTEGER REFERENCES resolutions(id) ON DELETE SET NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      status VARCHAR(30) DEFAULT 'Draft',
+      meeting_link TEXT,
+      ended BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `).catch(() => {});
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_committee_meetings_committee_id ON committee_meetings(committee_id);
+    CREATE INDEX IF NOT EXISTS idx_committee_meetings_ordinance_id ON committee_meetings(ordinance_id);
+    CREATE INDEX IF NOT EXISTS idx_committee_meetings_resolution_id ON committee_meetings(resolution_id);
+    CREATE INDEX IF NOT EXISTS idx_committee_meetings_meeting_date ON committee_meetings(meeting_date);
+  `).catch(() => {});
+}
+
+async function ensureCommitteeMinutesBaseSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS committee_minutes (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      meeting_date DATE,
+      participants TEXT,
+      transcript TEXT,
+      status VARCHAR(50) DEFAULT 'Draft',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      committee_id INTEGER REFERENCES committees(id) ON DELETE CASCADE,
+      generated_minutes TEXT,
+      attendees TEXT,
+      key_decisions TEXT,
+      action_items TEXT,
+      next_steps TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `).catch(() => {});
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_committee_minutes_committee_id
+      ON committee_minutes(committee_id);
+  `).catch(() => {});
+}
+
 async function ensureCommitteeMeetingRecordingSchema() {
   await pool.query(`
     ALTER TABLE committee_meetings
@@ -711,6 +765,8 @@ async function bootstrapSchema() {
   await ensureOrderOfBusinessSchema();
   await ensureOrderOfBusinessItemTypeConstraint();
   await ensureOrderOfBusinessDocumentsSchema();
+  await ensureCommitteeMeetingsBaseSchema();
+  await ensureCommitteeMinutesBaseSchema();
   await ensureCommitteeMeetingRecordingSchema();
   await ensureSessionMinutesBaseSchema();
   await ensureCommitteeMinutesAttendanceSchema();
