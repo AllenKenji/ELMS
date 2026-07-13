@@ -9,7 +9,7 @@ function canAccessCommittee(user, committee) {
   if (['Admin', 'Vice Mayor'].includes(user.role)) return true;
   if (String(committee.chair_id) === String(user.id)) return true;
   return Array.isArray(committee.members) && committee.members.some(
-    (member) => String(member.user_id) === String(user.id) && ['Chair', 'Secretary', 'Committee Secretary'].includes(member.role)
+    (member) => String(member.user_id) === String(user.id)
   );
 }
 

@@ -37,7 +37,7 @@ async function authorizeCommitteeMeetingView(req, res, next) {
 
 		const isChair = String(context.committee.chair_id) === String(req.user.id);
 		const isAllowedMember = context.members.some(
-			(member) => String(member.user_id) === String(req.user.id) && COMMITTEE_MEETING_ROLES.has(member.role)
+			(member) => String(member.user_id) === String(req.user.id)
 		);
 
 		if (isChair || isAllowedMember) {
