@@ -362,9 +362,9 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
 
   const isCommitteeMemberOrSecretaryOrAdmin = useMemo(() => {
     if (!resolution || !resolution.committee || !user) return false;
-    if (user.role === 'Admin' || user.role === 'Vice Mayor') return true;
+    if (user.role === 'Admin' || user.role === 'Vice Mayor' || user.role === 'Secretary') return true;
     if (!Array.isArray(resolution.committee.members)) return false;
-    return resolution.committee.members.some(m => m.user_id === user.id);
+    return resolution.committee.members.some(m => String(m.user_id) === String(user.id));
   }, [resolution, user]);
 
   if (loading) {
@@ -726,7 +726,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                         resolution.committee.chair_id === user.id ||
                         (Array.isArray(resolution.committee.members) &&
                           resolution.committee.members.some(
-                            m => m.user_id === user.id && (m.role === 'Committee Secretary' || m.role === 'Secretary')
+                            m => String(m.user_id) === String(user.id) && (m.role === 'Committee Secretary' || m.role === 'Secretary')
                           ))
                       );
                     }

@@ -6,7 +6,7 @@ import '../styles/CommitteeMeetingsPage.css';
 
 function canAccessCommittee(user, committee) {
   if (!user || !committee) return false;
-  if (['Admin', 'Vice Mayor'].includes(user.role)) return true;
+  if (['Admin', 'Vice Mayor', 'Secretary'].includes(user.role)) return true;
   if (String(committee.chair_id) === String(user.id)) return true;
   return Array.isArray(committee.members) && committee.members.some(
     (member) => String(member.user_id) === String(user.id)

@@ -411,10 +411,10 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
   // Show committee meetings tab to Admin, Vice Mayor, and assigned committee members.
   const isCommitteeMemberOrSecretaryOrAdmin = useMemo(() => {
     if (!ordinance || !ordinance.committee || !user) return false;
-    if (user.role === 'Admin' || user.role === 'Vice Mayor') return true;
+    if (user.role === 'Admin' || user.role === 'Vice Mayor' || user.role === 'Secretary') return true;
     if (!Array.isArray(ordinance.committee.members)) return false;
     return ordinance.committee.members.some(
-      m => m.user_id === user.id
+      m => String(m.user_id) === String(user.id)
     );
   }, [ordinance, user]);
 
@@ -940,7 +940,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
                         ordinance.committee.chair_id === user.id ||
                         (Array.isArray(ordinance.committee.members) &&
                           ordinance.committee.members.some(
-                            m => m.user_id === user.id && (m.role === 'Committee Secretary' || m.role === 'Secretary')
+                            m => String(m.user_id) === String(user.id) && (m.role === 'Committee Secretary' || m.role === 'Secretary')
                           ))
                       );
                     }

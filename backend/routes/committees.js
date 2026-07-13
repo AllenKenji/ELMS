@@ -26,7 +26,7 @@ async function authorizeCommitteeMeetingView(req, res, next) {
 			return res.status(401).json({ error: 'No user information found in token' });
 		}
 
-		if (req.user.role === 'Admin' || req.user.role === 1 || req.user.role === 'Vice Mayor') {
+		if (req.user.role === 'Admin' || req.user.role === 1 || req.user.role === 'Vice Mayor' || req.user.role === 'Secretary') {
 			return next();
 		}
 
