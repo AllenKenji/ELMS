@@ -321,6 +321,9 @@ async function ensureCommitteeMinutesBaseSchema() {
 async function ensureCommitteeMeetingRecordingSchema() {
   await pool.query(`
     ALTER TABLE committee_meetings
+    ADD COLUMN IF NOT EXISTS resolution_id INTEGER REFERENCES resolutions(id) ON DELETE SET NULL,
+    ADD COLUMN IF NOT EXISTS ended BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS minutes_id INTEGER REFERENCES committee_minutes(id) ON DELETE SET NULL,
     ADD COLUMN IF NOT EXISTS meeting_mode VARCHAR(20) DEFAULT 'online',
     ADD COLUMN IF NOT EXISTS meeting_location TEXT,
     ADD COLUMN IF NOT EXISTS recording_url TEXT,
@@ -342,6 +345,11 @@ async function ensureCommitteeMeetingRecordingSchema() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_committee_meetings_recording_uploaded_by
       ON committee_meetings(recording_uploaded_by);
+  `).catch(() => {});
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_committee_meetings_minutes_id
+      ON committee_meetings(minutes_id);
   `).catch(() => {});
 }
 

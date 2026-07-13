@@ -5,6 +5,7 @@ require('dotenv').config();
 const { bootstrapSchema } = require('./bootstrapSchema');
 
 const app = express();
+app.set('trust proxy', 1);
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim())
