@@ -82,6 +82,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
   const [meetingTime2, setMeetingTime2] = useState('');
   const [meetingSubmitting, setMeetingSubmitting] = useState(false);
   const [meetingError, setMeetingError] = useState('');
+  const [createdMeeting, setCreatedMeeting] = useState(null);
   const [meetingLink, setMeetingLink] = useState('');
   const [meetingMode, setMeetingMode] = useState('online');
   const [meetingLocation, setMeetingLocation] = useState('');
@@ -171,9 +172,11 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
 
   const closeCreateMeetingModal = () => {
     setShowCreateMeetingModal(false);
+    setCreatedMeeting(null);
     setMeetingTitle('');
     setMeetingDate2('');
     setMeetingTime2('');
+    setMeetingLink('');
     setMeetingMode('online');
     setMeetingLocation('');
     setMeetingError('');
@@ -194,7 +197,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
     }
     setMeetingSubmitting(true);
     try {
-      await api.post(`/committees/${committeeId}/meetings`, {
+      const response = await api.post(`/committees/${committeeId}/meetings`, {
         title: meetingTitle,
         meeting_date: meetingDate2,
         meeting_time: meetingTime2 || '',
@@ -203,7 +206,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
         meeting_mode: meetingMode,
         meeting_location: meetingLocation.trim(),
       });
-      closeCreateMeetingModal();
+      setCreatedMeeting(response.data || null);
       toast.success('Meeting scheduled successfully');
       await Promise.all([
         fetchResolutionDetails(),
@@ -597,47 +600,93 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                   {showCreateMeetingModal && (
                     <div className="status-modal-overlay">
                       <div className="status-modal">
-                        <h3>Schedule Committee Meeting</h3>
-                        <div className="form-group">
-                          <label>Meeting Title <span className="required">*</span></label>
-                          <input type="text" value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)} disabled={meetingSubmitting} placeholder="e.g. Committee Deliberation on Proposed Measure" />
-                        </div>
-                        <div className="form-group">
-                          <label>Meeting Date <span className="required">*</span></label>
-                          <input type="date" value={meetingDate2} onChange={e => setMeetingDate2(e.target.value)} disabled={meetingSubmitting} />
-                        </div>
-                        <div className="form-group">
-                          <label>Meeting Time</label>
-                          <input type="time" value={meetingTime2} onChange={e => setMeetingTime2(e.target.value)} disabled={meetingSubmitting} />
-                        </div>
-                        <div className="form-group">
-                          <label>Where <span className="required">*</span></label>
-                          <select value={meetingMode} onChange={e => setMeetingMode(e.target.value)} disabled={meetingSubmitting}>
-                            <option value="online">Online</option>
-                            <option value="place">Place</option>
-                            <option value="both">Both</option>
-                          </select>
-                        </div>
-                        {meetingMode !== 'place' && (
-                          <div className="form-group">
-                            <label>Meeting Link <span className="required">*</span></label>
-                            <input type="text" value={meetingLink} onChange={e => setMeetingLink(e.target.value)} disabled={meetingSubmitting} placeholder="Paste Google Meet or Zoom link here" />
-                          </div>
+                        <h3>{createdMeeting ? 'Record Committee Meeting' : 'Schedule Committee Meeting'}</h3>
+                        {createdMeeting ? (
+                          <>
+                            <div className="workflow-created-meeting-panel">
+                              <h4>Meeting created</h4>
+                              <p>
+                                You can now record this committee meeting locally in the browser and upload the saved copy from the same window.
+                              </p>
+                              <div className="lw-recorder-stack">
+                                <div className="lw-recorder-card">
+                                  <div className="lw-recorder-card-header">
+                                    <strong>{createdMeeting.title}</strong>
+                                    <span>
+                                      {createdMeeting.meeting_date ? new Date(createdMeeting.meeting_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No date'}
+                                      {createdMeeting.meeting_time ? ` at ${createdMeeting.meeting_time}` : ''}
+                                    </span>
+                                  </div>
+                                  <LocalMeetingRecorder
+                                    meetingTitle={createdMeeting.title}
+                                    committeeId={createdMeeting.committee_id || committeeId}
+                                    meetingId={createdMeeting.id}
+                                    recordingUrl={createdMeeting.recording_url}
+                                    recordingUploadedAt={createdMeeting.recording_uploaded_at}
+                                    recordingUploadedByName={createdMeeting.recording_uploaded_by_name}
+                                    onUploadComplete={fetchCommitteeMeetings}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="modal-actions">
+                              <button onClick={closeCreateMeetingModal} className="btn btn-primary">Done</button>
+                              <button onClick={() => {
+                                setCreatedMeeting(null);
+                                setMeetingTitle('');
+                                setMeetingDate2('');
+                                setMeetingTime2('');
+                                setMeetingLink('');
+                                setMeetingMode('online');
+                                setMeetingLocation('');
+                                setMeetingError('');
+                              }} className="btn btn-secondary">Create Another</button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="form-group">
+                              <label>Meeting Title <span className="required">*</span></label>
+                              <input type="text" value={meetingTitle} onChange={e => setMeetingTitle(e.target.value)} disabled={meetingSubmitting} placeholder="e.g. Committee Deliberation on Proposed Measure" />
+                            </div>
+                            <div className="form-group">
+                              <label>Meeting Date <span className="required">*</span></label>
+                              <input type="date" value={meetingDate2} onChange={e => setMeetingDate2(e.target.value)} disabled={meetingSubmitting} />
+                            </div>
+                            <div className="form-group">
+                              <label>Meeting Time</label>
+                              <input type="time" value={meetingTime2} onChange={e => setMeetingTime2(e.target.value)} disabled={meetingSubmitting} />
+                            </div>
+                            <div className="form-group">
+                              <label>Where <span className="required">*</span></label>
+                              <select value={meetingMode} onChange={e => setMeetingMode(e.target.value)} disabled={meetingSubmitting}>
+                                <option value="online">Online</option>
+                                <option value="place">Place</option>
+                                <option value="both">Both</option>
+                              </select>
+                            </div>
+                            {meetingMode !== 'place' && (
+                              <div className="form-group">
+                                <label>Meeting Link <span className="required">*</span></label>
+                                <input type="text" value={meetingLink} onChange={e => setMeetingLink(e.target.value)} disabled={meetingSubmitting} placeholder="Paste Google Meet or Zoom link here" />
+                              </div>
+                            )}
+                            {meetingMode !== 'online' && (
+                              <div className="form-group">
+                                <label>Meeting Place <span className="required">*</span></label>
+                                <input type="text" value={meetingLocation} onChange={e => setMeetingLocation(e.target.value)} disabled={meetingSubmitting} placeholder="e.g. Session Hall, Committee Room A" />
+                              </div>
+                            )}
+                            <div className="form-group">
+                              <p style={{ margin: 0, color: '#666', fontSize: '0.95em' }}>Choose whether this meeting is online, in-person, or both.</p>
+                            </div>
+                            <div className="modal-actions">
+                              <button onClick={handleCreateMeeting} className="btn btn-primary" disabled={meetingSubmitting}>Create Meeting</button>
+                              <button onClick={closeCreateMeetingModal} className="btn btn-secondary" disabled={meetingSubmitting}>Cancel</button>
+                            </div>
+                            {meetingError && <div className="alert alert-error">{meetingError}</div>}
+                          </>
                         )}
-                        {meetingMode !== 'online' && (
-                          <div className="form-group">
-                            <label>Meeting Place <span className="required">*</span></label>
-                            <input type="text" value={meetingLocation} onChange={e => setMeetingLocation(e.target.value)} disabled={meetingSubmitting} placeholder="e.g. Session Hall, Committee Room A" />
-                          </div>
-                        )}
-                        <div className="form-group">
-                          <p style={{ margin: 0, color: '#666', fontSize: '0.95em' }}>Choose whether this meeting is online, in-person, or both.</p>
-                        </div>
-                        <div className="modal-actions">
-                          <button onClick={handleCreateMeeting} className="btn btn-primary" disabled={meetingSubmitting}>Create Meeting</button>
-                          <button onClick={closeCreateMeetingModal} className="btn btn-secondary" disabled={meetingSubmitting}>Cancel</button>
-                        </div>
-                        {meetingError && <div className="alert alert-error">{meetingError}</div>}
                       </div>
                     </div>
                   )}
