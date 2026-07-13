@@ -412,6 +412,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
   const isCommitteeMemberOrSecretaryOrAdmin = useMemo(() => {
     if (!ordinance || !ordinance.committee || !user) return false;
     if (user.role === 'Admin' || user.role === 'Vice Mayor' || user.role === 'Secretary') return true;
+    if (String(ordinance.committee.chair_id) === String(user.id)) return true;
     if (!Array.isArray(ordinance.committee.members)) return false;
     return ordinance.committee.members.some(
       m => String(m.user_id) === String(user.id)
