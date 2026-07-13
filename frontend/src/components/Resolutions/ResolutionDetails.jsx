@@ -362,7 +362,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
 
   const isCommitteeMemberOrSecretaryOrAdmin = useMemo(() => {
     if (!resolution || !resolution.committee || !user) return false;
-    if (user.role === 'Admin') return true;
+    if (user.role === 'Admin' || user.role === 'Vice Mayor') return true;
     if (!Array.isArray(resolution.committee.members)) return false;
     return resolution.committee.members.some(m => m.user_id === user.id);
   }, [resolution, user]);

@@ -408,11 +408,10 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
     return index === -1 ? 0 : index;
   };
 
-  // Only show committee meetings tab to committee members, committee secretary, or admin
-  // Allow all assigned committee members (any role), committee secretary, and admin to see meetings
+  // Show committee meetings tab to Admin, Vice Mayor, and assigned committee members.
   const isCommitteeMemberOrSecretaryOrAdmin = useMemo(() => {
     if (!ordinance || !ordinance.committee || !user) return false;
-    if (user.role === 'Admin') return true;
+    if (user.role === 'Admin' || user.role === 'Vice Mayor') return true;
     if (!Array.isArray(ordinance.committee.members)) return false;
     return ordinance.committee.members.some(
       m => m.user_id === user.id
