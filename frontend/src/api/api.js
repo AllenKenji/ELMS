@@ -9,27 +9,70 @@ const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
-// Attach the access token to every request automatically
-api.interceptors.request.use((config) => {
-  const token = sessionStorage.getItem('accessToken');
-  if (token) {
-    try {
-      const decoded = jwtDecode(token);
-      const now = Math.floor(Date.now() / 1000);
+let refreshPromise = null;
 
-      // Skip attaching expired tokens so the client can refresh or log in again.
-      if (decoded?.exp && decoded.exp <= now) {
+function isTokenExpired(token) {
+  if (!token) return true;
+
+  try {
+    const decoded = jwtDecode(token);
+    const now = Math.floor(Date.now() / 1000);
+    return Boolean(decoded?.exp && decoded.exp <= now);
+  } catch {
+    return true;
+  }
+}
+
+async function refreshAccessTokenIfNeeded() {
+  const currentAccessToken = sessionStorage.getItem('accessToken');
+  if (currentAccessToken && !isTokenExpired(currentAccessToken)) {
+    return currentAccessToken;
+  }
+
+  const refreshToken = sessionStorage.getItem('refreshToken');
+  if (!refreshToken) {
+    sessionStorage.removeItem('accessToken');
+    return null;
+  }
+
+  if (!refreshPromise) {
+    refreshPromise = axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken })
+      .then((response) => {
+        const newAccessToken = response.data?.accessToken;
+        if (!newAccessToken) {
+          sessionStorage.removeItem('accessToken');
+          sessionStorage.removeItem('refreshToken');
+          return null;
+        }
+
+        sessionStorage.setItem('accessToken', newAccessToken);
+        return newAccessToken;
+      })
+      .catch(() => {
         sessionStorage.removeItem('accessToken');
-        return config;
-      }
-    } catch {
-      sessionStorage.removeItem('accessToken');
-      sessionStorage.removeItem('refreshToken');
-      return config;
-    }
+        sessionStorage.removeItem('refreshToken');
+        return null;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
 
+  return refreshPromise;
+}
+
+// Attach the access token to every request automatically
+api.interceptors.request.use(async (config) => {
+  let token = sessionStorage.getItem('accessToken');
+
+  if (isTokenExpired(token)) {
+    token = await refreshAccessTokenIfNeeded();
+  }
+
+  if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
