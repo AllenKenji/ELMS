@@ -84,7 +84,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
   const [meetingError, setMeetingError] = useState('');
   const [createdMeeting, setCreatedMeeting] = useState(null);
   const [meetingLink, setMeetingLink] = useState('');
-  const [meetingMode, setMeetingMode] = useState('online');
+  const [meetingMode, setMeetingMode] = useState('place');
   const [meetingLocation, setMeetingLocation] = useState('');
   const committeeId = resolution?.committee_id;
   const resolutionIdRef = resolution?.id;
@@ -177,7 +177,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
     setMeetingDate2('');
     setMeetingTime2('');
     setMeetingLink('');
-    setMeetingMode('online');
+    setMeetingMode('place');
     setMeetingLocation('');
     setMeetingError('');
   };
@@ -637,7 +637,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                                 setMeetingDate2('');
                                 setMeetingTime2('');
                                 setMeetingLink('');
-                                setMeetingMode('online');
+                                setMeetingMode('place');
                                 setMeetingLocation('');
                                 setMeetingError('');
                               }} className="btn btn-secondary">Create Another</button>
@@ -658,10 +658,10 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                               <input type="time" value={meetingTime2} onChange={e => setMeetingTime2(e.target.value)} disabled={meetingSubmitting} />
                             </div>
                             <div className="form-group">
-                              <label>Where <span className="required">*</span></label>
+                              <label>Meeting Format <span className="required">*</span></label>
                               <select value={meetingMode} onChange={e => setMeetingMode(e.target.value)} disabled={meetingSubmitting}>
                                 <option value="online">Online</option>
-                                <option value="place">Place</option>
+                                <option value="place">Local / In Person</option>
                                 <option value="both">Both</option>
                               </select>
                             </div>

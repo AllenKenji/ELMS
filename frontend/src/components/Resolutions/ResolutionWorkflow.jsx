@@ -252,7 +252,7 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
         body = { effective_date: form.effective_date || null };
       } else if (activeAction === 'create-meeting') {
         const committeeId = resl?.committee_id;
-        const meetingMode = form.meeting_mode || 'online';
+        const meetingMode = form.meeting_mode || 'place';
         const meetingLink = (form.meeting_link || '').trim();
         const meetingLocation = (form.meeting_location || '').trim();
 
@@ -743,20 +743,20 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
               <input type="time" value={form.meeting_time || ''} onChange={e => setField('meeting_time', e.target.value)} disabled={submitting} />
             </div>
             <div className="form-group">
-              <label>Where <span className="required">*</span></label>
-              <select value={form.meeting_mode || 'online'} onChange={e => setField('meeting_mode', e.target.value)} disabled={submitting}>
+              <label>Meeting Format <span className="required">*</span></label>
+              <select value={form.meeting_mode || 'place'} onChange={e => setField('meeting_mode', e.target.value)} disabled={submitting}>
                 <option value="online">Online</option>
-                <option value="place">Place</option>
+                <option value="place">Local / In Person</option>
                 <option value="both">Both</option>
               </select>
             </div>
-            {(form.meeting_mode || 'online') !== 'place' && (
+            {(form.meeting_mode || 'place') !== 'place' && (
               <div className="form-group">
                 <label>Meeting Link <span className="required">*</span></label>
                 <input type="url" value={form.meeting_link || ''} onChange={e => setField('meeting_link', e.target.value)} disabled={submitting} placeholder="e.g. https://meet.google.com/abc-defg-hij" />
               </div>
             )}
-            {(form.meeting_mode || 'online') !== 'online' && (
+            {(form.meeting_mode || 'place') !== 'online' && (
               <div className="form-group">
                 <label>Meeting Place <span className="required">*</span></label>
                 <input type="text" value={form.meeting_location || ''} onChange={e => setField('meeting_location', e.target.value)} disabled={submitting} placeholder="e.g. Session Hall, Committee Room A" />

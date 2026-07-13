@@ -27,7 +27,7 @@ function getDefaultMeetingForm() {
     title: '',
     meeting_date: '',
     meeting_time: '',
-    meeting_mode: 'online',
+    meeting_mode: 'place',
     meeting_link: '',
     meeting_location: '',
   };
@@ -356,7 +356,7 @@ export default function CommitteeMeetingsPage() {
                     Mode
                     <select value={form.meeting_mode} onChange={(event) => setForm((prev) => ({ ...prev, meeting_mode: event.target.value }))}>
                       <option value="online">Online</option>
-                      <option value="place">Place</option>
+                      <option value="place">Local / In Person</option>
                       <option value="both">Both</option>
                     </select>
                   </label>
