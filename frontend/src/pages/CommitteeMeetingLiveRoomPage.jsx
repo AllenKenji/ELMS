@@ -7,10 +7,27 @@ import '../styles/SessionDetails.css';
 
 function canBroadcastMeeting(user, committee) {
   if (!user || !committee) return false;
-  if (['Admin', 'Vice Mayor'].includes(user.role)) return true;
+
+  const normalizedUserRole = String(user.role || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, ' ');
+
+  if (['admin', 'vice mayor'].includes(normalizedUserRole)) return true;
   if (String(committee.chair_id) === String(user.id)) return true;
+
   return Array.isArray(committee.members) && committee.members.some(
-    (member) => String(member.user_id) === String(user.id) && ['Chair', 'Secretary', 'Committee Secretary'].includes(member.role)
+    (member) => {
+      const normalizedMemberRole = String(member.role || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[_\s]+/g, ' ');
+
+      return (
+        String(member.user_id) === String(user.id) &&
+        ['chair', 'secretary', 'committee secretary'].includes(normalizedMemberRole)
+      );
+    }
   );
 }
 
@@ -74,6 +91,10 @@ export default function CommitteeMeetingLiveRoomPage() {
     return `${path}?watch=1`;
   }, [committeeId, meetingId]);
 
+  const hostTabUrl = useMemo(() => {
+    return `/dashboard/committee-meetings/live/${committeeId}/${meetingId}`;
+  }, [committeeId, meetingId]);
+
   if (loading) {
     return (
       <div className="session-details-page" style={{ padding: '1.5rem' }}>
@@ -113,9 +134,14 @@ export default function CommitteeMeetingLiveRoomPage() {
       </div>
 
       {watchMode && (
-        <p style={{ margin: '-0.5rem 0 1rem 0', color: '#666' }}>
-          Viewer Mode enabled for same-browser testing.
-        </p>
+        <div style={{ margin: '-0.5rem 0 1rem 0', color: '#666', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <p style={{ margin: 0 }}>Viewer Mode enabled for same-browser testing.</p>
+          {canBroadcastMeeting(user, committee) && (
+            <a className="btn btn-secondary" href={hostTabUrl}>
+              Switch to Host Mode
+            </a>
+          )}
+        </div>
       )}
 
       {meeting.ended && (
