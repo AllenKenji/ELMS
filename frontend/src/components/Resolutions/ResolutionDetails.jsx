@@ -61,6 +61,13 @@ const SECRETARY_STATUS_OPTIONS = {
   Published: [],
 };
 
+function normalizeMeetingJoinUrl(link) {
+  const value = String(link || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://${value}`;
+}
+
 export default function ResolutionDetails({ resolutionId, onClose, onStatusChange, onUseAsPattern }) {
   const { user } = useAuth();
   const [resolution, setResolution] = useState(null);
@@ -788,10 +795,15 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                           )}
                         </div>
                         <div className="committee-meeting-actions">
-                          {meeting.meeting_link && !meeting.ended && (
-                            <button className="btn btn-success btn-join-meeting" onClick={() => window.open(meeting.meeting_link, '_blank', 'noopener,noreferrer')}>
+                          {normalizeMeetingJoinUrl(meeting.meeting_link) && !meeting.ended && (
+                            <a
+                              className="btn btn-success btn-join-meeting"
+                              href={normalizeMeetingJoinUrl(meeting.meeting_link)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
                               Join Meeting
-                            </button>
+                            </a>
                           )}
                           {canEndMeeting && !meeting.ended && (
                             <button

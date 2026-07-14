@@ -61,6 +61,13 @@ const SECRETARY_STATUS_OPTIONS = {
   Published: [],
 };
 
+function normalizeMeetingJoinUrl(link) {
+  const value = String(link || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  return `https://${value}`;
+}
+
 export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange, onUseAsPattern }) {
   const { user } = useAuth();
   const [ordinance, setOrdinance] = useState(null);
@@ -1010,13 +1017,15 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
                           )}
                         </div>
                         <div className="committee-meeting-actions">
-                          {meeting.meeting_link && !meeting.ended && (
-                            <button
+                          {normalizeMeetingJoinUrl(meeting.meeting_link) && !meeting.ended && (
+                            <a
                               className="btn btn-success btn-join-meeting"
-                              onClick={() => window.open(meeting.meeting_link, '_blank', 'noopener,noreferrer')}
+                              href={normalizeMeetingJoinUrl(meeting.meeting_link)}
+                              target="_blank"
+                              rel="noopener noreferrer"
                             >
                               Join Meeting
-                            </button>
+                            </a>
                           )}
                           {canEndMeeting && !meeting.ended && (
                             <button
