@@ -802,15 +802,20 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                             )}
                           </div>
                           {!meeting.ended && (
-                            <LocalMeetingRecorder
-                              meetingTitle={meeting.title}
-                              committeeId={meeting.committee_id}
-                              meetingId={meeting.id}
-                              recordingUrl={meeting.recording_url}
-                              recordingUploadedAt={meeting.recording_uploaded_at}
-                              recordingUploadedByName={meeting.recording_uploaded_by_name}
-                              onUploadComplete={fetchCommitteeMeetings}
-                            />
+                            <>
+                              <p style={{ margin: '0.5rem 0', color: '#666', fontSize: '0.92rem' }}>
+                                Local recording saves/uploads the session copy only. To start live streaming for participants, open Join Meeting and click Start Live in the live room.
+                              </p>
+                              <LocalMeetingRecorder
+                                meetingTitle={meeting.title}
+                                committeeId={meeting.committee_id}
+                                meetingId={meeting.id}
+                                recordingUrl={meeting.recording_url}
+                                recordingUploadedAt={meeting.recording_uploaded_at}
+                                recordingUploadedByName={meeting.recording_uploaded_by_name}
+                                onUploadComplete={fetchCommitteeMeetings}
+                              />
+                            </>
                           )}
                         </div>
                         <div className="committee-meeting-actions">
