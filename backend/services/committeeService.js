@@ -348,7 +348,7 @@ exports.getCommitteeById = async (id) => {
   return committee;
 };
 
-exports.updateCommittee = async (id, { name, description, chair_id, status, committee_secretary_id }, userId) => {
+exports.updateCommittee = async (id, { name, description, chair_id, status, committee_secretary_id, member_ids }, userId) => {
   const existing = await Committee.findById(id);
   if (existing.rows.length === 0) {
     throw Object.assign(new Error('Committee not found'), { status: 404 });
@@ -373,26 +373,60 @@ exports.updateCommittee = async (id, { name, description, chair_id, status, comm
     );
     const committee = result.rows[0];
 
-    // Handle committee secretary update
-    // Remove existing committee secretary if different
+    // Handle committee secretary and member role updates.
+    // Remove existing committee secretary if different.
     const membersRes = await Committee.findMembers(id);
     const members = membersRes.rows;
     const currentSecretary = members.find(m => m.role === 'Committee Secretary');
     if (committee_secretary_id) {
       if (!currentSecretary || Number(currentSecretary.user_id) !== Number(committee_secretary_id)) {
-        // Remove old secretary if exists and is different
+        // Remove old secretary if exists and is different.
         if (currentSecretary) {
           await Committee.removeMember(currentSecretary.id);
         }
-        // Add new secretary if not already a member
+
+        // If the selected secretary already exists as another role, promote it.
         const alreadyMember = members.find(m => Number(m.user_id) === Number(committee_secretary_id));
-        if (!alreadyMember || alreadyMember.role !== 'Committee Secretary') {
+        if (alreadyMember && alreadyMember.role !== 'Committee Secretary') {
+          await client.query(
+            `UPDATE committee_members
+             SET role = 'Committee Secretary'
+             WHERE id = $1`,
+            [alreadyMember.id]
+          );
+        } else if (!alreadyMember) {
           await Committee.addMember(client, id, committee_secretary_id, 'Committee Secretary');
         }
       }
     } else if (currentSecretary) {
-      // Remove secretary if field is now empty
+      // Remove secretary if field is now empty.
       await Committee.removeMember(currentSecretary.id);
+    }
+
+    // Sync plain committee members when member_ids is provided by the form.
+    if (Array.isArray(member_ids)) {
+      const desiredMemberIds = new Set(
+        member_ids
+          .map((memberId) => Number(memberId))
+          .filter((memberId) => Number.isFinite(memberId) && memberId > 0)
+      );
+
+      // Remove users currently marked as Member but no longer selected.
+      for (const member of members) {
+        if (member.role !== 'Member') continue;
+        const memberUserId = Number(member.user_id);
+        if (!desiredMemberIds.has(memberUserId)) {
+          await Committee.removeMember(member.id);
+        }
+      }
+
+      // Add newly selected members that don't already exist in any committee role.
+      const existingUserIds = new Set(members.map((member) => Number(member.user_id)));
+      for (const desiredMemberId of desiredMemberIds) {
+        if (!existingUserIds.has(desiredMemberId)) {
+          await Committee.addMember(client, id, desiredMemberId, 'Member');
+        }
+      }
     }
 
     await AuditLog.create(null, userId, 'COMMITTEE_UPDATE', `Committee "${committee.name}" updated`);
