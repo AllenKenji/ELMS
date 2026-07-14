@@ -410,6 +410,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     socket.on('connect', () => {
       setSocketConnected(true);
       socket.emit('joinSessionLive', normalizedSessionId);
+      socket.emit('live:status-request', { sessionId: normalizedSessionId });
 
       // Recover session state on reconnect.
       if (isBroadcastingRef.current) {

@@ -96,6 +96,16 @@ function init(server) {
       emitLiveStatus(sessionId);
     });
 
+    socket.on('live:status-request', ({ sessionId: sessionIdValue } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId) {
+        return;
+      }
+
+      getOrCreateLiveState(sessionId);
+      emitLiveStatus(sessionId);
+    });
+
     socket.on('live:publish', ({ sessionId: sessionIdValue, hostName } = {}) => {
       const sessionId = normalizeSessionId(sessionIdValue);
       if (!sessionId) {
@@ -113,6 +123,18 @@ function init(server) {
       socket.join(getLiveRoom(sessionId));
       socket.data.liveSessionIds.add(sessionId);
       emitLiveStatus(sessionId);
+
+      // If viewers were already waiting in this live room before publish,
+      // explicitly attach each one so offer/answer starts immediately.
+      for (const viewerSocketId of state.viewers) {
+        if (viewerSocketId === socket.id) {
+          continue;
+        }
+        io.to(state.broadcasterSocketId).emit('live:viewer-joined', {
+          sessionId,
+          viewerSocketId,
+        });
+      }
     });
 
     socket.on('live:stop', ({ sessionId: sessionIdValue } = {}) => {
