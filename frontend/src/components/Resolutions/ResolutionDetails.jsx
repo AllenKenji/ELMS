@@ -795,15 +795,21 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                           )}
                         </div>
                         <div className="committee-meeting-actions">
-                          {normalizeMeetingJoinUrl(meeting.meeting_link) && !meeting.ended && (
-                            <a
-                              className="btn btn-success btn-join-meeting"
-                              href={normalizeMeetingJoinUrl(meeting.meeting_link)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Join Meeting
-                            </a>
+                          {!meeting.ended && (
+                            normalizeMeetingJoinUrl(meeting.meeting_link) ? (
+                              <a
+                                className="btn btn-success btn-join-meeting"
+                                href={normalizeMeetingJoinUrl(meeting.meeting_link)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                Join Meeting
+                              </a>
+                            ) : (
+                              <button className="btn btn-secondary btn-join-meeting" type="button" disabled>
+                                No Online Link
+                              </button>
+                            )
                           )}
                           {canEndMeeting && !meeting.ended && (
                             <button
