@@ -1,0 +1,340 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Security Architecture - ELegislative</title>
+  <style>
+    body { font-family: Segoe UI, Arial, sans-serif; margin: 36px; line-height: 1.5; color: #111; }
+    h1, h2, h3 { color: #1f3b5b; }
+    h1 { border-bottom: 2px solid #d9e2ec; padding-bottom: 8px; }
+    code { background: #f4f6f8; padding: 2px 4px; border-radius: 4px; }
+    pre { background: #f4f6f8; padding: 12px; border-radius: 6px; overflow: auto; }
+    a { color: #1b6ec2; text-decoration: none; }
+    ul, ol { margin-top: 0.4rem; }
+  </style>
+</head>
+<body>
+<h1>Security Architecture - ELegislative</h1>
+<h2>1) Purpose and Scope</h2>
+<p>This document describes the current security architecture of the ELegislative application, based on implemented backend and frontend code, and provides prioritized recommendations for hardening.</p>
+<p>In scope:</p>
+<ul>
+<li>Identity and authentication</li>
+<li>Authorization and access control</li>
+<li>API and transport security</li>
+<li>Input validation and error handling</li>
+<li>File upload and media handling</li>
+<li>Realtime channel (Socket.IO)</li>
+<li>Data protection and operational controls</li>
+</ul>
+<p>Out of scope:</p>
+<ul>
+<li>Cloud account posture (IAM, VPC, WAF) not represented in this repository</li>
+<li>CI/CD pipeline controls not represented in this repository</li>
+</ul>
+<h2>2) System Context and Trust Boundaries</h2>
+<p>Primary components:</p>
+<ul>
+<li>Web frontend (Vite/React) running in browser</li>
+<li>Node.js/Express backend API</li>
+<li>PostgreSQL database</li>
+<li>File storage under backend uploads directory, exposed via static route</li>
+<li>Socket.IO realtime server</li>
+</ul>
+<p>Key trust boundaries:</p>
+<ul>
+<li>Browser to API boundary (cross-origin, token-based auth)</li>
+<li>API to database boundary (SQL access)</li>
+<li>API to static uploaded files boundary (public file serving)</li>
+<li>Socket.IO connection boundary (event-level trust)</li>
+</ul>
+<h2>3) Security Architecture Overview</h2>
+<h3>3.1 Identity and Authentication</h3>
+<p>Implemented controls:</p>
+<ul>
+<li>Password hashing with bcrypt in auth controller.</li>
+<li>Access token (JWT) with 15-minute expiration.</li>
+<li>Refresh token (JWT) with 7-day expiration.</li>
+<li>Token verification middleware for protected routes.</li>
+<li>Auth endpoint rate limiting on register/login/refresh.</li>
+</ul>
+<p>Implemented files:</p>
+<ul>
+<li><a href="backend/controllers/authController.js">backend/controllers/authController.js</a></li>
+<li><a href="backend/middleware/auth.js">backend/middleware/auth.js</a></li>
+<li><a href="backend/routes/auth.js">backend/routes/auth.js</a></li>
+<li><a href="frontend/src/api/api.js">frontend/src/api/api.js</a></li>
+</ul>
+<p>Frontend token behavior:</p>
+<ul>
+<li>Access and refresh tokens are stored in sessionStorage.</li>
+<li>Request interceptor automatically refreshes expired/missing access token via refresh endpoint.</li>
+<li>Authorization header uses Bearer token when available.</li>
+</ul>
+<h3>3.2 Authorization and Access Control</h3>
+<p>Implemented controls:</p>
+<ul>
+<li>Role-based middleware normalizes role name/id and enforces allowed roles.</li>
+<li>Route-level authorization on sensitive operations.</li>
+<li>Domain-specific authorization for committee meeting visibility and management.</li>
+</ul>
+<p>Implemented files:</p>
+<ul>
+<li><a href="backend/middleware/roles.js">backend/middleware/roles.js</a></li>
+<li><a href="backend/routes/committees.js">backend/routes/committees.js</a></li>
+</ul>
+<p>Current committee meeting model:</p>
+<ul>
+<li>View rights include Admin, Vice Mayor, Secretary, committee chair, and committee members.</li>
+<li>Management rights are stricter and role-based (chair/committee secretary/admin/vice mayor path depending on route logic).</li>
+</ul>
+<h3>3.3 API Security and Transport</h3>
+<p>Implemented controls:</p>
+<ul>
+<li>CORS allowlist from environment variable CORS_ORIGINS.</li>
+<li>Explicit allowed methods and headers.</li>
+<li>trust proxy enabled for correct behavior behind Render reverse proxy.</li>
+<li>Global JSON body parsing and centralized error handler.</li>
+</ul>
+<p>Implemented files:</p>
+<ul>
+<li><a href="backend/server.js">backend/server.js</a></li>
+<li><a href="backend/middleware/errorHandler.js">backend/middleware/errorHandler.js</a></li>
+</ul>
+<h3>3.4 Input Validation and Request Hygiene</h3>
+<p>Implemented controls:</p>
+<ul>
+<li>Joi schemas for key resources (auth, ordinances, resolutions, minutes, messaging).</li>
+<li>Validation middleware strips unknown body fields (except query behavior as designed).</li>
+<li>Validation failures converted to structured errors.</li>
+</ul>
+<p>Implemented files:</p>
+<ul>
+<li><a href="backend/middleware/validation.js">backend/middleware/validation.js</a></li>
+<li><a href="backend/validators/schemas.js">backend/validators/schemas.js</a></li>
+</ul>
+<h3>3.5 Database and Data Access Security</h3>
+<p>Implemented controls:</p>
+<ul>
+<li>pg pool with parameterized queries used broadly in services/models.</li>
+<li>Database URL from environment variables.</li>
+<li>Render SSL mode enabled for render.com connection strings.</li>
+</ul>
+<p>Implemented file:</p>
+<ul>
+<li><a href="backend/db.js">backend/db.js</a></li>
+</ul>
+<h3>3.6 File Upload and Media Security</h3>
+<p>Implemented controls:</p>
+<ul>
+<li>Multer storage to specific directories.</li>
+<li>Recording upload middleware enforces video MIME type and 1 GB limit.</li>
+<li>Upload filenames sanitized for recordings.</li>
+</ul>
+<p>Implemented files:</p>
+<ul>
+<li><a href="backend/middleware/meetingRecordingUpload.js">backend/middleware/meetingRecordingUpload.js</a></li>
+<li><a href="backend/middleware/sessionRecordingUpload.js">backend/middleware/sessionRecordingUpload.js</a></li>
+<li><a href="backend/middleware/upload.js">backend/middleware/upload.js</a></li>
+</ul>
+<p>Important architectural note:</p>
+<ul>
+<li>uploads is served as a public static path from backend.</li>
+<li>Access to uploaded files currently depends on obscurity/path knowledge, not per-file authorization checks.</li>
+</ul>
+<h3>3.7 Realtime Security (Socket.IO)</h3>
+<p>Implemented behavior:</p>
+<ul>
+<li>Socket server configured with CORS allowlist.</li>
+<li>Clients can join role rooms and user rooms based on emitted events.</li>
+</ul>
+<p>Implemented file:</p>
+<ul>
+<li><a href="backend/socket.js">backend/socket.js</a></li>
+</ul>
+<p>Security gap:</p>
+<ul>
+<li>No JWT validation in Socket.IO handshake.</li>
+<li>joinRole and joinUser events currently trust client-supplied role/user identifiers.</li>
+<li>This enables potential unauthorized room subscription if abused.</li>
+</ul>
+<h2>4) Security Data Flows</h2>
+<h3>4.1 Login and Session Flow</h3>
+<ol>
+<li>User submits credentials to login endpoint.</li>
+<li>Backend verifies password hash and issues access token and refresh token.</li>
+<li>Frontend stores tokens in sessionStorage.</li>
+<li>Frontend sends access token in Authorization header.</li>
+<li>If access token is expired/missing, frontend calls refresh endpoint and retries.</li>
+</ol>
+<h3>4.2 Protected API Request Flow</h3>
+<ol>
+<li>Frontend interceptor attaches Bearer token.</li>
+<li>Backend auth middleware verifies JWT and sets req.user.</li>
+<li>Role/domain middleware enforces route policy.</li>
+<li>Controller/service executes data operation.</li>
+</ol>
+<h3>4.3 Committee Meeting Access Flow</h3>
+<ol>
+<li>User loads measure or committee meetings page.</li>
+<li>Backend committee route checks role/membership rules.</li>
+<li>Frontend additionally applies UI-level visibility checks.</li>
+<li>User can view and optionally join online meeting links when present.</li>
+</ol>
+<h2>5) Current Strengths</h2>
+<ul>
+<li>Short-lived access tokens with refresh pattern.</li>
+<li>Password hashing via bcrypt.</li>
+<li>Route-level role middleware and domain-specific committee checks.</li>
+<li>Validation middleware with reusable Joi schemas.</li>
+<li>Centralized production-safe error response behavior.</li>
+<li>Auth endpoint rate limiting.</li>
+<li>Proxy trust configured for hosted environment compatibility.</li>
+</ul>
+<h2>6) Security Risks and Gaps</h2>
+<h3>High</h3>
+<ol>
+<li>Socket.IO identity trust gap</li>
+</ol>
+<ul>
+<li>Risk: Unauthorized users can claim rooms by sending arbitrary role/user values.</li>
+<li>Impact: Confidential notification leakage and event spoofing exposure.</li>
+</ul>
+<ol start="2">
+<li>Public static uploads exposure</li>
+</ol>
+<ul>
+<li>Risk: Uploaded files are publicly retrievable by path.</li>
+<li>Impact: Potential unauthorized access to recordings/documents.</li>
+</ul>
+<h3>Medium</h3>
+<ol start="3">
+<li>Token storage in sessionStorage</li>
+</ol>
+<ul>
+<li>Risk: Any successful XSS can exfiltrate tokens.</li>
+<li>Impact: Session hijacking window until expiration/revocation.</li>
+</ul>
+<ol start="4">
+<li>No refresh token revocation/rotation mechanism</li>
+</ol>
+<ul>
+<li>Risk: Stolen refresh tokens remain valid until expiry.</li>
+<li>Impact: Prolonged unauthorized session renewal.</li>
+</ul>
+<ol start="5">
+<li>Uneven rate limiting coverage</li>
+</ol>
+<ul>
+<li>Risk: Non-auth APIs can be brute-forced or abused.</li>
+<li>Impact: Abuse, scraping, and denial-of-service pressure.</li>
+</ul>
+<h3>Low to Medium</h3>
+<ol start="6">
+<li>Generic upload middleware for ordinances has no MIME/size constraints.</li>
+</ol>
+<ul>
+<li>Risk: Oversized or unexpected file type uploads.</li>
+<li>Impact: Storage abuse and downstream handling risk.</li>
+</ul>
+<ol start="7">
+<li>CORS configuration relies on strict environment hygiene.</li>
+</ol>
+<ul>
+<li>Risk: Misconfigured origin list broadens trust unexpectedly.</li>
+<li>Impact: Increased cross-origin attack surface.</li>
+</ul>
+<h2>7) Recommended Target Security Architecture</h2>
+<h3>7.1 Identity and Session Hardening</h3>
+<ul>
+<li>Move refresh token to HttpOnly, Secure, SameSite cookie.</li>
+<li>Keep access token short-lived and in-memory where feasible.</li>
+<li>Implement refresh token rotation and revocation table.</li>
+<li>Add logout invalidation for refresh token family.</li>
+</ul>
+<h3>7.2 Realtime Channel Hardening</h3>
+<ul>
+<li>Enforce JWT verification in Socket.IO handshake middleware.</li>
+<li>Derive user and role from verified token only.</li>
+<li>Remove or ignore client-provided role/user IDs for room joins.</li>
+<li>Authorize session-specific live stream events by role and participation.</li>
+</ul>
+<h3>7.3 Authorization Consistency</h3>
+<ul>
+<li>Centralize policy decisions in backend services (ABAC/RBAC policy module).</li>
+<li>Keep frontend checks as UX only, never as security boundary.</li>
+<li>Add integration tests for critical role/membership combinations.</li>
+</ul>
+<h3>7.4 API Protection</h3>
+<ul>
+<li>Add rate limits per route category beyond auth (read-heavy, write-heavy).</li>
+<li>Add request size limits and stricter body parser policies.</li>
+<li>Add security headers middleware (helmet) with CSP where compatible.</li>
+</ul>
+<h3>7.5 File and Recording Protection</h3>
+<ul>
+<li>Store sensitive uploads outside public static path.</li>
+<li>Serve files through authorized download endpoints with token checks.</li>
+<li>Enforce extension and MIME allowlists everywhere.</li>
+<li>Add malware scanning and content-type verification for non-video uploads.</li>
+</ul>
+<h3>7.6 Monitoring and Incident Response</h3>
+<ul>
+<li>Structured audit logs for auth failures, privilege denials, and upload actions.</li>
+<li>Alerting on anomalous refresh rates, repeated 401/403 spikes, and high upload frequency.</li>
+<li>Retention and review policy for audit/security logs.</li>
+</ul>
+<h2>8) Security Control Matrix (Current State)</h2>
+<ul>
+<li>Authentication: Implemented</li>
+<li>Authorization (RBAC): Implemented with domain custom checks</li>
+<li>Input validation: Implemented on key endpoints</li>
+<li>Auth rate limiting: Implemented</li>
+<li>Global rate limiting: Partial</li>
+<li>Realtime authentication: Missing</li>
+<li>Token revocation: Missing</li>
+<li>Upload access control: Partial</li>
+<li>Security headers baseline: Not explicit</li>
+<li>Audit logging: Present in multiple domain flows</li>
+</ul>
+<h2>9) Verification Plan</h2>
+<p>Recommended tests for acceptance:</p>
+<ol>
+<li>Role-based API tests for Admin, Vice Mayor, Secretary, Councilor, committee member.</li>
+<li>Negative tests for unauthorized socket room joins.</li>
+<li>Upload abuse tests (type/size/path traversal attempts).</li>
+<li>Token lifecycle tests (expiry, refresh, logout, replay).</li>
+<li>Access tests for recordings and uploaded files by unauthorized users.</li>
+</ol>
+<h2>10) Operational Checklist</h2>
+<p>Before production release:</p>
+<ul>
+<li>Verify JWT secret and refresh secret rotation policy.</li>
+<li>Restrict CORS_ORIGINS to exact production origins.</li>
+<li>Confirm HTTPS-only deployment and HSTS at edge.</li>
+<li>Enable DB backups and tested restore.</li>
+<li>Add runtime monitoring and alert thresholds.</li>
+</ul>
+<h2>11) Revision Notes</h2>
+<p>Generated from repository implementation state as of 2026-07-14.
+Primary references:</p>
+<ul>
+<li><a href="backend/server.js">backend/server.js</a></li>
+<li><a href="backend/controllers/authController.js">backend/controllers/authController.js</a></li>
+<li><a href="backend/middleware/auth.js">backend/middleware/auth.js</a></li>
+<li><a href="backend/middleware/roles.js">backend/middleware/roles.js</a></li>
+<li><a href="backend/routes/auth.js">backend/routes/auth.js</a></li>
+<li><a href="backend/routes/committees.js">backend/routes/committees.js</a></li>
+<li><a href="backend/middleware/validation.js">backend/middleware/validation.js</a></li>
+<li><a href="backend/validators/schemas.js">backend/validators/schemas.js</a></li>
+<li><a href="backend/middleware/meetingRecordingUpload.js">backend/middleware/meetingRecordingUpload.js</a></li>
+<li><a href="backend/middleware/sessionRecordingUpload.js">backend/middleware/sessionRecordingUpload.js</a></li>
+<li><a href="backend/middleware/upload.js">backend/middleware/upload.js</a></li>
+<li><a href="backend/socket.js">backend/socket.js</a></li>
+<li><a href="backend/db.js">backend/db.js</a></li>
+<li><a href="frontend/src/api/api.js">frontend/src/api/api.js</a></li>
+</ul>
+
+
+</body>
+</html>
