@@ -79,6 +79,14 @@ function normalizeMeetingJoinUrl(link) {
   return `https://${value}`;
 }
 
+function isInternalJoinUrl(url) {
+  try {
+    return new URL(url).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange, onUseAsPattern }) {
   const { user } = useAuth();
   const [ordinance, setOrdinance] = useState(null);
@@ -1032,8 +1040,8 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
                               <a
                                 className="btn btn-success btn-join-meeting"
                                 href={normalizeMeetingJoinUrl(meeting.meeting_link)}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                target={isInternalJoinUrl(normalizeMeetingJoinUrl(meeting.meeting_link)) ? '_self' : '_blank'}
+                                rel={isInternalJoinUrl(normalizeMeetingJoinUrl(meeting.meeting_link)) ? undefined : 'noopener noreferrer'}
                               >
                                 Join Meeting
                               </a>

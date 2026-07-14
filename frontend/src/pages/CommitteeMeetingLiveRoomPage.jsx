@@ -102,7 +102,7 @@ export default function CommitteeMeetingLiveRoomPage() {
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {!watchMode && canBroadcast && !meeting.ended && (
-            <a className="btn btn-secondary" href={viewerTabUrl} target="_blank" rel="noopener noreferrer">
+            <a className="btn btn-secondary" href={viewerTabUrl} target="_blank">
               Open Viewer Tab
             </a>
           )}
