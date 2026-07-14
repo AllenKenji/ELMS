@@ -65,15 +65,7 @@ function normalizeMeetingJoinUrl(link) {
   const value = String(link || '').trim();
   if (!value) return '';
   if (value.startsWith('/')) {
-    try {
-      const url = new URL(`${window.location.origin}${value}`);
-      if (!url.searchParams.has('watch')) {
-        url.searchParams.set('watch', '1');
-      }
-      return url.toString();
-    } catch {
-      return `${window.location.origin}${value}`;
-    }
+    return `${window.location.origin}${value}`;
   }
   if (/^https?:\/\//i.test(value)) return value;
   return `https://${value}`;
