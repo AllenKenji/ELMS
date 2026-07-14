@@ -64,6 +64,9 @@ const SECRETARY_STATUS_OPTIONS = {
 function normalizeMeetingJoinUrl(link) {
   const value = String(link || '').trim();
   if (!value) return '';
+  if (value.startsWith('/')) {
+    return `${window.location.origin}${value}`;
+  }
   if (/^https?:\/\//i.test(value)) return value;
   return `https://${value}`;
 }
@@ -195,9 +198,6 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
     if (!committeeId) return setMeetingError('No committee assigned.');
     if (!meetingTitle || !meetingDate2) {
       return setMeetingError('Meeting title and date are required.');
-    }
-    if ((meetingMode === 'online' || meetingMode === 'both') && !meetingLink.trim()) {
-      return setMeetingError('Meeting link is required for online or hybrid meetings.');
     }
     if ((meetingMode === 'place' || meetingMode === 'both') && !meetingLocation.trim()) {
       return setMeetingError('Meeting place is required for place or hybrid meetings.');
@@ -676,8 +676,11 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                             </div>
                             {meetingMode !== 'place' && (
                               <div className="form-group">
-                                <label>Meeting Link <span className="required">*</span></label>
+                                <label>Meeting Link (optional)</label>
                                 <input type="text" value={meetingLink} onChange={e => setMeetingLink(e.target.value)} disabled={meetingSubmitting} placeholder="Paste Google Meet or Zoom link here" />
+                                <small style={{ color: '#666', marginTop: 6, display: 'block' }}>
+                                  Leave blank to auto-generate an in-app live room link.
+                                </small>
                               </div>
                             )}
                             {meetingMode !== 'online' && (

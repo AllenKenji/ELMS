@@ -30,6 +30,7 @@ import EventsCalendar from './components/Calendar/EventsCalendar';
 import DraftsPage from './components/Drafts/DraftsPage';
 import ProposedMeasuresPage from './components/ProposedMeasures/ProposedMeasuresPage';
 import MinutesList from './components/Minutes/MinutesList';
+import CommitteeMeetingLiveRoomPage from './pages/CommitteeMeetingLiveRoomPage';
 
 function App() {
   const { accessToken, login, user } = useAuth();
@@ -82,6 +83,7 @@ function App() {
           <Route path="/dashboard/drafts" element={<DraftsPage />} />
           <Route path="/dashboard/proposed-measures" element={<ProposedMeasuresPage />} />
           <Route path="/dashboard/minutes" element={<MinutesList />} />
+          <Route path="/dashboard/committee-meetings/live/:committeeId/:meetingId" element={<CommitteeMeetingLiveRoomPage />} />
         </Route>
 
         {/* Catch-all */}

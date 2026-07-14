@@ -275,12 +275,6 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           return;
         }
 
-        if ((meetingMode === 'online' || meetingMode === 'both') && !meetingLink) {
-          setError('Meeting link is required for online or hybrid meetings.');
-          setSubmitting(false);
-          return;
-        }
-
         if ((meetingMode === 'place' || meetingMode === 'both') && !meetingLocation) {
           setError('Meeting place is required for place or hybrid meetings.');
           setSubmitting(false);
@@ -849,8 +843,11 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
                     </div>
                     {(form.meeting_mode || 'place') !== 'place' && (
                       <div className="form-group">
-                        <label>Meeting Link {(form.meeting_mode || 'place') !== 'place' && <span className="required">*</span>}</label>
+                        <label>Meeting Link (optional)</label>
                         <input type="url" value={form.meeting_link || ''} onChange={e => setField('meeting_link', e.target.value)} disabled={submitting} placeholder="e.g. https://meet.google.com/abc-defg-hij" />
+                        <small style={{ color: '#666', marginTop: 6, display: 'block' }}>
+                          Leave blank to auto-generate an in-app live room link.
+                        </small>
                       </div>
                     )}
                     {(form.meeting_mode || 'place') !== 'online' && (

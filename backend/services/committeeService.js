@@ -94,6 +94,10 @@ function buildMeetingWhereText(meetingMode, meetingLink, meetingLocation) {
   return `Online link: ${meetingLink}`;
 }
 
+function buildInternalMeetingLink(committeeId, meetingId) {
+  return `/dashboard/committee-meetings/live/${committeeId}/${meetingId}`;
+}
+
 function resolveUploadAbsolutePath(relativePath) {
   if (!relativePath || !String(relativePath).startsWith(RECORDING_UPLOAD_PREFIX)) {
     return null;
@@ -133,15 +137,11 @@ exports.createMeeting = async (
   try {
     await client.query('BEGIN');
 
-    const normalizedMeetingLink = String(meetingLink || '').trim();
+    let normalizedMeetingLink = String(meetingLink || '').trim();
     const normalizedMeetingLocation = String(meeting_location || '').trim();
     const normalizedMeetingMode = normalizeMeetingMode(meeting_mode, normalizedMeetingLink, normalizedMeetingLocation);
-
-    if ((normalizedMeetingMode === 'online' || normalizedMeetingMode === 'both') && !normalizedMeetingLink) {
-      const err = new Error('An online meeting link is required for online or hybrid meetings');
-      err.status = 400;
-      throw err;
-    }
+    const shouldAutoGenerateInternalLink =
+      (normalizedMeetingMode === 'online' || normalizedMeetingMode === 'both') && !normalizedMeetingLink;
 
     if ((normalizedMeetingMode === 'place' || normalizedMeetingMode === 'both') && !normalizedMeetingLocation) {
       const err = new Error('A meeting place is required for place or hybrid meetings');
@@ -178,6 +178,20 @@ exports.createMeeting = async (
       ]
     );
     const meeting = result.rows[0];
+
+    if (shouldAutoGenerateInternalLink) {
+      normalizedMeetingLink = buildInternalMeetingLink(committeeId, meeting.id);
+      const updated = await client.query(
+        `UPDATE committee_meetings
+         SET meeting_link = $1, updated_at = NOW()
+         WHERE id = $2
+         RETURNING *`,
+        [normalizedMeetingLink, meeting.id]
+      );
+      if (updated.rows[0]) {
+        Object.assign(meeting, updated.rows[0]);
+      }
+    }
 
     const membersRes = await Committee.findMembers(committeeId);
     const members = membersRes.rows;

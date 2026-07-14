@@ -138,11 +138,6 @@ export default function CommitteeMeetingsPage() {
       return;
     }
 
-    if ((meetingMode === 'online' || meetingMode === 'both') && !meetingLink) {
-      setMeetingError('Meeting link is required for online or hybrid meetings.');
-      return;
-    }
-
     if ((meetingMode === 'place' || meetingMode === 'both') && !meetingLocation) {
       setMeetingError('Meeting place is required for place or hybrid meetings.');
       return;
@@ -362,8 +357,11 @@ export default function CommitteeMeetingsPage() {
                   </label>
                   {(form.meeting_mode === 'online' || form.meeting_mode === 'both') && (
                     <label className="full-span">
-                      Meeting Link *
+                      Meeting Link (optional)
                       <input type="url" value={form.meeting_link} onChange={(event) => setForm((prev) => ({ ...prev, meeting_link: event.target.value }))} placeholder="https://meet.google.com/..." />
+                      <small style={{ color: '#666', marginTop: 6, display: 'block' }}>
+                        Leave blank to auto-generate an in-app live room link.
+                      </small>
                     </label>
                   )}
                   {(form.meeting_mode === 'place' || form.meeting_mode === 'both') && (
