@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../api/api';
 import { useAuth } from '../context/useAuth';
 import LiveSessionPanel from '../components/Sessions/LiveSessionPanel';
@@ -16,6 +16,7 @@ function canBroadcastMeeting(user, committee) {
 
 export default function CommitteeMeetingLiveRoomPage() {
   const { committeeId, meetingId } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -23,6 +24,11 @@ export default function CommitteeMeetingLiveRoomPage() {
   const [error, setError] = useState('');
   const [committee, setCommittee] = useState(null);
   const [meeting, setMeeting] = useState(null);
+
+  const watchMode = useMemo(() => {
+    const params = new URLSearchParams(location.search || '');
+    return params.get('watch') === '1';
+  }, [location.search]);
 
   useEffect(() => {
     const load = async () => {
@@ -58,7 +64,15 @@ export default function CommitteeMeetingLiveRoomPage() {
     }
   }, [committeeId, meetingId]);
 
-  const canBroadcast = useMemo(() => canBroadcastMeeting(user, committee), [user, committee]);
+  const canBroadcast = useMemo(() => {
+    if (watchMode) return false;
+    return canBroadcastMeeting(user, committee);
+  }, [watchMode, user, committee]);
+
+  const viewerTabUrl = useMemo(() => {
+    const path = `/dashboard/committee-meetings/live/${committeeId}/${meetingId}`;
+    return `${path}?watch=1`;
+  }, [committeeId, meetingId]);
 
   if (loading) {
     return (
@@ -86,10 +100,23 @@ export default function CommitteeMeetingLiveRoomPage() {
           <h2 style={{ margin: 0 }}>Committee Live Room</h2>
           <p style={{ margin: '0.25rem 0 0 0', color: '#666' }}>{meeting.title}</p>
         </div>
-        <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
-          Back
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {!watchMode && canBroadcast && !meeting.ended && (
+            <a className="btn btn-secondary" href={viewerTabUrl} target="_blank" rel="noopener noreferrer">
+              Open Viewer Tab
+            </a>
+          )}
+          <button type="button" className="btn btn-secondary" onClick={() => navigate(-1)}>
+            Back
+          </button>
+        </div>
       </div>
+
+      {watchMode && (
+        <p style={{ margin: '-0.5rem 0 1rem 0', color: '#666' }}>
+          Viewer Mode enabled for same-browser testing.
+        </p>
+      )}
 
       {meeting.ended && (
         <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
