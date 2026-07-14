@@ -348,7 +348,7 @@ exports.getCommitteeById = async (id) => {
   return committee;
 };
 
-exports.updateCommittee = async (id, { name, description, chair_id, status, committee_secretary_id, member_ids }, userId) => {
+exports.updateCommittee = async (id, { name, description, chair_id, vice_chair_id, status, committee_secretary_id, member_ids }, userId) => {
   const existing = await Committee.findById(id);
   if (existing.rows.length === 0) {
     throw Object.assign(new Error('Committee not found'), { status: 404 });
@@ -356,6 +356,9 @@ exports.updateCommittee = async (id, { name, description, chair_id, status, comm
 
   if (chair_id && !(await validateCommitteeChair(chair_id))) {
     throw Object.assign(new Error('Chair user not found'), { status: 400 });
+  }
+  if (vice_chair_id && !(await validateCommitteeChair(vice_chair_id))) {
+    throw Object.assign(new Error('Vice Chair user not found'), { status: 400 });
   }
 
   const current = existing.rows[0];
@@ -373,11 +376,34 @@ exports.updateCommittee = async (id, { name, description, chair_id, status, comm
     );
     const committee = result.rows[0];
 
-    // Handle committee secretary and member role updates.
-    // Remove existing committee secretary if different.
+    // Handle committee secretary and vice chair role updates.
     const membersRes = await Committee.findMembers(id);
     const members = membersRes.rows;
+    const currentViceChair = members.find(m => m.role === 'Vice Chair');
     const currentSecretary = members.find(m => m.role === 'Committee Secretary');
+
+    if (vice_chair_id) {
+      if (!currentViceChair || Number(currentViceChair.user_id) !== Number(vice_chair_id)) {
+        if (currentViceChair) {
+          await Committee.removeMember(currentViceChair.id);
+        }
+
+        const alreadyMember = members.find(m => Number(m.user_id) === Number(vice_chair_id));
+        if (alreadyMember && alreadyMember.role !== 'Vice Chair') {
+          await client.query(
+            `UPDATE committee_members
+             SET role = 'Vice Chair'
+             WHERE id = $1`,
+            [alreadyMember.id]
+          );
+        } else if (!alreadyMember) {
+          await Committee.addMember(client, id, vice_chair_id, 'Vice Chair');
+        }
+      }
+    } else if (currentViceChair) {
+      await Committee.removeMember(currentViceChair.id);
+    }
+
     if (committee_secretary_id) {
       if (!currentSecretary || Number(currentSecretary.user_id) !== Number(committee_secretary_id)) {
         // Remove old secretary if exists and is different.
@@ -405,6 +431,8 @@ exports.updateCommittee = async (id, { name, description, chair_id, status, comm
 
     // Sync plain committee members when member_ids is provided by the form.
     if (Array.isArray(member_ids)) {
+      const refreshedMembersRes = await Committee.findMembers(id);
+      const currentMembers = refreshedMembersRes.rows || [];
       const desiredMemberIds = new Set(
         member_ids
           .map((memberId) => Number(memberId))
@@ -412,7 +440,7 @@ exports.updateCommittee = async (id, { name, description, chair_id, status, comm
       );
 
       // Remove users currently marked as Member but no longer selected.
-      for (const member of members) {
+      for (const member of currentMembers) {
         if (member.role !== 'Member') continue;
         const memberUserId = Number(member.user_id);
         if (!desiredMemberIds.has(memberUserId)) {
@@ -421,7 +449,7 @@ exports.updateCommittee = async (id, { name, description, chair_id, status, comm
       }
 
       // Add newly selected members that don't already exist in any committee role.
-      const existingUserIds = new Set(members.map((member) => Number(member.user_id)));
+      const existingUserIds = new Set(currentMembers.map((member) => Number(member.user_id)));
       for (const desiredMemberId of desiredMemberIds) {
         if (!existingUserIds.has(desiredMemberId)) {
           await Committee.addMember(client, id, desiredMemberId, 'Member');
