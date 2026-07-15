@@ -391,7 +391,7 @@ function writeFooter(doc) {
     doc.switchToPage(i);
 
     // Keep footer inside the printable area to avoid PDFKit auto-adding blank pages.
-    const footerY = doc.page.height - doc.page.margins.bottom - 6;
+    const footerY = doc.page.height - doc.page.margins.bottom - 14;
 
     doc
       .moveTo(doc.page.margins.left, footerY - 6)
