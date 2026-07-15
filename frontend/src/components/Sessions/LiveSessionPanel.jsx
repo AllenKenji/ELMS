@@ -47,6 +47,18 @@ function preferVp8Codec(pc) {
   transceiver.setCodecPreferences([...vp8, ...nonVp8]);
 }
 
+function attachVideoStream(videoNode, stream, { muted = false } = {}) {
+  if (!videoNode) return;
+
+  videoNode.srcObject = stream || null;
+  videoNode.muted = muted;
+  videoNode.playsInline = true;
+  videoNode.onloadedmetadata = () => {
+    videoNode.play?.().catch(() => {});
+  };
+  videoNode.play?.().catch(() => {});
+}
+
 export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -120,6 +132,26 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
   useEffect(() => {
     isCameraOnRef.current = isCameraOn;
+  }, [isCameraOn]);
+
+  useEffect(() => {
+    if (!localVideoRef.current) {
+      return;
+    }
+
+    const previewStream = broadcastModeRef.current === 'external'
+      ? broadcastStream
+      : localStreamRef.current;
+
+    attachVideoStream(localVideoRef.current, previewStream, { muted: true });
+  }, [broadcastStream, isBroadcasting, hasExternalBroadcast]);
+
+  useEffect(() => {
+    if (!cameraVideoRef.current) {
+      return;
+    }
+
+    attachVideoStream(cameraVideoRef.current, cameraStreamRef.current, { muted: true });
   }, [isCameraOn]);
 
   const closeViewerPeer = useCallback(() => {
@@ -216,16 +248,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         recvVideo: false,
         recvAudio: false,
       });
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = screenStream;
-        localVideoRef.current.onloadedmetadata = () => {
-          localVideoRef.current?.play?.().catch(() => {});
-        };
-        localVideoRef.current.muted = true;
-        localVideoRef.current.playsInline = true;
-        localVideoRef.current.play?.().catch(() => {});
-      }
-
       if (screenVideoTrack) {
         screenVideoTrack.onended = () => {
           stopBroadcast();
@@ -455,16 +477,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           name: hostName,
         });
       }
-
-      if (cameraVideoRef.current) {
-        cameraVideoRef.current.srcObject = stream;
-        cameraVideoRef.current.onloadedmetadata = () => {
-          cameraVideoRef.current?.play?.().catch(() => {});
-        };
-        cameraVideoRef.current.muted = true;
-        cameraVideoRef.current.playsInline = true;
-        cameraVideoRef.current.play?.().catch(() => {});
-      }
     } catch (err) {
       setCameraError(err?.message || 'Unable to access camera.');
       stopCameraPreview();
@@ -550,16 +562,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       recvVideo: false,
       recvAudio: false,
     });
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = broadcastStream;
-      localVideoRef.current.onloadedmetadata = () => {
-        localVideoRef.current?.play?.().catch(() => {});
-      };
-      localVideoRef.current.muted = true;
-      localVideoRef.current.playsInline = true;
-      localVideoRef.current.play?.().catch(() => {});
-    }
-
     if (!isBroadcasting) {
       setError('');
       setIsBroadcasting(true);
