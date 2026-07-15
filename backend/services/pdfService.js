@@ -63,6 +63,30 @@ function formatDate(value) {
   });
 }
 
+// Layout notes:
+// - Increase sectionTopGap / sectionBottomGap to add more whitespace around description/body sections.
+// - Increase signatureLineOffset to leave more room for handwritten signatures.
+// - Increase closingSectionReserve only if the signature block starts splitting across pages again.
+// - Adjust logoSize / logoGap / logoYOffset to fine-tune the header logos.
+const PDF_LAYOUT = {
+  logoSize: 64,
+  logoGap: 10,
+  logoYOffset: 2,
+  sectionTopGap: 0.8,
+  sectionHeadingGap: 0.3,
+  sectionBottomGap: 0.35,
+  sectionLineGap: 4,
+  signatureTopGap: 1.6,
+  signatureLineOffset: 64,
+  signatureNameOffset: 10,
+  signatureRoleOffset: 30,
+  approvalTopGap: 1.8,
+  approvalLineOffset: 36,
+  approvalNameOffset: 10,
+  approvalRoleOffset: 26,
+  closingSectionReserve: 250,
+};
+
 function ensureSpace(doc, neededHeight) {
   const safeBottom = doc.page.height - doc.page.margins.bottom - 28;
   if (doc.y + neededHeight > safeBottom) {
@@ -80,11 +104,10 @@ function writeHeader(doc, documentType, headerConfig = {}) {
   // Add left and right logos using absolute paths for reliable rendering.
   const leftLogoPath = path.join(__dirname, '..', 'public', 'logo-left.png');
   const rightLogoPath = path.join(__dirname, '..', 'public', 'logo-right.png');
-  const logoSize = 58;
-  const logoGap = 12;
+  const { logoSize, logoGap, logoYOffset } = PDF_LAYOUT;
   const { width: pageWidth, margins: { left: marginLeft, right: marginRight } } = doc.page;
   const { y } = doc;
-  const logoY = y + 4;
+  const logoY = y + logoYOffset;
 
   const republicLine = pickFirstNonEmpty(
     headerConfig.republicLine,
@@ -110,21 +133,11 @@ function writeHeader(doc, documentType, headerConfig = {}) {
 
   try {
     doc.image(leftLogoPath, marginLeft, logoY, { width: logoSize, height: logoSize, align: 'left' });
-    doc
-      .rect(marginLeft - 2, logoY - 2, logoSize + 4, logoSize + 4)
-      .lineWidth(0.6)
-      .strokeColor('#cdd7e2')
-      .stroke();
   } catch {}
 
   try {
     const rightX = pageWidth - marginRight - logoSize;
     doc.image(rightLogoPath, rightX, logoY, { width: logoSize, height: logoSize, align: 'right' });
-    doc
-      .rect(rightX - 2, logoY - 2, logoSize + 4, logoSize + 4)
-      .lineWidth(0.6)
-      .strokeColor('#cdd7e2')
-      .stroke();
   } catch {}
 
   // Keep the locality header lines centered inside the space between both logos.
@@ -222,32 +235,32 @@ function writeSection(doc, heading, body) {
   const contentWidth = doc.page.width - left - right;
 
   doc
-    .moveDown(0.6)
+    .moveDown(PDF_LAYOUT.sectionTopGap)
     .font('Helvetica-Bold')
     .fontSize(11)
     .fillColor('#10213a')
     .text(heading, left, doc.y, { width: contentWidth, align: 'left' })
-    .moveDown(0.2)
+    .moveDown(PDF_LAYOUT.sectionHeadingGap)
     .font('Helvetica')
     .fontSize(10.5)
     .fillColor('#1f2937')
     .text(plainBody || 'N/A', left, doc.y, {
       width: contentWidth,
       align: 'justify',
-      lineGap: 3,
+      lineGap: PDF_LAYOUT.sectionLineGap,
     })
-    .moveDown(0.2);
+    .moveDown(PDF_LAYOUT.sectionBottomGap);
 }
 
 function writeSignatureBlock(doc, proposerName) {
-  doc.moveDown(1.6);
+  doc.moveDown(PDF_LAYOUT.signatureTopGap);
 
   const { left, right } = doc.page.margins;
   const pageRight = doc.page.width - right;
   const width = pageRight - left;
   const colWidth = width / 2 - 10;
   const labelY = doc.y;
-  const lineY = labelY + 64;
+  const lineY = labelY + PDF_LAYOUT.signatureLineOffset;
 
   doc
     .font('Helvetica')
@@ -272,32 +285,32 @@ function writeSignatureBlock(doc, proposerName) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#1f2937')
-    .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + 10, {
+    .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + PDF_LAYOUT.signatureNameOffset, {
       width: colWidth,
       align: 'center',
     })
     .font('Helvetica')
     .fontSize(9)
     .fillColor('#4b5563')
-    .text('Author / Proponent', left, lineY + 30, {
+    .text('Author / Proponent', left, lineY + PDF_LAYOUT.signatureRoleOffset, {
       width: colWidth,
       align: 'center',
     })
-    .text('Secretary', left + colWidth + 20, lineY + 30, {
+    .text('Secretary', left + colWidth + 20, lineY + PDF_LAYOUT.signatureRoleOffset, {
       width: colWidth,
       align: 'center',
     });
 }
 
 function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
-  doc.moveDown(1.8);
+  doc.moveDown(PDF_LAYOUT.approvalTopGap);
 
   const { left, right } = doc.page.margins;
   const pageRight = doc.page.width - right;
   const width = pageRight - left;
   const colWidth = width / 3 - 8;
   const startY = doc.y;
-  const lineY = startY + 36;
+  const lineY = startY + PDF_LAYOUT.approvalLineOffset;
 
   const viceMayorName = pickFirstNonEmpty(
     officials.viceMayor,
@@ -337,15 +350,15 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#1f2937')
-    .text(normalizePdfText(viceMayorName), left, lineY + 10, { width: colWidth, align: 'center' })
-    .text(normalizePdfText(secretaryName), left + colWidth + 12, lineY + 10, { width: colWidth, align: 'center' })
-    .text(normalizePdfText(mayorName), left + 2 * (colWidth + 12), lineY + 10, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(viceMayorName), left, lineY + PDF_LAYOUT.approvalNameOffset, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(secretaryName), left + colWidth + 12, lineY + PDF_LAYOUT.approvalNameOffset, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(mayorName), left + 2 * (colWidth + 12), lineY + PDF_LAYOUT.approvalNameOffset, { width: colWidth, align: 'center' })
     .font('Helvetica')
     .fontSize(9)
     .fillColor('#4b5563')
-    .text('Presiding Officer', left, lineY + 26, { width: colWidth, align: 'center' })
-    .text('Secretary', left + colWidth + 12, lineY + 26, { width: colWidth, align: 'center' })
-    .text('Municipal / City Mayor', left + 2 * (colWidth + 12), lineY + 26, {
+    .text('Presiding Officer', left, lineY + PDF_LAYOUT.approvalRoleOffset, { width: colWidth, align: 'center' })
+    .text('Secretary', left + colWidth + 12, lineY + PDF_LAYOUT.approvalRoleOffset, { width: colWidth, align: 'center' })
+    .text('Municipal / City Mayor', left + 2 * (colWidth + 12), lineY + PDF_LAYOUT.approvalRoleOffset, {
       width: colWidth,
       align: 'center',
     });
@@ -353,7 +366,7 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
 
 function writeClosingSignatureSection(doc, proposerName, officials = {}) {
   // Keep both closing blocks together so officer names never split across pages.
-  ensureSpace(doc, 300);
+  ensureSpace(doc, PDF_LAYOUT.closingSectionReserve);
   writeSignatureBlock(doc, proposerName);
   writeEnactmentAndApprovalBlocks(doc, officials);
 }
@@ -368,7 +381,7 @@ function writeFooter(doc) {
     doc.switchToPage(i);
 
     // Keep footer inside the printable area to avoid PDFKit auto-adding blank pages.
-    const footerY = doc.page.height - doc.page.margins.bottom - 16;
+    const footerY = doc.page.height - doc.page.margins.bottom - 10;
 
     doc
       .moveTo(doc.page.margins.left, footerY - 6)
