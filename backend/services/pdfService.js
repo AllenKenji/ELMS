@@ -68,6 +68,7 @@ function formatDate(value) {
 // - Increase signatureLineOffset to leave more room for handwritten signatures.
 // - Increase closingSectionReserve only if the signature block starts splitting across pages again.
 // - Adjust logoSize / logoGap / logoYOffset to fine-tune the header logos.
+// - Lower closingSectionReserve if the signature block is moved to page 2 too early.
 const PDF_LAYOUT = {
   logoSize: 64,
   logoGap: 10,
@@ -84,7 +85,7 @@ const PDF_LAYOUT = {
   approvalLineOffset: 36,
   approvalNameOffset: 10,
   approvalRoleOffset: 26,
-  closingSectionReserve: 250,
+  closingSectionReserve: 210,
 };
 
 function ensureSpace(doc, neededHeight) {
@@ -252,7 +253,7 @@ function writeSection(doc, heading, body) {
     .moveDown(PDF_LAYOUT.sectionBottomGap);
 }
 
-function writeSignatureBlock(doc, proposerName) {
+function writeSignatureBlock(doc, proposerName, officials = {}) {
   doc.moveDown(PDF_LAYOUT.signatureTopGap);
 
   const { left, right } = doc.page.margins;
@@ -261,6 +262,11 @@ function writeSignatureBlock(doc, proposerName) {
   const colWidth = width / 2 - 10;
   const labelY = doc.y;
   const lineY = labelY + PDF_LAYOUT.signatureLineOffset;
+  const secretaryName = pickFirstNonEmpty(
+    officials.secretary,
+    process.env.PDF_SECRETARY_NAME,
+    'Secretary'
+  );
 
   doc
     .font('Helvetica')
@@ -286,6 +292,10 @@ function writeSignatureBlock(doc, proposerName) {
     .fontSize(10)
     .fillColor('#1f2937')
     .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + PDF_LAYOUT.signatureNameOffset, {
+      width: colWidth,
+      align: 'center',
+    })
+    .text(secretaryName, left + colWidth + 20, lineY + PDF_LAYOUT.signatureNameOffset, {
       width: colWidth,
       align: 'center',
     })
@@ -367,7 +377,7 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
 function writeClosingSignatureSection(doc, proposerName, officials = {}) {
   // Keep both closing blocks together so officer names never split across pages.
   ensureSpace(doc, PDF_LAYOUT.closingSectionReserve);
-  writeSignatureBlock(doc, proposerName);
+  writeSignatureBlock(doc, proposerName, officials);
   writeEnactmentAndApprovalBlocks(doc, officials);
 }
 
