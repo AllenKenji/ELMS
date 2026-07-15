@@ -85,7 +85,7 @@ const PDF_LAYOUT = {
   approvalLineOffset: 46,
   approvalNameOffset: 12,
   approvalRoleOffset: 32,
-  closingSectionReserve: 210,
+  closingSectionReserve: 245,
 };
 
 function ensureSpace(doc, neededHeight) {
