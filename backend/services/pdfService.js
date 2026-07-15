@@ -82,9 +82,9 @@ const PDF_LAYOUT = {
   signatureNameOffset: 10,
   signatureRoleOffset: 30,
   approvalTopGap: 1.8,
-  approvalLineOffset: 36,
-  approvalNameOffset: 10,
-  approvalRoleOffset: 26,
+  approvalLineOffset: 46,
+  approvalNameOffset: 12,
+  approvalRoleOffset: 32,
   closingSectionReserve: 210,
 };
 
@@ -391,7 +391,7 @@ function writeFooter(doc) {
     doc.switchToPage(i);
 
     // Keep footer inside the printable area to avoid PDFKit auto-adding blank pages.
-    const footerY = doc.page.height - doc.page.margins.bottom - 10;
+    const footerY = doc.page.height - doc.page.margins.bottom - 6;
 
     doc
       .moveTo(doc.page.margins.left, footerY - 6)
