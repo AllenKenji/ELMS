@@ -1,5 +1,8 @@
 const pdfParse = require('pdf-parse');
 const { createWorker } = require('tesseract.js');
+const { pdfToPng, VerbosityLevel } = require('pdf-to-png-converter');
+
+const PDF_OCR_MAX_PAGES = Math.max(1, Number(process.env.OCR_MAX_PDF_PAGES || 5));
 
 function normalizeExtractedText(text) {
   return String(text || '')
@@ -35,8 +38,66 @@ function inferSuggestionFromText(rawText, measureType) {
 }
 
 async function extractTextFromPdf(buffer) {
-  const parsed = await pdfParse(buffer);
-  return normalizeExtractedText(parsed.text || '');
+  let parsedText = '';
+  let pageCount = 1;
+
+  try {
+    const parsed = await pdfParse(buffer);
+    parsedText = normalizeExtractedText(parsed.text || '');
+    pageCount = Number(parsed?.numpages) > 0 ? Number(parsed.numpages) : 1;
+  } catch (err) {
+    // Fall back to OCR when PDF text-layer parsing fails.
+    console.warn('PDF text extraction failed; falling back to OCR:', err.message);
+  }
+
+  if (parsedText) {
+    return parsedText;
+  }
+
+  return extractTextFromPdfUsingOcr(buffer, pageCount);
+}
+
+async function extractTextFromPdfUsingOcr(buffer, pageCountHint = 1) {
+  const pagesToProcess = Array.from(
+    { length: Math.min(PDF_OCR_MAX_PAGES, Math.max(1, Number(pageCountHint) || 1)) },
+    (_, index) => index + 1,
+  );
+
+  const renderedPages = await pdfToPng(buffer, {
+    pagesToProcess,
+    returnPageContent: true,
+    viewportScale: 2,
+    disableFontFace: false,
+    useSystemFonts: true,
+    processPagesInParallel: true,
+    concurrencyLimit: 2,
+    verbosityLevel: VerbosityLevel.ERRORS,
+  });
+
+  if (!Array.isArray(renderedPages) || !renderedPages.length) {
+    return '';
+  }
+
+  const worker = await createWorker('eng');
+  try {
+    const chunks = [];
+
+    for (const page of renderedPages) {
+      if (page?.kind !== 'content' || !page.content) {
+        continue;
+      }
+
+      const result = await worker.recognize(page.content);
+      const pageText = normalizeExtractedText(result?.data?.text || '');
+      if (pageText) {
+        chunks.push(pageText);
+      }
+    }
+
+    return normalizeExtractedText(chunks.join('\n\n'));
+  } finally {
+    await worker.terminate();
+  }
 }
 
 async function extractTextFromImage(buffer) {
