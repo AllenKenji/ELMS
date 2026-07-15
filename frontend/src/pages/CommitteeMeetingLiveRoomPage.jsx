@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useBeforeUnload, useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../api/api';
 import { useAuth } from '../context/useAuth';
 import LiveSessionPanel from '../components/Sessions/LiveSessionPanel';
@@ -44,6 +44,7 @@ export default function CommitteeMeetingLiveRoomPage() {
   const [meeting, setMeeting] = useState(null);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
   const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
+  const [isBroadcastingLive, setIsBroadcastingLive] = useState(false);
 
   const watchMode = useMemo(() => {
     const params = new URLSearchParams(location.search || '');
@@ -97,6 +98,44 @@ export default function CommitteeMeetingLiveRoomPage() {
   const hostTabUrl = useMemo(() => {
     return `/dashboard/committee-meetings/live/${committeeId}/${meetingId}`;
   }, [committeeId, meetingId]);
+
+  const shouldBlockNavigation = !watchMode && (isBroadcastingLive || isLocalRecordingActive);
+
+  const blocker = useBlocker(
+    shouldBlockNavigation
+      ? ({ currentLocation, nextLocation }) => (
+          currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search
+        )
+      : false
+  );
+
+  useEffect(() => {
+    if (blocker.state !== 'blocked') {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Leaving this page will stop the active live session or recording. Continue?'
+    );
+
+    if (confirmed) {
+      blocker.proceed();
+      return;
+    }
+
+    blocker.reset();
+  }, [blocker]);
+
+  useBeforeUnload(
+    useCallback((event) => {
+      if (!shouldBlockNavigation) {
+        return;
+      }
+
+      event.preventDefault();
+      event.returnValue = '';
+    }, [shouldBlockNavigation])
+  );
 
   if (loading) {
     return (
@@ -160,6 +199,7 @@ export default function CommitteeMeetingLiveRoomPage() {
         broadcastStream={liveBroadcastStream}
         hostName={user?.name || user?.email || 'Host'}
         hostRole={user?.role || ''}
+        onBroadcastStateChange={setIsBroadcastingLive}
       />
 
       {!meeting.ended && canBroadcast && (

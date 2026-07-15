@@ -59,7 +59,7 @@ function attachVideoStream(videoNode, stream, { muted = false } = {}) {
   videoNode.play?.().catch(() => {});
 }
 
-export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null }) {
+export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null, onBroadcastStateChange = null }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isWatching, setIsWatching] = useState(false);
@@ -125,6 +125,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   useEffect(() => {
     isBroadcastingRef.current = isBroadcasting;
   }, [isBroadcasting]);
+
+  useEffect(() => {
+    onBroadcastStateChange?.(isBroadcasting);
+  }, [isBroadcasting, onBroadcastStateChange]);
 
   useEffect(() => {
     isWatchingRef.current = isWatching;
