@@ -63,6 +63,13 @@ function formatDate(value) {
   });
 }
 
+function ensureSpace(doc, neededHeight) {
+  const safeBottom = doc.page.height - doc.page.margins.bottom - 28;
+  if (doc.y + neededHeight > safeBottom) {
+    doc.addPage();
+  }
+}
+
 /**
  * Writes the common document header (logo area, locality name, divider).
  * @param {PDFDocument} doc
@@ -151,11 +158,15 @@ function writeHeader(doc, documentType, headerConfig = {}) {
       width: textWidth,
     })
     .moveDown(0.35);
+
+  // Reset text cursor to normal content flow after absolute-position header text.
+  doc.x = doc.page.margins.left;
 }
 
 function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
   const { left, right } = doc.page.margins;
   const pageRight = doc.page.width - right;
+  const contentWidth = pageRight - left;
 
   doc
     .roundedRect(left, doc.y, pageRight - left, 78, 6)
@@ -168,7 +179,8 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#2f4765')
-    .text(`${numberLabel}: ${normalizePdfText(numberValue) || 'Pending Assignment'}`, {
+    .text(`${numberLabel}: ${normalizePdfText(numberValue) || 'Pending Assignment'}`, left, doc.y, {
+      width: contentWidth,
       align: 'center',
     });
 
@@ -177,7 +189,8 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
     .font('Helvetica-Bold')
     .fontSize(13)
     .fillColor('#111827')
-    .text(normalizePdfText(title) || 'Untitled Document', {
+    .text(normalizePdfText(title) || 'Untitled Document', left, doc.y, {
+      width: contentWidth,
       align: 'center',
       lineGap: 2,
     })
@@ -192,15 +205,14 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
  */
 function writeMetaRow(doc, label, value) {
   const safeValue = normalizePdfText(value) || 'N/A';
+  const { left, right } = doc.page.margins;
+  const contentWidth = doc.page.width - left - right;
 
   doc
-    .font('Helvetica-Bold')
-    .fontSize(10)
-    .fillColor('#333333')
-    .text(`${label}: `, { continued: true })
     .font('Helvetica')
+    .fontSize(10)
     .fillColor('#555555')
-    .text(safeValue)
+    .text(`${label}: ${safeValue}`, left, doc.y, { width: contentWidth, align: 'center' })
     .moveDown(0.2);
 }
 
@@ -212,18 +224,22 @@ function writeMetaRow(doc, label, value) {
  */
 function writeSection(doc, heading, body) {
   const plainBody = toPlainText(body);
+  const { left, right } = doc.page.margins;
+  const contentWidth = doc.page.width - left - right;
+
   doc
     .moveDown(0.6)
     .font('Helvetica-Bold')
     .fontSize(11)
     .fillColor('#10213a')
-    .text(heading)
+    .text(heading, left, doc.y, { width: contentWidth, align: 'center' })
     .moveDown(0.2)
     .font('Helvetica')
     .fontSize(10.5)
     .fillColor('#1f2937')
-    .text(plainBody || 'N/A', {
-      align: 'justify',
+    .text(plainBody || 'N/A', left, doc.y, {
+      width: contentWidth,
+      align: 'center',
       lineGap: 3,
     })
     .moveDown(0.2);
@@ -340,6 +356,13 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
     });
 }
 
+function writeClosingSignatureSection(doc, proposerName, officials = {}) {
+  // Keep both closing blocks together so officer names never split across pages.
+  ensureSpace(doc, 200);
+  writeSignatureBlock(doc, proposerName);
+  writeEnactmentAndApprovalBlocks(doc, officials);
+}
+
 /**
  * Writes the common document footer on each page.
  * @param {PDFDocument} doc
@@ -377,7 +400,12 @@ function writeFooter(doc) {
  * @param {import('stream').Writable} stream - Destination stream (e.g. HTTP response)
  */
 function generateOrdinancePdf(ordinance, stream, options = {}) {
-  const doc = new PDFDocument({ margin: 60, bufferPages: true });
+  const doc = new PDFDocument({
+    // Long bond paper: 8.5 x 13 inches
+    size: [612, 936],
+    margins: { top: 60, left: 60, right: 60, bottom: 92 },
+    bufferPages: true,
+  });
   doc.pipe(stream);
 
   writeHeader(doc, 'BARANGAY ORDINANCE', options.header);
@@ -430,8 +458,7 @@ function generateOrdinancePdf(ordinance, stream, options = {}) {
     writeSection(doc, 'Remarks', ordinance.remarks);
   }
 
-  writeSignatureBlock(doc, ordinance.proposer_name);
-  writeEnactmentAndApprovalBlocks(doc, options.officials);
+  writeClosingSignatureSection(doc, ordinance.proposer_name, options.officials);
 
   writeFooter(doc);
   doc.end();
@@ -443,7 +470,12 @@ function generateOrdinancePdf(ordinance, stream, options = {}) {
  * @param {import('stream').Writable} stream - Destination stream (e.g. HTTP response)
  */
 function generateResolutionPdf(resolution, stream, options = {}) {
-  const doc = new PDFDocument({ margin: 60, bufferPages: true });
+  const doc = new PDFDocument({
+    // Long bond paper: 8.5 x 13 inches
+    size: [612, 936],
+    margins: { top: 60, left: 60, right: 60, bottom: 92 },
+    bufferPages: true,
+  });
   doc.pipe(stream);
 
   writeHeader(doc, 'BARANGAY RESOLUTION', options.header);
@@ -495,8 +527,7 @@ function generateResolutionPdf(resolution, stream, options = {}) {
     writeSection(doc, 'Notes', resolution.remarks);
   }
 
-  writeSignatureBlock(doc, resolution.proposer_name);
-  writeEnactmentAndApprovalBlocks(doc, options.officials);
+  writeClosingSignatureSection(doc, resolution.proposer_name, options.officials);
 
   writeFooter(doc);
   doc.end();
@@ -509,7 +540,12 @@ function generateResolutionPdf(resolution, stream, options = {}) {
  * @param {import('stream').Writable} stream - Destination stream (e.g. HTTP response)
  */
 function generateOrderOfBusinessPdf(doc, items, stream) {
-  const pdfDoc = new PDFDocument({ margin: 60, bufferPages: true });
+  const pdfDoc = new PDFDocument({
+    // Long bond paper: 8.5 x 13 inches
+    size: [612, 936],
+    margin: 60,
+    bufferPages: true,
+  });
   pdfDoc.pipe(stream);
 
   writeHeader(pdfDoc, 'ORDER OF BUSINESS');
