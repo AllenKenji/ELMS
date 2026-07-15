@@ -4,6 +4,20 @@
 const PDFDocument = require('pdfkit');
 const path = require('path');
 
+function normalizePdfText(value) {
+  if (value == null) return '';
+
+  return String(value)
+    .replace(/â€¢/g, '-')
+    .replace(/â€“|â€”/g, '-')
+    .replace(/Â/g, ' ')
+    .replace(/Ð/g, '')
+    .replace(/[•–—]/g, '-')
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, ' ')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim();
+}
+
 function toPlainText(value) {
   if (!value) return '';
   return String(value)
@@ -20,12 +34,16 @@ function toPlainText(value) {
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+    .split('\n')
+    .map((line) => normalizePdfText(line))
+    .join('\n')
     .trim();
 }
 
 function pickFirstNonEmpty(...values) {
   for (const value of values) {
-    const text = String(value || '').trim();
+    const text = normalizePdfText(value);
     if (text) return text;
   }
   return '';
@@ -128,7 +146,10 @@ function writeHeader(doc, documentType, headerConfig = {}) {
     .fontSize(17)
     .fillColor('#10213a')
     .font('Helvetica-Bold')
-    .text(documentType, { align: 'center' })
+    .text(normalizePdfText(documentType), textX, doc.y, {
+      align: 'center',
+      width: textWidth,
+    })
     .moveDown(0.35);
 }
 
@@ -147,7 +168,7 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#2f4765')
-    .text(`${numberLabel}: ${numberValue || 'Pending Assignment'}`, {
+    .text(`${numberLabel}: ${normalizePdfText(numberValue) || 'Pending Assignment'}`, {
       align: 'center',
     });
 
@@ -156,7 +177,7 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
     .font('Helvetica-Bold')
     .fontSize(13)
     .fillColor('#111827')
-    .text(title || 'Untitled Document', {
+    .text(normalizePdfText(title) || 'Untitled Document', {
       align: 'center',
       lineGap: 2,
     })
@@ -170,6 +191,8 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
  * @param {string} value
  */
 function writeMetaRow(doc, label, value) {
+  const safeValue = normalizePdfText(value) || 'N/A';
+
   doc
     .font('Helvetica-Bold')
     .fontSize(10)
@@ -177,7 +200,7 @@ function writeMetaRow(doc, label, value) {
     .text(`${label}: `, { continued: true })
     .font('Helvetica')
     .fillColor('#555555')
-    .text(value || 'N/A')
+    .text(safeValue)
     .moveDown(0.2);
 }
 
@@ -238,7 +261,7 @@ function writeSignatureBlock(doc, proposerName) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#1f2937')
-    .text(proposerName || 'Name / Signature', left, lineY + 4, {
+    .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + 4, {
       width: colWidth,
       align: 'center',
     })
@@ -303,9 +326,9 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#1f2937')
-    .text(viceMayorName, left, lineY + 4, { width: colWidth, align: 'center' })
-    .text(secretaryName, left + colWidth + 12, lineY + 4, { width: colWidth, align: 'center' })
-    .text(mayorName, left + 2 * (colWidth + 12), lineY + 4, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(viceMayorName), left, lineY + 4, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(secretaryName), left + colWidth + 12, lineY + 4, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(mayorName), left + 2 * (colWidth + 12), lineY + 4, { width: colWidth, align: 'center' })
     .font('Helvetica')
     .fontSize(9)
     .fillColor('#4b5563')
@@ -326,11 +349,12 @@ function writeFooter(doc) {
   for (let i = pages.start; i < pages.start + pages.count; i++) {
     doc.switchToPage(i);
 
-    const footerY = doc.page.height - doc.page.margins.bottom + 10;
+    // Keep footer inside the printable area to avoid PDFKit auto-adding blank pages.
+    const footerY = doc.page.height - doc.page.margins.bottom - 16;
 
     doc
-      .moveTo(doc.page.margins.left, footerY - 5)
-      .lineTo(doc.page.width - doc.page.margins.right, footerY - 5)
+      .moveTo(doc.page.margins.left, footerY - 6)
+      .lineTo(doc.page.width - doc.page.margins.right, footerY - 6)
       .strokeColor('#cccccc')
       .stroke();
 
