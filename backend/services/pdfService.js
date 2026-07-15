@@ -246,14 +246,15 @@ function writeSignatureBlock(doc, proposerName) {
   const pageRight = doc.page.width - right;
   const width = pageRight - left;
   const colWidth = width / 2 - 10;
-  const lineY = doc.y + 44;
+  const labelY = doc.y;
+  const lineY = labelY + 64;
 
   doc
     .font('Helvetica')
     .fontSize(10)
     .fillColor('#111827')
-    .text('Prepared / Proposed by:', left, doc.y, { width: colWidth })
-    .text('Certified by:', left + colWidth + 20, doc.y, { width: colWidth });
+    .text('Prepared / Proposed by:', left, labelY, { width: colWidth })
+    .text('Certified by:', left + colWidth + 20, labelY, { width: colWidth });
 
   doc
     .moveTo(left, lineY)
@@ -271,25 +272,25 @@ function writeSignatureBlock(doc, proposerName) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#1f2937')
-    .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + 8, {
+    .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + 10, {
       width: colWidth,
       align: 'center',
     })
     .font('Helvetica')
     .fontSize(9)
     .fillColor('#4b5563')
-    .text('Author / Proponent', left, lineY + 24, {
+    .text('Author / Proponent', left, lineY + 30, {
       width: colWidth,
       align: 'center',
     })
-    .text('Secretary', left + colWidth + 20, lineY + 24, {
+    .text('Secretary', left + colWidth + 20, lineY + 30, {
       width: colWidth,
       align: 'center',
     });
 }
 
 function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
-  doc.moveDown(1.1);
+  doc.moveDown(1.8);
 
   const { left, right } = doc.page.margins;
   const pageRight = doc.page.width - right;
@@ -352,7 +353,7 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
 
 function writeClosingSignatureSection(doc, proposerName, officials = {}) {
   // Keep both closing blocks together so officer names never split across pages.
-  ensureSpace(doc, 250);
+  ensureSpace(doc, 300);
   writeSignatureBlock(doc, proposerName);
   writeEnactmentAndApprovalBlocks(doc, officials);
 }
