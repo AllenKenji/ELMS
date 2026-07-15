@@ -557,6 +557,38 @@
   object-fit: contain;
 }
 
+.live-camera-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.7rem;
+}
+
+.live-camera-tile {
+  border: 1px solid #c7dbe5;
+  border-radius: 10px;
+  padding: 0.45rem;
+  background: #f8fcff;
+}
+
+.live-camera-name {
+  margin: 0.35rem 0 0;
+  color: #355364;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.live-participant-controls {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.live-participant-controls .btn-live-stop,
+.live-participant-controls .btn-live-watch {
+  padding: 0.45rem 0.7rem;
+  font-size: 0.75rem;
+}
+
 /* Ordinances */
 .ordinances-pane h3 {
   margin-bottom: 1.5rem;

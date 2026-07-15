@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../api/api';
 import { useAuth } from '../context/useAuth';
 import LiveSessionPanel from '../components/Sessions/LiveSessionPanel';
+import LocalMeetingRecorder from '../components/common/LocalMeetingRecorder';
 import '../styles/SessionDetails.css';
 
 function canBroadcastMeeting(user, committee) {
@@ -41,6 +42,8 @@ export default function CommitteeMeetingLiveRoomPage() {
   const [error, setError] = useState('');
   const [committee, setCommittee] = useState(null);
   const [meeting, setMeeting] = useState(null);
+  const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
+  const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
 
   const watchMode = useMemo(() => {
     const params = new URLSearchParams(location.search || '');
@@ -154,9 +157,47 @@ export default function CommitteeMeetingLiveRoomPage() {
       <LiveSessionPanel
         sessionId={Number(meetingId)}
         canBroadcast={!meeting.ended && canBroadcast}
+        broadcastStream={liveBroadcastStream}
         hostName={user?.name || user?.email || 'Host'}
         hostRole={user?.role || ''}
       />
+
+      {!meeting.ended && canBroadcast && (
+        <section className="detail-section full-width" style={{ marginTop: '1rem' }}>
+          <h3>Committee Recording</h3>
+          <p className="session-recording-hint" style={{ marginBottom: '0.75rem' }}>
+            Start local recording here to capture and upload the committee meeting. While recording, this stream is also used for live broadcast preview.
+          </p>
+          <LocalMeetingRecorder
+            meetingTitle={meeting.title}
+            committeeId={meeting.committee_id}
+            meetingId={meeting.id}
+            recordingUrl={meeting.recording_url}
+            recordingUploadedAt={meeting.recording_uploaded_at}
+            recordingUploadedByName={meeting.recording_uploaded_by_name}
+            onCaptureStarted={setLiveBroadcastStream}
+            onCaptureStopped={() => setLiveBroadcastStream(null)}
+            onRecordingStateChange={setIsLocalRecordingActive}
+            onUploadComplete={async () => {
+              try {
+                const meetingsRes = await api.get(`/committees/${committeeId}/meetings`);
+                const allMeetings = meetingsRes.data || [];
+                const found = allMeetings.find((item) => String(item.id) === String(meetingId));
+                if (found) {
+                  setMeeting(found);
+                }
+              } catch {
+                // keep current meeting data if refresh fails
+              }
+            }}
+          />
+          {isLocalRecordingActive && (
+            <p style={{ marginTop: '0.6rem', color: '#2c5f76', fontWeight: 600 }}>
+              Recording is active. Keep this tab open until Stop and Save completes.
+            </p>
+          )}
+        </section>
+      )}
     </div>
   );
 }

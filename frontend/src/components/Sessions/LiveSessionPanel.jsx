@@ -54,13 +54,24 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const [liveHostName, setLiveHostName] = useState('');
   const [liveHostSocketId, setLiveHostSocketId] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
+  const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isMicrophoneOn, setIsMicrophoneOn] = useState(false);
+  const [cameraPublishers, setCameraPublishers] = useState([]);
   const [liveDiagnostics, setLiveDiagnostics] = useState({ publishVideo: false, publishAudio: false, recvVideo: false, recvAudio: false });
   const [status, setStatus] = useState('No live stream in progress.');
   const [error, setError] = useState('');
+  const [cameraError, setCameraError] = useState('');
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const cameraVideoRef = useRef(null);
   const remotePlaybackStreamRef = useRef(null);
+  const cameraStreamRef = useRef(null);
+  const cameraPublisherPeersRef = useRef(new Map());
+  const cameraSubscriberPeersRef = useRef(new Map());
+  const remoteCameraStreamsRef = useRef(new Map());
+  const cameraTileVideoRefs = useRef(new Map());
+  const isCameraOnRef = useRef(false);
 
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -75,6 +86,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
   const normalizedSessionId = useMemo(() => Number(sessionId), [sessionId]);
   const hasExternalBroadcast = Boolean(broadcastStream);
+
+  const isCurrentHost = useMemo(() => {
+    const currentSocketId = socketRef.current?.id || null;
+    if (!currentSocketId) return Boolean(isBroadcasting);
+    return Boolean(isBroadcasting || (liveHostSocketId && liveHostSocketId === currentSocketId));
+  }, [isBroadcasting, liveHostSocketId]);
 
   const liveHostLabel = useMemo(() => {
     if (!isLive) {
@@ -100,6 +117,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   useEffect(() => {
     isWatchingRef.current = isWatching;
   }, [isWatching]);
+
+  useEffect(() => {
+    isCameraOnRef.current = isCameraOn;
+  }, [isCameraOn]);
 
   const closeViewerPeer = useCallback(() => {
     if (viewerPeerRef.current) {
@@ -331,6 +352,157 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     setStatus(isLive ? 'Live stream available. Click Watch Live.' : 'No live stream in progress.');
   }, [closeViewerPeer, isLive]);
 
+  const upsertCameraPublisher = useCallback((socketId, name) => {
+    if (!socketId) return;
+    setCameraPublishers((prev) => {
+      const existingIndex = prev.findIndex((item) => item.socketId === socketId);
+      const nextItem = {
+        socketId,
+        name: String(name || '').trim() || 'Participant',
+      };
+
+      if (existingIndex === -1) {
+        return [...prev, nextItem];
+      }
+
+      const next = [...prev];
+      next[existingIndex] = { ...next[existingIndex], ...nextItem };
+      return next;
+    });
+  }, []);
+
+  const removeCameraPublisher = useCallback((socketId) => {
+    if (!socketId) return;
+
+    setCameraPublishers((prev) => prev.filter((item) => item.socketId !== socketId));
+    const subscriberPc = cameraSubscriberPeersRef.current.get(socketId);
+    if (subscriberPc) {
+      subscriberPc.close();
+      cameraSubscriberPeersRef.current.delete(socketId);
+    }
+
+    const stream = remoteCameraStreamsRef.current.get(socketId);
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      remoteCameraStreamsRef.current.delete(socketId);
+    }
+  }, []);
+
+  const subscribeToCameraPublisher = useCallback((publisherSocketId) => {
+    if (!socketRef.current || !publisherSocketId) return;
+    if (publisherSocketId === socketRef.current.id) return;
+    if (cameraSubscriberPeersRef.current.has(publisherSocketId)) return;
+
+    socketRef.current.emit('camera:subscribe', {
+      sessionId: normalizedSessionId,
+      publisherSocketId,
+    });
+  }, [normalizedSessionId]);
+
+  const stopCameraPreview = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.emit('camera:unpublish', { sessionId: normalizedSessionId });
+    }
+
+    for (const pc of cameraPublisherPeersRef.current.values()) {
+      pc.close();
+    }
+    cameraPublisherPeersRef.current.clear();
+
+    for (const pc of cameraSubscriberPeersRef.current.values()) {
+      pc.close();
+    }
+    cameraSubscriberPeersRef.current.clear();
+
+    for (const stream of remoteCameraStreamsRef.current.values()) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    remoteCameraStreamsRef.current.clear();
+
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach((track) => track.stop());
+      cameraStreamRef.current = null;
+    }
+
+    if (cameraVideoRef.current) {
+      cameraVideoRef.current.srcObject = null;
+    }
+
+    setIsCameraOn(false);
+    setIsMicrophoneOn(false);
+    setCameraPublishers([]);
+  }, [normalizedSessionId]);
+
+  const startCameraPreview = useCallback(async () => {
+    setCameraError('');
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+        },
+      });
+
+      cameraStreamRef.current = stream;
+      setIsCameraOn(true);
+      setIsMicrophoneOn(stream.getAudioTracks().some((track) => track.enabled));
+
+      if (socketRef.current) {
+        socketRef.current.emit('camera:publish', {
+          sessionId: normalizedSessionId,
+          name: hostName,
+        });
+      }
+
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = stream;
+        cameraVideoRef.current.onloadedmetadata = () => {
+          cameraVideoRef.current?.play?.().catch(() => {});
+        };
+        cameraVideoRef.current.muted = true;
+        cameraVideoRef.current.playsInline = true;
+        cameraVideoRef.current.play?.().catch(() => {});
+      }
+    } catch (err) {
+      setCameraError(err?.message || 'Unable to access camera.');
+      stopCameraPreview();
+    }
+  }, [stopCameraPreview]);
+
+  const toggleCameraPreview = useCallback(() => {
+    if (isCameraOn) {
+      stopCameraPreview();
+      return;
+    }
+
+    startCameraPreview();
+  }, [isCameraOn, startCameraPreview, stopCameraPreview]);
+
+  const toggleMicrophonePreview = useCallback(() => {
+    if (!cameraStreamRef.current) return;
+
+    const audioTracks = cameraStreamRef.current.getAudioTracks();
+    if (!audioTracks.length) return;
+
+    const nextEnabled = !audioTracks.some((track) => track.enabled);
+    audioTracks.forEach((track) => {
+      track.enabled = nextEnabled;
+    });
+    setIsMicrophoneOn(nextEnabled);
+  }, []);
+
+  const sendModerationCommand = useCallback((targetSocketId, command) => {
+    if (!socketRef.current || !isCurrentHost || !targetSocketId) return;
+
+    socketRef.current.emit('camera:moderation-command', {
+      sessionId: normalizedSessionId,
+      targetSocketId,
+      command,
+    });
+  }, [isCurrentHost, normalizedSessionId]);
+
   useEffect(() => {
     if (!isLive || isBroadcastingRef.current || !socketConnected || isWatchingRef.current) {
       return;
@@ -411,6 +583,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setSocketConnected(true);
       socket.emit('joinSessionLive', normalizedSessionId);
       socket.emit('live:status-request', { sessionId: normalizedSessionId });
+
+      if (isCameraOnRef.current) {
+        socket.emit('camera:publish', { sessionId: normalizedSessionId, name: hostName });
+      }
 
       // Recover session state on reconnect.
       if (isBroadcastingRef.current) {
@@ -532,15 +708,222 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       }
     });
 
+    socket.on('camera:list', (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+
+      const publishers = Array.isArray(payload?.publishers) ? payload.publishers : [];
+      setCameraPublishers(
+        publishers
+          .filter((item) => item?.publisherSocketId && item.publisherSocketId !== socket.id)
+          .map((item) => ({
+            socketId: item.publisherSocketId,
+            name: String(item.name || '').trim() || 'Participant',
+          }))
+      );
+
+      publishers.forEach((item) => {
+        const publisherSocketId = item?.publisherSocketId;
+        if (!publisherSocketId || publisherSocketId === socket.id) return;
+        subscribeToCameraPublisher(publisherSocketId);
+      });
+    });
+
+    socket.on('camera:published', (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+      const publisherSocketId = payload?.publisherSocketId;
+      if (!publisherSocketId || publisherSocketId === socket.id) return;
+
+      upsertCameraPublisher(publisherSocketId, payload?.name);
+      subscribeToCameraPublisher(publisherSocketId);
+    });
+
+    socket.on('camera:unpublished', (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+      removeCameraPublisher(payload?.publisherSocketId);
+    });
+
+    socket.on('camera:subscriber-joined', async (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+      if (!isCameraOnRef.current || !cameraStreamRef.current) return;
+
+      const subscriberSocketId = payload?.subscriberSocketId;
+      if (!subscriberSocketId) return;
+
+      try {
+        const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+        cameraPublisherPeersRef.current.set(subscriberSocketId, pc);
+
+        cameraStreamRef.current.getTracks().forEach((track) => {
+          pc.addTrack(track, cameraStreamRef.current);
+        });
+
+        pc.onicecandidate = (event) => {
+          if (!event.candidate) return;
+          socket.emit('camera:ice-candidate', {
+            sessionId: normalizedSessionId,
+            targetSocketId: subscriberSocketId,
+            candidate: event.candidate,
+          });
+        };
+
+        pc.onconnectionstatechange = () => {
+          if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
+            pc.close();
+            cameraPublisherPeersRef.current.delete(subscriberSocketId);
+          }
+        };
+
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        socket.emit('camera:offer', {
+          sessionId: normalizedSessionId,
+          targetSocketId: subscriberSocketId,
+          sdp: offer,
+        });
+      } catch {
+        // Keep live session stable if a camera peer fails.
+      }
+    });
+
+    socket.on('camera:offer', async (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+      if (!payload?.fromSocketId || !payload?.sdp) return;
+
+      const publisherSocketId = payload.fromSocketId;
+
+      try {
+        let pc = cameraSubscriberPeersRef.current.get(publisherSocketId);
+        if (!pc) {
+          pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+          cameraSubscriberPeersRef.current.set(publisherSocketId, pc);
+
+          pc.onicecandidate = (event) => {
+            if (!event.candidate) return;
+            socket.emit('camera:ice-candidate', {
+              sessionId: normalizedSessionId,
+              targetSocketId: publisherSocketId,
+              candidate: event.candidate,
+            });
+          };
+
+          pc.ontrack = (event) => {
+            const [stream] = event.streams || [];
+            if (!stream) return;
+
+            remoteCameraStreamsRef.current.set(publisherSocketId, stream);
+            upsertCameraPublisher(publisherSocketId);
+
+            const node = cameraTileVideoRefs.current.get(publisherSocketId);
+            if (node) {
+              node.srcObject = stream;
+              node.play?.().catch(() => {});
+            }
+          };
+
+          pc.onconnectionstatechange = () => {
+            if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
+              pc.close();
+              cameraSubscriberPeersRef.current.delete(publisherSocketId);
+            }
+          };
+        }
+
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        socket.emit('camera:answer', {
+          sessionId: normalizedSessionId,
+          targetSocketId: publisherSocketId,
+          sdp: answer,
+        });
+      } catch {
+        // Keep live session stable if a camera peer fails.
+      }
+    });
+
+    socket.on('camera:answer', async (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+      if (!payload?.fromSocketId || !payload?.sdp) return;
+
+      const pc = cameraPublisherPeersRef.current.get(payload.fromSocketId);
+      if (!pc) return;
+
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+      } catch {
+        // Keep live session stable if a camera peer fails.
+      }
+    });
+
+    socket.on('camera:ice-candidate', async (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+      if (!payload?.candidate || !payload?.fromSocketId) return;
+
+      const fromSocketId = payload.fromSocketId;
+
+      try {
+        const publisherPc = cameraPublisherPeersRef.current.get(fromSocketId);
+        if (publisherPc) {
+          await publisherPc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+          return;
+        }
+
+        const subscriberPc = cameraSubscriberPeersRef.current.get(fromSocketId);
+        if (subscriberPc) {
+          await subscriberPc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        }
+      } catch {
+        // ignore sporadic ICE race conditions
+      }
+    });
+
+    socket.on('camera:moderation-command', (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+
+      const command = String(payload?.command || '').trim().toLowerCase();
+      if (!['disable-camera', 'disable-audio'].includes(command)) return;
+
+      if (command === 'disable-camera') {
+        stopCameraPreview();
+        setCameraError('Host disabled your camera. You may turn it on again when allowed.');
+        return;
+      }
+
+      if (command === 'disable-audio' && cameraStreamRef.current) {
+        const audioTracks = cameraStreamRef.current.getAudioTracks();
+        audioTracks.forEach((track) => {
+          track.enabled = false;
+        });
+        setIsMicrophoneOn(false);
+        setCameraError('Host muted your camera audio.');
+      }
+    });
+
     return () => {
       if (isBroadcastingRef.current) {
         stopBroadcast(broadcastModeRef.current === 'manual');
       }
+      stopCameraPreview();
       closeViewerPeer();
       socket.disconnect();
       socketRef.current = null;
       closeBroadcasterPeers();
       closeViewerPeer();
+      for (const pc of cameraPublisherPeersRef.current.values()) {
+        pc.close();
+      }
+      cameraPublisherPeersRef.current.clear();
+      for (const pc of cameraSubscriberPeersRef.current.values()) {
+        pc.close();
+      }
+      cameraSubscriberPeersRef.current.clear();
+      for (const stream of remoteCameraStreamsRef.current.values()) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      remoteCameraStreamsRef.current.clear();
+      setCameraPublishers([]);
     };
   }, [
     canBroadcast,
@@ -550,7 +933,12 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     createViewerPeer,
     hostName,
     normalizedSessionId,
+    removeCameraPublisher,
+    sendModerationCommand,
+    stopCameraPreview,
     stopBroadcast,
+    subscribeToCameraPublisher,
+    upsertCameraPublisher,
   ]);
 
   return (
@@ -582,6 +970,24 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           </button>
         )}
 
+        <button
+          type="button"
+          className={isCameraOn ? 'btn-live-stop' : 'btn-live-watch'}
+          onClick={toggleCameraPreview}
+        >
+          {isCameraOn ? 'Turn Off Camera' : 'Turn On Camera'}
+        </button>
+
+        {isCameraOn && (
+          <button
+            type="button"
+            className={isMicrophoneOn ? 'btn-live-stop' : 'btn-live-watch'}
+            onClick={toggleMicrophonePreview}
+          >
+            {isMicrophoneOn ? 'Turn Off Mic' : 'Turn On Mic'}
+          </button>
+        )}
+
         {isWatching && (
           <button type="button" className="btn-live-stop" onClick={stopWatching}>
             Leave Live
@@ -594,6 +1000,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         <p className="live-session-host">Live started by: {liveHostLabel}</p>
       )}
       {error && <p className="live-session-error">{error}</p>}
+      {cameraError && <p className="live-session-error">{cameraError}</p>}
       <p className="live-session-diagnostics">
         Socket: {socketConnected ? 'connected' : 'disconnected'} · Publish: {liveDiagnostics.publishVideo ? 'video' : 'no video'} / {liveDiagnostics.publishAudio ? 'audio' : 'no audio'} · Receive: {liveDiagnostics.recvVideo ? 'video' : 'no video'} / {liveDiagnostics.recvAudio ? 'audio' : 'no audio'}
       </p>
@@ -606,6 +1013,55 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         <div className="live-video-block">
           <label>Live Preview</label>
           <video ref={localVideoRef} autoPlay muted playsInline className="live-video" />
+        </div>
+      )}
+
+      {isCameraOn && (
+        <div className="live-video-block">
+          <label>Your Camera</label>
+          <video ref={cameraVideoRef} autoPlay muted playsInline className="live-video" />
+        </div>
+      )}
+
+      {cameraPublishers.length > 0 && (
+        <div className="live-video-block">
+          <label>Participant Cameras</label>
+          <div className="live-camera-grid">
+            {cameraPublishers.map((item) => (
+              <div key={item.socketId} className="live-camera-tile">
+                <video
+                  autoPlay
+                  playsInline
+                  controls
+                  className="live-video"
+                  ref={(node) => {
+                    if (!node) {
+                      cameraTileVideoRefs.current.delete(item.socketId);
+                      return;
+                    }
+
+                    cameraTileVideoRefs.current.set(item.socketId, node);
+                    const stream = remoteCameraStreamsRef.current.get(item.socketId);
+                    if (stream) {
+                      node.srcObject = stream;
+                      node.play?.().catch(() => {});
+                    }
+                  }}
+                />
+                <p className="live-camera-name">{item.name || 'Participant'}</p>
+                {isCurrentHost && (
+                  <div className="live-participant-controls">
+                    <button type="button" className="btn-live-stop" onClick={() => sendModerationCommand(item.socketId, 'disable-camera')}>
+                      Disable Camera
+                    </button>
+                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(item.socketId, 'disable-audio')}>
+                      Disable Audio
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

@@ -1,6 +1,7 @@
 // socket.js
 let io;
 const liveSessions = new Map();
+const cameraSessions = new Map();
 
 function normalizeSessionId(value) {
   const sessionId = Number(value);
@@ -45,6 +46,48 @@ function cleanupLiveStateIfEmpty(sessionId) {
 
   if (!state.broadcasterSocketId && state.viewers.size === 0) {
     liveSessions.delete(sessionId);
+  }
+}
+
+function getOrCreateCameraState(sessionId) {
+  if (!cameraSessions.has(sessionId)) {
+    cameraSessions.set(sessionId, {
+      publishers: new Map(),
+    });
+  }
+
+  return cameraSessions.get(sessionId);
+}
+
+function getCameraPublishersPayload(sessionId, excludeSocketId = null) {
+  const state = cameraSessions.get(sessionId);
+  if (!state) {
+    return [];
+  }
+
+  const publishers = [];
+  for (const [publisherSocketId, value] of state.publishers.entries()) {
+    if (excludeSocketId && publisherSocketId === excludeSocketId) {
+      continue;
+    }
+
+    publishers.push({
+      publisherSocketId,
+      name: value?.name || 'Participant',
+    });
+  }
+
+  return publishers;
+}
+
+function cleanupCameraStateIfEmpty(sessionId) {
+  const state = cameraSessions.get(sessionId);
+  if (!state) {
+    return;
+  }
+
+  if (state.publishers.size === 0) {
+    cameraSessions.delete(sessionId);
   }
 }
 
@@ -93,7 +136,137 @@ function init(server) {
       socket.join(room);
       socket.data.liveSessionIds.add(sessionId);
       getOrCreateLiveState(sessionId);
+      getOrCreateCameraState(sessionId);
       emitLiveStatus(sessionId);
+      socket.emit('camera:list', {
+        sessionId,
+        publishers: getCameraPublishersPayload(sessionId, socket.id),
+      });
+    });
+
+    socket.on('camera:publish', ({ sessionId: sessionIdValue, name } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId) {
+        return;
+      }
+
+      const state = getOrCreateCameraState(sessionId);
+      state.publishers.set(socket.id, {
+        name: String(name || '').trim().slice(0, 120) || 'Participant',
+      });
+
+      socket.join(getLiveRoom(sessionId));
+      socket.data.liveSessionIds.add(sessionId);
+
+      io.to(getLiveRoom(sessionId)).emit('camera:published', {
+        sessionId,
+        publisherSocketId: socket.id,
+        name: state.publishers.get(socket.id).name,
+      });
+    });
+
+    socket.on('camera:unpublish', ({ sessionId: sessionIdValue } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId) {
+        return;
+      }
+
+      const state = cameraSessions.get(sessionId);
+      if (!state) {
+        return;
+      }
+
+      if (!state.publishers.has(socket.id)) {
+        return;
+      }
+
+      state.publishers.delete(socket.id);
+
+      io.to(getLiveRoom(sessionId)).emit('camera:unpublished', {
+        sessionId,
+        publisherSocketId: socket.id,
+      });
+
+      cleanupCameraStateIfEmpty(sessionId);
+    });
+
+    socket.on('camera:subscribe', ({ sessionId: sessionIdValue, publisherSocketId } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId || !publisherSocketId || publisherSocketId === socket.id) {
+        return;
+      }
+
+      const state = cameraSessions.get(sessionId);
+      if (!state || !state.publishers.has(publisherSocketId)) {
+        return;
+      }
+
+      io.to(publisherSocketId).emit('camera:subscriber-joined', {
+        sessionId,
+        subscriberSocketId: socket.id,
+      });
+    });
+
+    socket.on('camera:offer', ({ sessionId: sessionIdValue, targetSocketId, sdp } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId || !targetSocketId || !sdp) {
+        return;
+      }
+
+      io.to(targetSocketId).emit('camera:offer', {
+        sessionId,
+        fromSocketId: socket.id,
+        sdp,
+      });
+    });
+
+    socket.on('camera:answer', ({ sessionId: sessionIdValue, targetSocketId, sdp } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId || !targetSocketId || !sdp) {
+        return;
+      }
+
+      io.to(targetSocketId).emit('camera:answer', {
+        sessionId,
+        fromSocketId: socket.id,
+        sdp,
+      });
+    });
+
+    socket.on('camera:ice-candidate', ({ sessionId: sessionIdValue, targetSocketId, candidate } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId || !targetSocketId || !candidate) {
+        return;
+      }
+
+      io.to(targetSocketId).emit('camera:ice-candidate', {
+        sessionId,
+        fromSocketId: socket.id,
+        candidate,
+      });
+    });
+
+    socket.on('camera:moderation-command', ({ sessionId: sessionIdValue, targetSocketId, command } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId || !targetSocketId || !command) {
+        return;
+      }
+
+      const normalizedCommand = String(command).trim().toLowerCase();
+      if (!['disable-camera', 'disable-audio'].includes(normalizedCommand)) {
+        return;
+      }
+
+      const liveState = liveSessions.get(sessionId);
+      if (!liveState || liveState.broadcasterSocketId !== socket.id) {
+        return;
+      }
+
+      io.to(targetSocketId).emit('camera:moderation-command', {
+        sessionId,
+        fromSocketId: socket.id,
+        command: normalizedCommand,
+      });
     });
 
     socket.on('live:status-request', ({ sessionId: sessionIdValue } = {}) => {
@@ -228,6 +401,16 @@ function init(server) {
         }
 
         cleanupLiveStateIfEmpty(sessionId);
+
+        const cameraState = cameraSessions.get(sessionId);
+        if (cameraState?.publishers?.has(socket.id)) {
+          cameraState.publishers.delete(socket.id);
+          io.to(getLiveRoom(sessionId)).emit('camera:unpublished', {
+            sessionId,
+            publisherSocketId: socket.id,
+          });
+          cleanupCameraStateIfEmpty(sessionId);
+        }
       }
 
       console.log('User disconnected:', socket.id);
