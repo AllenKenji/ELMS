@@ -168,13 +168,7 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
   const pageRight = doc.page.width - right;
   const contentWidth = pageRight - left;
 
-  doc
-    .roundedRect(left, doc.y, pageRight - left, 78, 6)
-    .lineWidth(1)
-    .strokeColor('#cfd7e3')
-    .stroke();
-
-  doc.moveDown(0.3);
+  doc.moveDown(0.2);
   doc
     .font('Helvetica-Bold')
     .fontSize(10)
@@ -212,7 +206,7 @@ function writeMetaRow(doc, label, value) {
     .font('Helvetica')
     .fontSize(10)
     .fillColor('#555555')
-    .text(`${label}: ${safeValue}`, left, doc.y, { width: contentWidth, align: 'center' })
+    .text(`${label}: ${safeValue}`, left, doc.y, { width: contentWidth, align: 'justify' })
     .moveDown(0.2);
 }
 
@@ -232,34 +226,34 @@ function writeSection(doc, heading, body) {
     .font('Helvetica-Bold')
     .fontSize(11)
     .fillColor('#10213a')
-    .text(heading, left, doc.y, { width: contentWidth, align: 'center' })
+    .text(heading, left, doc.y, { width: contentWidth, align: 'left' })
     .moveDown(0.2)
     .font('Helvetica')
     .fontSize(10.5)
     .fillColor('#1f2937')
     .text(plainBody || 'N/A', left, doc.y, {
       width: contentWidth,
-      align: 'center',
+      align: 'justify',
       lineGap: 3,
     })
     .moveDown(0.2);
 }
 
 function writeSignatureBlock(doc, proposerName) {
-  doc.moveDown(1.3);
+  doc.moveDown(1.6);
 
   const { left, right } = doc.page.margins;
   const pageRight = doc.page.width - right;
   const width = pageRight - left;
   const colWidth = width / 2 - 10;
-  const lineY = doc.y + 34;
+  const lineY = doc.y + 44;
 
   doc
     .font('Helvetica')
     .fontSize(10)
     .fillColor('#111827')
     .text('Prepared / Proposed by:', left, doc.y, { width: colWidth })
-    .text('Certified by:', left + colWidth + 20, doc.y - 12, { width: colWidth });
+    .text('Certified by:', left + colWidth + 20, doc.y, { width: colWidth });
 
   doc
     .moveTo(left, lineY)
@@ -277,32 +271,32 @@ function writeSignatureBlock(doc, proposerName) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#1f2937')
-    .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + 4, {
+    .text(normalizePdfText(proposerName) || 'Name / Signature', left, lineY + 8, {
       width: colWidth,
       align: 'center',
     })
     .font('Helvetica')
     .fontSize(9)
     .fillColor('#4b5563')
-    .text('Author / Proponent', left, lineY + 18, {
+    .text('Author / Proponent', left, lineY + 24, {
       width: colWidth,
       align: 'center',
     })
-    .text('Secretary', left + colWidth + 20, lineY + 10, {
+    .text('Secretary', left + colWidth + 20, lineY + 24, {
       width: colWidth,
       align: 'center',
     });
 }
 
 function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
-  doc.moveDown(0.8);
+  doc.moveDown(1.1);
 
   const { left, right } = doc.page.margins;
   const pageRight = doc.page.width - right;
   const width = pageRight - left;
   const colWidth = width / 3 - 8;
   const startY = doc.y;
-  const lineY = startY + 28;
+  const lineY = startY + 36;
 
   const viceMayorName = pickFirstNonEmpty(
     officials.viceMayor,
@@ -342,15 +336,15 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
     .font('Helvetica-Bold')
     .fontSize(10)
     .fillColor('#1f2937')
-    .text(normalizePdfText(viceMayorName), left, lineY + 4, { width: colWidth, align: 'center' })
-    .text(normalizePdfText(secretaryName), left + colWidth + 12, lineY + 4, { width: colWidth, align: 'center' })
-    .text(normalizePdfText(mayorName), left + 2 * (colWidth + 12), lineY + 4, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(viceMayorName), left, lineY + 10, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(secretaryName), left + colWidth + 12, lineY + 10, { width: colWidth, align: 'center' })
+    .text(normalizePdfText(mayorName), left + 2 * (colWidth + 12), lineY + 10, { width: colWidth, align: 'center' })
     .font('Helvetica')
     .fontSize(9)
     .fillColor('#4b5563')
-    .text('Presiding Officer', left, lineY + 18, { width: colWidth, align: 'center' })
-    .text('Secretary', left + colWidth + 12, lineY + 18, { width: colWidth, align: 'center' })
-    .text('Municipal / City Mayor', left + 2 * (colWidth + 12), lineY + 18, {
+    .text('Presiding Officer', left, lineY + 26, { width: colWidth, align: 'center' })
+    .text('Secretary', left + colWidth + 12, lineY + 26, { width: colWidth, align: 'center' })
+    .text('Municipal / City Mayor', left + 2 * (colWidth + 12), lineY + 26, {
       width: colWidth,
       align: 'center',
     });
@@ -358,7 +352,7 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
 
 function writeClosingSignatureSection(doc, proposerName, officials = {}) {
   // Keep both closing blocks together so officer names never split across pages.
-  ensureSpace(doc, 200);
+  ensureSpace(doc, 250);
   writeSignatureBlock(doc, proposerName);
   writeEnactmentAndApprovalBlocks(doc, officials);
 }
