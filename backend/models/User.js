@@ -4,6 +4,14 @@
 const pool = require('../db');
 
 /** @returns {Promise<import('pg').QueryResult>} */
+exports.ensureSignatureColumn = async () => {
+  return pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS e_signature_url TEXT;
+  `);
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
 exports.findAll = async () => {
   return pool.query(
     `SELECT u.id, u.name, u.email, u.role_id, u.e_signature_url, r.role_name, r.role_name AS role

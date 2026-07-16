@@ -643,7 +643,7 @@ To fix this:
                           <div className="signature-actions">
                             <input
                               type="file"
-                              accept="image/png,image/jpeg,image/jpg,image/webp"
+                              accept="image/png,image/jpeg,image/jpg"
                               onChange={(e) => handleSignatureFileChange(u.id, e.target.files?.[0] || null)}
                               disabled={loading || signatureBusyUserId === u.id}
                               aria-label={`Select e-signature for ${u.name}`}

@@ -5,7 +5,7 @@ const multer = require('multer');
 const signaturesDir = path.join(__dirname, '..', 'uploads', 'signatures');
 fs.mkdirSync(signaturesDir, { recursive: true });
 
-const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg', 'image/webp']);
+const ALLOWED_TYPES = new Set(['image/png', 'image/jpeg', 'image/jpg']);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -25,7 +25,7 @@ const upload = multer({
   },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_TYPES.has(file.mimetype)) {
-      cb(new Error('Only PNG, JPG, JPEG, and WEBP signature images are allowed.'));
+      cb(new Error('Only PNG, JPG, and JPEG signature images are allowed.'));
       return;
     }
     cb(null, true);

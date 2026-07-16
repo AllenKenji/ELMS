@@ -7,6 +7,19 @@ const path = require('path');
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
 
+let ensureSignatureSchemaPromise = null;
+
+async function ensureSignatureSchema() {
+  if (!ensureSignatureSchemaPromise) {
+    ensureSignatureSchemaPromise = User.ensureSignatureColumn().catch((err) => {
+      ensureSignatureSchemaPromise = null;
+      throw err;
+    });
+  }
+
+  await ensureSignatureSchemaPromise;
+}
+
 function resolveAbsoluteUploadPath(fileUrl) {
   if (!fileUrl || typeof fileUrl !== 'string') return null;
   if (!fileUrl.startsWith('/uploads/')) return null;
@@ -53,6 +66,7 @@ async function setSignatureForUser(targetUserId, signatureUrl, actorUserId, acti
  * @returns {Promise<Array>}
  */
 exports.getAllUsers = async () => {
+  await ensureSignatureSchema();
   const result = await User.findAll();
   return result.rows;
 };
@@ -99,6 +113,7 @@ exports.deleteUser = async (id) => {
  * @returns {Promise<object>}
  */
 exports.updateUserRole = async (id, roleId) => {
+  await ensureSignatureSchema();
   const result = await User.updateRole(id, roleId);
   if (result.rowCount === 0) {
     const err = new Error('User not found');
@@ -116,6 +131,7 @@ exports.updateUserRole = async (id, roleId) => {
  * @param {string} signatureUrl
  */
 exports.updateOwnSignature = async (userId, signatureUrl) => {
+  await ensureSignatureSchema();
   return setSignatureForUser(userId, signatureUrl, userId, 'UPDATE_SIGNATURE');
 };
 
@@ -124,6 +140,7 @@ exports.updateOwnSignature = async (userId, signatureUrl) => {
  * @param {number|string} userId
  */
 exports.getOwnSignature = async (userId) => {
+  await ensureSignatureSchema();
   const result = await User.findSignatureById(userId);
   if (result.rowCount === 0) {
     const err = new Error('User not found');
@@ -138,6 +155,7 @@ exports.getOwnSignature = async (userId) => {
  * @param {number|string} userId
  */
 exports.deleteOwnSignature = async (userId) => {
+  await ensureSignatureSchema();
   const existing = await User.findSignatureById(userId);
   if (existing.rowCount === 0) {
     const err = new Error('User not found');
@@ -156,10 +174,12 @@ exports.deleteOwnSignature = async (userId) => {
 };
 
 exports.updateUserSignatureByAdmin = async (targetUserId, signatureUrl, adminUserId) => {
+  await ensureSignatureSchema();
   return setSignatureForUser(targetUserId, signatureUrl, adminUserId, 'ADMIN_UPDATE_SIGNATURE');
 };
 
 exports.deleteUserSignatureByAdmin = async (targetUserId, adminUserId) => {
+  await ensureSignatureSchema();
   const existing = await User.findSignatureById(targetUserId);
   if (existing.rowCount === 0) {
     const err = new Error('User not found');
@@ -184,18 +204,21 @@ exports.deleteUserSignatureByAdmin = async (targetUserId, adminUserId) => {
 };
 
 exports.findSignatureByName = async (name) => {
+  await ensureSignatureSchema();
   if (!name) return null;
   const result = await User.findSignatureByName(name);
   return result.rows[0] || null;
 };
 
 exports.findSignatureByRoleNames = async (roleNames) => {
+  await ensureSignatureSchema();
   if (!Array.isArray(roleNames) || roleNames.length === 0) return null;
   const result = await User.findSignatureByRoleNames(roleNames);
   return result.rows[0] || null;
 };
 
 exports.findSignatureById = async (id) => {
+  await ensureSignatureSchema();
   if (!id) return null;
   const result = await User.findSignatureById(id);
   return result.rows[0] || null;
