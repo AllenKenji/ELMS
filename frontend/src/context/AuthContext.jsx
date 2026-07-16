@@ -55,24 +55,37 @@ export function AuthProvider({ children }) {
     return decodeValidUser(storedAccessToken);
   });
 
+  const updateUser = (nextUserOrUpdater) => {
+    setUser((currentUser) => {
+      const nextUser = typeof nextUserOrUpdater === 'function'
+        ? nextUserOrUpdater(currentUser)
+        : nextUserOrUpdater;
+
+      if (nextUser) {
+        sessionStorage.setItem('authUser', JSON.stringify(nextUser));
+      } else {
+        sessionStorage.removeItem('authUser');
+      }
+
+      return nextUser;
+    });
+  };
+
   const login = (tokens) => {
     sessionStorage.setItem('accessToken', tokens.accessToken);
     sessionStorage.setItem('refreshToken', tokens.refreshToken);
     setAccessToken(tokens.accessToken);
     setRefreshToken(tokens.refreshToken);
     if (tokens.user) {
-      setUser(tokens.user);
-      sessionStorage.setItem('authUser', JSON.stringify(tokens.user));
+      updateUser(tokens.user);
       return;
     }
 
     try {
       const decodedUser = jwtDecode(tokens.accessToken);
-      setUser(decodedUser);
-      sessionStorage.setItem('authUser', JSON.stringify(decodedUser));
+      updateUser(decodedUser);
     } catch {
-      setUser(null);
-      sessionStorage.removeItem('authUser');
+      updateUser(null);
     }
   };
 
@@ -84,6 +97,52 @@ export function AuthProvider({ children }) {
     setRefreshToken(null);
     setUser(null);
   };
+
+  useEffect(() => {
+    if (!accessToken || !user?.id) return;
+
+    let cancelled = false;
+
+    const syncCurrentUserPhoto = async () => {
+      try {
+        const res = await axios.get(`${API_BASE_URL}/users/me/photo`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (cancelled) return;
+
+        const nextPhotoUrl = res.data?.photo_url || null;
+        updateUser((currentUser) => {
+          if (!currentUser) return currentUser;
+          if ((currentUser.photo_url || null) === nextPhotoUrl) {
+            return currentUser;
+          }
+          return {
+            ...currentUser,
+            photo_url: nextPhotoUrl,
+          };
+        });
+      } catch (err) {
+        if (cancelled) return;
+        console.error('Failed to sync current user photo:', err);
+      }
+    };
+
+    syncCurrentUserPhoto();
+
+    const handleWindowFocus = () => {
+      syncCurrentUserPhoto();
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [accessToken, user?.id]);
 
   // 🔄 Refresh access token automatically
   useEffect(() => {
@@ -101,16 +160,13 @@ export function AuthProvider({ children }) {
           sessionStorage.setItem('accessToken', newAccessToken);
           setAccessToken(newAccessToken);
           if (refreshedUser) {
-            setUser(refreshedUser);
-            sessionStorage.setItem('authUser', JSON.stringify(refreshedUser));
+            updateUser(refreshedUser);
           } else {
             try {
               const decodedUser = jwtDecode(newAccessToken);
-              setUser(decodedUser);
-              sessionStorage.setItem('authUser', JSON.stringify(decodedUser));
+              updateUser(decodedUser);
             } catch {
-              setUser(null);
-              sessionStorage.removeItem('authUser');
+              updateUser(null);
             }
           }
         }
@@ -143,7 +199,7 @@ export function AuthProvider({ children }) {
   }, [refreshToken]);
 
   return (
-    <Auth.Provider value={{ accessToken, refreshToken, setAccessToken, setRefreshToken, user, login, logout }}>
+    <Auth.Provider value={{ accessToken, refreshToken, setAccessToken, setRefreshToken, user, updateUser, login, logout }}>
       {children}
     </Auth.Provider>
   );

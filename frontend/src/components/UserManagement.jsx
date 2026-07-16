@@ -17,7 +17,7 @@ const ROLES = [
 ];
 
 export default function UserManagement({ users, currentUserRole, authContext }) {
-  const { user: authUser } = useAuth();
+  const { user: authUser, updateUser } = useAuth();
   const [allUsers, setAllUsers] = useState(Array.isArray(users) ? users : []);
   const [form, setForm] = useState({ name: '', email: '', password: '', roleId: '' });
   const [newUserPhotoFile, setNewUserPhotoFile] = useState(null);
@@ -387,6 +387,10 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     setAllUsers((prev) => prev.map((u) => (
       u.id === userId ? { ...u, e_profile_photo_url: photoUrl } : u
     )));
+
+    if (String(authUser?.id) === String(userId)) {
+      updateUser((currentUser) => currentUser ? { ...currentUser, photo_url: photoUrl } : currentUser);
+    }
   };
 
   const handleUploadSignature = async (userId) => {
@@ -456,6 +460,9 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
       setAllUsers((prev) => prev.map((u) => (
         u.id === userId ? { ...u, e_profile_photo_url: null } : u
       )));
+      if (String(authUser?.id) === String(userId)) {
+        updateUser((currentUser) => currentUser ? { ...currentUser, photo_url: null } : currentUser);
+      }
       setSuccess('Profile photo removed successfully.');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -764,49 +771,20 @@ To fix this:
                       )}
                     </td>
                     <td className="photo-cell">
-                      <div className="photo-status-wrap">
-                        {hasUserPhoto(u) ? (
-                          <div className="photo-status has-photo">
-                            <span>Available</span>
-                            <button
-                              type="button"
-                              className="btn-link"
-                              onClick={() => handlePreviewPhoto(u)}
-                            >
-                              Preview
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="photo-status no-photo">No photo</span>
-                        )}
-                        <div className="photo-actions">
-                          <input
-                            type="file"
-                            accept="image/png,image/jpeg,image/jpg,image/webp"
-                            onChange={(e) => handlePhotoFileChange(u.id, e.target.files?.[0] || null)}
-                            disabled={loading || photoBusyUserId === u.id}
-                            aria-label={`Select profile photo for ${u.name}`}
-                          />
+                      {hasUserPhoto(u) ? (
+                        <div className="photo-status has-photo">
+                          <span>Available</span>
                           <button
                             type="button"
-                            onClick={() => handleUploadPhoto(u.id)}
-                            disabled={loading || photoBusyUserId === u.id || !photoFiles[u.id]}
-                            className="btn btn-sm btn-primary"
-                            aria-label={`Upload profile photo for ${u.name}`}
+                            className="btn-link"
+                            onClick={() => handlePreviewPhoto(u)}
                           >
-                            {photoBusyUserId === u.id ? 'Uploading...' : 'Upload Photo'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeletePhoto(u.id)}
-                            disabled={loading || photoBusyUserId === u.id || !hasUserPhoto(u)}
-                            className="btn btn-sm btn-secondary"
-                            aria-label={`Remove profile photo for ${u.name}`}
-                          >
-                            Remove Photo
+                            Preview
                           </button>
                         </div>
-                      </div>
+                      ) : (
+                        <span className="photo-status no-photo">No photo</span>
+                      )}
                     </td>
                     <td className="signature-cell">
                       {hasUserSignature(u) ? (
@@ -884,6 +862,33 @@ To fix this:
                                 >
                                   Delete
                                 </button>
+                                <div className="photo-actions">
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/jpg,image/webp"
+                                    onChange={(e) => handlePhotoFileChange(u.id, e.target.files?.[0] || null)}
+                                    disabled={loading || photoBusyUserId === u.id}
+                                    aria-label={`Select profile photo for ${u.name}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUploadPhoto(u.id)}
+                                    disabled={loading || photoBusyUserId === u.id || !photoFiles[u.id]}
+                                    className="btn btn-sm btn-primary"
+                                    aria-label={`Upload profile photo for ${u.name}`}
+                                  >
+                                    {photoBusyUserId === u.id ? 'Uploading...' : 'Upload Photo'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeletePhoto(u.id)}
+                                    disabled={loading || photoBusyUserId === u.id || !hasUserPhoto(u)}
+                                    className="btn btn-sm btn-secondary"
+                                    aria-label={`Remove profile photo for ${u.name}`}
+                                  >
+                                    Remove Photo
+                                  </button>
+                                </div>
                                 <div className="signature-actions">
                                   <input
                                     type="file"
