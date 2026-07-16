@@ -275,6 +275,7 @@ exports.generatePdf = async (req, res) => {
     const viceMayorName = settings?.vice_mayor_name || process.env.PDF_VICE_MAYOR_NAME;
     const mayorName = settings?.mayor_name || process.env.PDF_MAYOR_NAME;
     const secretaryName = settings?.secretary_name || process.env.PDF_SECRETARY_NAME;
+    const configuredMayorSignature = settings?.mayor_signature_url || process.env.PDF_MAYOR_SIGNATURE_URL || null;
 
     const [viceMayorByName, mayorByName, secretaryByName] = await Promise.all([
       userService.findSignatureByName(viceMayorName),
@@ -289,7 +290,7 @@ exports.generatePdf = async (req, res) => {
     ]);
 
     const viceMayorSignatureUrl = viceMayorByName?.e_signature_url || viceMayorByRole?.e_signature_url || null;
-    const mayorSignatureUrl = mayorByName?.e_signature_url || mayorByRole?.e_signature_url || null;
+    const mayorSignatureUrl = configuredMayorSignature || mayorByName?.e_signature_url || mayorByRole?.e_signature_url || null;
     const secretarySignatureUrl = secretaryByName?.e_signature_url || secretaryByRole?.e_signature_url || null;
 
     generateOrdinancePdf(ordinance, res, {
