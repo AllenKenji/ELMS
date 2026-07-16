@@ -256,17 +256,17 @@
 
 .actions-cell {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.28rem;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: flex-start;
-  min-width: 190px;
+  min-width: 320px;
 }
 
 .actions-cell .btn {
   padding: 0.38rem 0.62rem;
   font-size: 0.78rem;
-  width: 100%;
+  width: auto;
   text-align: center;
 }
 
@@ -297,14 +297,16 @@
 
 .signature-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 0.28rem;
-  margin-top: 0.1rem;
-  width: 100%;
+  margin-top: 0;
+  width: auto;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .signature-actions .btn {
-  width: 100%;
+  width: auto;
 }
 
 .signature-actions input[type="file"] {
