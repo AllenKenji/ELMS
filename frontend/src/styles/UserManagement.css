@@ -259,6 +259,43 @@
   flex-wrap: wrap;
 }
 
+.signature-cell {
+  min-width: 140px;
+}
+
+.signature-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.signature-status.has-signature {
+  color: #1e7e34;
+  font-weight: 600;
+}
+
+.signature-status.has-signature a {
+  color: #1769aa;
+  text-decoration: underline;
+}
+
+.signature-status.no-signature {
+  color: #888;
+}
+
+.signature-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  width: 220px;
+}
+
+.signature-actions input[type="file"] {
+  font-size: 0.78rem;
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -280,6 +317,28 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   max-width: 400px;
   width: 90%;
+}
+
+.signature-modal {
+  max-width: 620px;
+}
+
+.signature-pad-canvas {
+  width: 100%;
+  max-width: 500px;
+  height: 170px;
+  border: 2px solid #d7dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  cursor: crosshair;
+  display: block;
+  margin: 0.75rem auto 0.5rem;
+}
+
+.signature-pad-hint {
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 0.35rem;
 }
 
 .modal-content h4 {
@@ -327,6 +386,10 @@
 
   .actions-cell {
     flex-direction: column;
+  }
+
+  .signature-actions {
+    width: 100%;
   }
 
   .btn-sm {

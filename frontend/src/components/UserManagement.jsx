@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import api from '../api/api';
 import { useAuth } from '../context/useAuth';
 import '../styles/UserManagement.css';
+
+const API_BASE_URL = String(import.meta.env.VITE_API_URL || 'http://localhost:5000')
+  .trim()
+  .replace(/\/+$/, '');
 
 const ROLES = [
   { id: '1', name: 'Admin' },
@@ -23,6 +27,12 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   const [success, setSuccess] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [signatureFiles, setSignatureFiles] = useState({});
+  const [signatureBusyUserId, setSignatureBusyUserId] = useState(null);
+  const [drawSignatureUser, setDrawSignatureUser] = useState(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasDrawnStroke, setHasDrawnStroke] = useState(false);
+  const canvasRef = useRef(null);
 
   // Try to get role from multiple sources
   const getUserRole = () => {
@@ -62,7 +72,8 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   };
 
   const userRole = getUserRole();
-  const isAdmin = userRole === '6' || userRole === 6 || userRole === 'Admin';
+  const normalizedRole = String(userRole || '').trim().toLowerCase();
+  const isAdmin = normalizedRole === 'admin' || normalizedRole === '1';
 
   useEffect(() => {
     console.log(`Role: ${userRole}, IsAdmin: ${isAdmin}`);
@@ -71,6 +82,38 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
       fetchUsers();
     }
   }, [users, userRole, isAdmin]);
+
+  useEffect(() => {
+    if (Array.isArray(users)) {
+      setAllUsers(users);
+    }
+  }, [users]);
+
+  useEffect(() => {
+    if (!drawSignatureUser || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    const ratio = window.devicePixelRatio || 1;
+    const width = 500;
+    const height = 170;
+
+    canvas.width = width * ratio;
+    canvas.height = height * ratio;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    context.strokeStyle = '#111111';
+    context.lineWidth = 2;
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+
+    setHasDrawnStroke(false);
+    setIsDrawing(false);
+  }, [drawSignatureUser]);
 
   const fetchUsers = async () => {
     try {
@@ -212,6 +255,173 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     return ROLES.find(r => r.id === String(roleId))?.name || `Role ${roleId}`;
   };
 
+  const getUserSignatureUrl = (user) => {
+    return user?.e_signature_url || user?.signature_url || null;
+  };
+
+  const toAbsoluteSignatureUrl = (signatureUrl) => {
+    if (!signatureUrl) return null;
+    if (/^https?:\/\//i.test(signatureUrl)) return signatureUrl;
+    return `${API_BASE_URL}${signatureUrl.startsWith('/') ? '' : '/'}${signatureUrl}`;
+  };
+
+  const handleSignatureFileChange = (userId, file) => {
+    setSignatureFiles((prev) => ({
+      ...prev,
+      [userId]: file || null,
+    }));
+  };
+
+  const uploadSignatureFile = async (userId, file) => {
+    const payload = new FormData();
+    payload.append('signature', file);
+
+    const res = await api.post(`/users/${userId}/signature`, payload, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    const signatureUrl = res.data?.signature_url || null;
+    setAllUsers((prev) => prev.map((u) => (
+      u.id === userId ? { ...u, e_signature_url: signatureUrl } : u
+    )));
+  };
+
+  const handleUploadSignature = async (userId) => {
+    const selectedFile = signatureFiles[userId];
+    if (!selectedFile) {
+      setError('Please select a signature image first.');
+      return;
+    }
+
+    try {
+      setSignatureBusyUserId(userId);
+      setError('');
+      await uploadSignatureFile(userId, selectedFile);
+      setSignatureFiles((prev) => ({ ...prev, [userId]: null }));
+      setSuccess('E-signature uploaded successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err?.message || 'Failed to upload e-signature. Please try again.');
+    } finally {
+      setSignatureBusyUserId(null);
+    }
+  };
+
+  const handleDeleteSignature = async (userId) => {
+    try {
+      setSignatureBusyUserId(userId);
+      setError('');
+      await api.delete(`/users/${userId}/signature`);
+      setAllUsers((prev) => prev.map((u) => (
+        u.id === userId ? { ...u, e_signature_url: null } : u
+      )));
+      setSuccess('E-signature removed successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err?.message || 'Failed to remove e-signature. Please try again.');
+    } finally {
+      setSignatureBusyUserId(null);
+    }
+  };
+
+  const openDrawSignatureModal = (user) => {
+    setDrawSignatureUser(user);
+    setError('');
+  };
+
+  const closeDrawSignatureModal = () => {
+    setDrawSignatureUser(null);
+    setIsDrawing(false);
+    setHasDrawnStroke(false);
+  };
+
+  const getCanvasPoint = (event) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const source = event.touches?.[0] || event.changedTouches?.[0] || event;
+    return {
+      x: source.clientX - rect.left,
+      y: source.clientY - rect.top,
+    };
+  };
+
+  const beginStroke = (event) => {
+    event.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    const point = getCanvasPoint(event);
+    context.beginPath();
+    context.moveTo(point.x, point.y);
+    setIsDrawing(true);
+  };
+
+  const drawStroke = (event) => {
+    if (!isDrawing) return;
+    event.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    const point = getCanvasPoint(event);
+    context.lineTo(point.x, point.y);
+    context.stroke();
+    setHasDrawnStroke(true);
+  };
+
+  const endStroke = (event) => {
+    if (!isDrawing) return;
+    if (event?.preventDefault) event.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    context.closePath();
+    setIsDrawing(false);
+  };
+
+  const clearDrawnSignature = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext('2d');
+    const width = Number(canvas.style.width.replace('px', '')) || 500;
+    const height = Number(canvas.style.height.replace('px', '')) || 170;
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, width, height);
+    setHasDrawnStroke(false);
+  };
+
+  const saveDrawnSignature = async () => {
+    if (!drawSignatureUser || !canvasRef.current) return;
+    if (!hasDrawnStroke) {
+      setError('Please draw a signature first.');
+      return;
+    }
+
+    try {
+      setSignatureBusyUserId(drawSignatureUser.id);
+      setError('');
+      const blob = await new Promise((resolve) => {
+        canvasRef.current.toBlob(resolve, 'image/png');
+      });
+
+      if (!blob) {
+        setError('Unable to save the drawn signature. Please try again.');
+        return;
+      }
+
+      const file = new File([blob], `signature-user-${drawSignatureUser.id}.png`, { type: 'image/png' });
+      await uploadSignatureFile(drawSignatureUser.id, file);
+      setSuccess('E-signature drawn and uploaded successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+      closeDrawSignatureModal();
+    } catch (err) {
+      setError(err?.message || 'Failed to upload drawn signature. Please try again.');
+    } finally {
+      setSignatureBusyUserId(null);
+    }
+  };
+
   const startEditRole = (userId, currentRole) => {
     setEditingId(userId);
     setEditRole(String(currentRole));
@@ -346,6 +556,7 @@ To fix this:
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
+                  <th>E-Signature</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -370,6 +581,22 @@ To fix this:
                         <span className={`role-badge role-${editRole || u.role_id}`}>
                           {getRoleName(u.role_id)}
                         </span>
+                      )}
+                    </td>
+                    <td className="signature-cell">
+                      {getUserSignatureUrl(u) ? (
+                        <div className="signature-status has-signature">
+                          <span>Available</span>
+                          <a
+                            href={toAbsoluteSignatureUrl(getUserSignatureUrl(u))}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Preview
+                          </a>
+                        </div>
+                      ) : (
+                        <span className="signature-status no-signature">No signature</span>
                       )}
                     </td>
                     <td className="actions-cell">
@@ -413,6 +640,39 @@ To fix this:
                           >
                             Delete
                           </button>
+                          <div className="signature-actions">
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/jpg,image/webp"
+                              onChange={(e) => handleSignatureFileChange(u.id, e.target.files?.[0] || null)}
+                              disabled={loading || signatureBusyUserId === u.id}
+                              aria-label={`Select e-signature for ${u.name}`}
+                            />
+                            <button
+                              onClick={() => handleUploadSignature(u.id)}
+                              disabled={loading || signatureBusyUserId === u.id || !signatureFiles[u.id]}
+                              className="btn btn-sm btn-primary"
+                              aria-label={`Upload e-signature for ${u.name}`}
+                            >
+                              {signatureBusyUserId === u.id ? 'Uploading...' : 'Upload Signature'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteSignature(u.id)}
+                              disabled={loading || signatureBusyUserId === u.id || !getUserSignatureUrl(u)}
+                              className="btn btn-sm btn-secondary"
+                              aria-label={`Remove e-signature for ${u.name}`}
+                            >
+                              Remove Signature
+                            </button>
+                            <button
+                              onClick={() => openDrawSignatureModal(u)}
+                              disabled={loading || signatureBusyUserId === u.id}
+                              className="btn btn-sm btn-warning"
+                              aria-label={`Draw e-signature for ${u.name}`}
+                            >
+                              Draw with Mouse
+                            </button>
+                          </div>
                         </>
                       )}
                     </td>
@@ -446,6 +706,40 @@ To fix this:
                 className="btn btn-danger"
               >
                 {loading ? 'Deleting...' : 'Delete User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {drawSignatureUser && (
+        <div className="modal-overlay" onClick={closeDrawSignatureModal}>
+          <div className="modal-content signature-modal" onClick={(e) => e.stopPropagation()}>
+            <h4>Draw E-Signature</h4>
+            <p>
+              Drawing signature for <strong>{drawSignatureUser.name}</strong>
+            </p>
+            <canvas
+              ref={canvasRef}
+              className="signature-pad-canvas"
+              onMouseDown={beginStroke}
+              onMouseMove={drawStroke}
+              onMouseUp={endStroke}
+              onMouseLeave={endStroke}
+              onTouchStart={beginStroke}
+              onTouchMove={drawStroke}
+              onTouchEnd={endStroke}
+            />
+            <p className="signature-pad-hint">Use your mouse to sign. You can clear and redraw before saving.</p>
+            <div className="modal-actions">
+              <button onClick={clearDrawnSignature} className="btn btn-secondary">Clear</button>
+              <button onClick={closeDrawSignatureModal} className="btn btn-secondary">Cancel</button>
+              <button
+                onClick={saveDrawnSignature}
+                disabled={signatureBusyUserId === drawSignatureUser.id}
+                className="btn btn-primary"
+              >
+                {signatureBusyUserId === drawSignatureUser.id ? 'Saving...' : 'Save Signature'}
               </button>
             </div>
           </div>
