@@ -36,7 +36,7 @@ async function removeFileIfExists(fileUrl) {
   }
 }
 
-async function setSignatureForUser(targetUserId, signatureUrl, actorUserId, actionLabel) {
+async function setSignatureForUser(targetUserId, signatureAsset, actorUserId, actionLabel) {
   const existing = await User.findSignatureById(targetUserId);
   if (existing.rowCount === 0) {
     const err = new Error('User not found');
@@ -45,9 +45,18 @@ async function setSignatureForUser(targetUserId, signatureUrl, actorUserId, acti
   }
 
   const previousUrl = existing.rows[0].e_signature_url;
-  const result = await User.updateSignatureUrl(targetUserId, signatureUrl);
+  const nextSignatureUrl = signatureAsset?.url || null;
+  const nextSignatureData = signatureAsset?.data || null;
+  const nextSignatureMimeType = signatureAsset?.mimeType || null;
 
-  if (previousUrl && previousUrl !== signatureUrl) {
+  const result = await User.updateSignatureAsset(
+    targetUserId,
+    nextSignatureUrl,
+    nextSignatureData,
+    nextSignatureMimeType,
+  );
+
+  if (previousUrl && previousUrl !== nextSignatureUrl) {
     await removeFileIfExists(previousUrl);
   }
 
@@ -130,9 +139,9 @@ exports.updateUserRole = async (id, roleId) => {
  * @param {number|string} userId
  * @param {string} signatureUrl
  */
-exports.updateOwnSignature = async (userId, signatureUrl) => {
+exports.updateOwnSignature = async (userId, signatureAsset) => {
   await ensureSignatureSchema();
-  return setSignatureForUser(userId, signatureUrl, userId, 'UPDATE_SIGNATURE');
+  return setSignatureForUser(userId, signatureAsset, userId, 'UPDATE_SIGNATURE');
 };
 
 /**
@@ -164,7 +173,7 @@ exports.deleteOwnSignature = async (userId) => {
   }
 
   const previousUrl = existing.rows[0].e_signature_url;
-  await User.updateSignatureUrl(userId, null);
+  await User.updateSignatureAsset(userId, null, null, null);
   if (previousUrl) {
     await removeFileIfExists(previousUrl);
   }
@@ -173,9 +182,9 @@ exports.deleteOwnSignature = async (userId) => {
   return { success: true };
 };
 
-exports.updateUserSignatureByAdmin = async (targetUserId, signatureUrl, adminUserId) => {
+exports.updateUserSignatureByAdmin = async (targetUserId, signatureAsset, adminUserId) => {
   await ensureSignatureSchema();
-  return setSignatureForUser(targetUserId, signatureUrl, adminUserId, 'ADMIN_UPDATE_SIGNATURE');
+  return setSignatureForUser(targetUserId, signatureAsset, adminUserId, 'ADMIN_UPDATE_SIGNATURE');
 };
 
 exports.deleteUserSignatureByAdmin = async (targetUserId, adminUserId) => {
@@ -188,7 +197,7 @@ exports.deleteUserSignatureByAdmin = async (targetUserId, adminUserId) => {
   }
 
   const previousUrl = existing.rows[0].e_signature_url;
-  await User.updateSignatureUrl(targetUserId, null);
+  await User.updateSignatureAsset(targetUserId, null, null, null);
   if (previousUrl) {
     await removeFileIfExists(previousUrl);
   }

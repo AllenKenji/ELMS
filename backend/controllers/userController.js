@@ -65,7 +65,12 @@ exports.uploadMySignature = async (req, res) => {
     }
 
     const signatureUrl = `/uploads/signatures/${req.file.filename}`;
-    const user = await userService.updateOwnSignature(req.user.id, signatureUrl);
+    const signatureData = await fs.readFile(req.file.path);
+    const user = await userService.updateOwnSignature(req.user.id, {
+      url: signatureUrl,
+      data: signatureData,
+      mimeType: req.file.mimetype,
+    });
     res.json({
       message: 'E-signature uploaded successfully',
       signature_url: user.e_signature_url,
@@ -122,7 +127,12 @@ exports.adminUploadUserSignature = async (req, res) => {
     }
 
     const signatureUrl = `/uploads/signatures/${req.file.filename}`;
-    const user = await userService.updateUserSignatureByAdmin(req.params.id, signatureUrl, req.user.id);
+    const signatureData = await fs.readFile(req.file.path);
+    const user = await userService.updateUserSignatureByAdmin(req.params.id, {
+      url: signatureUrl,
+      data: signatureData,
+      mimeType: req.file.mimetype,
+    }, req.user.id);
     res.json({
       message: 'User e-signature uploaded successfully',
       user_id: user.id,

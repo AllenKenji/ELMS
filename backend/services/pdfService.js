@@ -98,9 +98,41 @@ function resolveSignatureImagePath(signatureUrl) {
   return path.join(__dirname, '..', relativePath);
 }
 
-function drawSignatureImage(doc, signatureUrl, x, width, lineY) {
-  const signaturePath = resolveSignatureImagePath(signatureUrl);
-  if (!signaturePath) return;
+function resolveSignatureImageSource(signature) {
+  if (!signature) return null;
+
+  if (Buffer.isBuffer(signature)) {
+    return signature;
+  }
+
+  if (typeof signature === 'string') {
+    return resolveSignatureImagePath(signature);
+  }
+
+  if (typeof signature === 'object') {
+    if (Buffer.isBuffer(signature.data)) {
+      return signature.data;
+    }
+
+    if (typeof signature.data === 'string' && signature.data.trim()) {
+      try {
+        return Buffer.from(signature.data, 'base64');
+      } catch {
+        // Ignore invalid base64 payload and fall through to URL path.
+      }
+    }
+
+    if (typeof signature.url === 'string') {
+      return resolveSignatureImagePath(signature.url);
+    }
+  }
+
+  return null;
+}
+
+function drawSignatureImage(doc, signature, x, width, lineY) {
+  const signatureSource = resolveSignatureImageSource(signature);
+  if (!signatureSource) return;
 
   const maxHeight = PDF_LAYOUT.signatureImageHeight;
   const maxWidth = width * PDF_LAYOUT.signatureImageMaxWidthRatio;
@@ -108,7 +140,7 @@ function drawSignatureImage(doc, signatureUrl, x, width, lineY) {
   const imageX = x + (width - maxWidth) / 2;
 
   try {
-    doc.image(signaturePath, imageX, imageY, {
+    doc.image(signatureSource, imageX, imageY, {
       fit: [maxWidth, maxHeight],
       align: 'center',
       valign: 'bottom',

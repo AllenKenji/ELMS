@@ -269,8 +269,8 @@ exports.generatePdf = async (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
     const proposerSignature = ordinance?.proposer_id
-      ? (await userService.findSignatureById(ordinance.proposer_id))?.e_signature_url
-      : (await userService.findSignatureByName(ordinance?.proposer_name))?.e_signature_url;
+      ? await userService.findSignatureById(ordinance.proposer_id)
+      : await userService.findSignatureByName(ordinance?.proposer_name);
 
     const viceMayorName = settings?.vice_mayor_name || process.env.PDF_VICE_MAYOR_NAME;
     const mayorName = settings?.mayor_name || process.env.PDF_MAYOR_NAME;
@@ -289,9 +289,11 @@ exports.generatePdf = async (req, res) => {
       userService.findSignatureByRoleNames(['Secretary']),
     ]);
 
-    const viceMayorSignatureUrl = viceMayorByName?.e_signature_url || viceMayorByRole?.e_signature_url || null;
-    const mayorSignatureUrl = configuredMayorSignature || mayorByName?.e_signature_url || mayorByRole?.e_signature_url || null;
-    const secretarySignatureUrl = secretaryByName?.e_signature_url || secretaryByRole?.e_signature_url || null;
+    const viceMayorSignature = viceMayorByName || viceMayorByRole || null;
+    const mayorSignature = configuredMayorSignature
+      ? { url: configuredMayorSignature }
+      : (mayorByName || mayorByRole || null);
+    const secretarySignature = secretaryByName || secretaryByRole || null;
 
     generateOrdinancePdf(ordinance, res, {
       header: {
@@ -305,9 +307,9 @@ exports.generatePdf = async (req, res) => {
         secretary: secretaryName,
         signatures: {
           proposer: proposerSignature || null,
-          viceMayor: viceMayorSignatureUrl,
-          mayor: mayorSignatureUrl,
-          secretary: secretarySignatureUrl,
+          viceMayor: viceMayorSignature,
+          mayor: mayorSignature,
+          secretary: secretarySignature,
         },
       },
     });

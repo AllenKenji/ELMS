@@ -7,7 +7,9 @@ const pool = require('../db');
 exports.ensureSignatureColumn = async () => {
   return pool.query(`
     ALTER TABLE users
-    ADD COLUMN IF NOT EXISTS e_signature_url TEXT;
+    ADD COLUMN IF NOT EXISTS e_signature_url TEXT,
+    ADD COLUMN IF NOT EXISTS e_signature_data BYTEA,
+    ADD COLUMN IF NOT EXISTS e_signature_mime_type TEXT;
   `);
 };
 
@@ -64,21 +66,23 @@ exports.findWithRoleById = async (id) => {
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
-exports.updateSignatureUrl = async (id, signatureUrl) => {
+exports.updateSignatureAsset = async (id, signatureUrl, signatureData, signatureMimeType) => {
   return pool.query(
     `UPDATE users
      SET e_signature_url = $1,
+         e_signature_data = $2,
+         e_signature_mime_type = $3,
          updated_at = NOW()
-     WHERE id = $2
-     RETURNING id, name, email, role_id, e_signature_url`,
-    [signatureUrl, id]
+     WHERE id = $4
+     RETURNING id, name, email, role_id, e_signature_url, e_signature_mime_type`,
+    [signatureUrl, signatureData, signatureMimeType, id]
   );
 };
 
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findSignatureById = async (id) => {
   return pool.query(
-    'SELECT id, name, e_signature_url FROM users WHERE id = $1',
+    'SELECT id, name, e_signature_url, e_signature_data, e_signature_mime_type FROM users WHERE id = $1',
     [id]
   );
 };
@@ -86,7 +90,7 @@ exports.findSignatureById = async (id) => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findSignatureByName = async (name) => {
   return pool.query(
-    `SELECT id, name, e_signature_url
+    `SELECT id, name, e_signature_url, e_signature_data, e_signature_mime_type
      FROM users
      WHERE LOWER(REGEXP_REPLACE(TRIM(name), '\\s+', ' ', 'g')) = LOWER(REGEXP_REPLACE(TRIM($1), '\\s+', ' ', 'g'))
      LIMIT 1`,
@@ -97,12 +101,14 @@ exports.findSignatureByName = async (name) => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findSignatureByRoleNames = async (roleNames) => {
   return pool.query(
-    `SELECT u.id, u.name, u.e_signature_url, r.role_name
+    `SELECT u.id, u.name, u.e_signature_url, u.e_signature_data, u.e_signature_mime_type, r.role_name
      FROM users u
      JOIN roles r ON r.id = u.role_id
      WHERE r.role_name = ANY($1::text[])
-       AND u.e_signature_url IS NOT NULL
-       AND TRIM(u.e_signature_url) <> ''
+       AND (
+         (u.e_signature_url IS NOT NULL AND TRIM(u.e_signature_url) <> '')
+         OR u.e_signature_data IS NOT NULL
+       )
      ORDER BY u.id ASC
      LIMIT 1`,
     [roleNames]
