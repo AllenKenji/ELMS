@@ -101,6 +101,12 @@
   margin-top: 0.25rem;
 }
 
+.helper-text {
+  margin-top: 0.35rem;
+  color: #666;
+  font-size: 0.82rem;
+}
+
 /* Buttons */
 .btn {
   padding: 0.58rem 0.92rem;
@@ -219,6 +225,30 @@
   background-color: #fff3cd;
 }
 
+.users-table tbody tr.selected {
+  background-color: #eef6ff;
+}
+
+.actions-row td {
+  padding-top: 0;
+}
+
+.actions-panel {
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #d8e6f7;
+  border-radius: 6px;
+  background: #f7fbff;
+}
+
+.actions-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
 .users-table td {
   padding: 1rem;
 }
@@ -247,8 +277,34 @@
   font-weight: 600;
 }
 
+.photo-cell {
+  min-width: 220px;
+}
+
 .role-1 { background-color: #ffe0b2; color: #d84315; } /* Admin */
 .role-2 { background-color: #e3f2fd; color: #1976d2; } /* Secretary */
+
+.photo-status-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.photo-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.photo-status.has-photo {
+  color: #1e7e34;
+  font-weight: 600;
+}
+
+.photo-status.no-photo {
+  color: #888;
+}
 .role-3 { background-color: #f3e5f5; color: #7b1fa2; } /* Councilor */
 .role-4 { background-color: #e8f5e9; color: #2e7d32; } /* Vice Mayor */
 .role-5 { background-color: #fce4ec; color: #c2185b; } /* Resident */
@@ -320,6 +376,22 @@
 }
 
 .signature-actions input[type="file"] {
+  font-size: 0.78rem;
+}
+
+.photo-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.28rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.photo-actions .btn {
+  width: auto;
+}
+
+.photo-actions input[type="file"] {
   font-size: 0.78rem;
 }
 
@@ -416,6 +488,10 @@
   }
 
   .signature-actions {
+    width: 100%;
+  }
+
+  .photo-actions {
     width: 100%;
   }
 

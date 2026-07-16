@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { Fragment, useState, useEffect, useRef } from 'react';
 import api from '../api/api';
 import { useAuth } from '../context/useAuth';
 import '../styles/UserManagement.css';
@@ -20,6 +20,9 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   const { user: authUser } = useAuth();
   const [allUsers, setAllUsers] = useState(Array.isArray(users) ? users : []);
   const [form, setForm] = useState({ name: '', email: '', password: '', roleId: '' });
+  const [newUserPhotoFile, setNewUserPhotoFile] = useState(null);
+  const [newUserSignatureFile, setNewUserSignatureFile] = useState(null);
+  const [addUserFormKey, setAddUserFormKey] = useState(0);
   const [editingId, setEditingId] = useState(null);
   const [editRole, setEditRole] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,6 +34,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   const [signatureBusyUserId, setSignatureBusyUserId] = useState(null);
   const [photoFiles, setPhotoFiles] = useState({});
   const [photoBusyUserId, setPhotoBusyUserId] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState(null);
   const [drawSignatureUser, setDrawSignatureUser] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawnStroke, setHasDrawnStroke] = useState(false);
@@ -185,10 +189,36 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
         roleId: parseInt(form.roleId),
       });
       
-      setAllUsers(prev => [...prev, res.data]);
+      const createdUser = res.data;
+      setAllUsers(prev => [...prev, createdUser]);
+
+      const uploadIssues = [];
+      if (newUserPhotoFile) {
+        try {
+          await uploadPhotoFile(createdUser.id, newUserPhotoFile);
+        } catch (uploadErr) {
+          uploadIssues.push(uploadErr?.message || 'profile photo');
+        }
+      }
+
+      if (newUserSignatureFile) {
+        try {
+          await uploadSignatureFile(createdUser.id, newUserSignatureFile);
+        } catch (uploadErr) {
+          uploadIssues.push(uploadErr?.message || 'e-signature');
+        }
+      }
+
       setForm({ name: '', email: '', password: '', roleId: '' });
+      setNewUserPhotoFile(null);
+      setNewUserSignatureFile(null);
+      setAddUserFormKey((prev) => prev + 1);
       setError('');
       setSuccess('User created successfully!');
+
+      if (uploadIssues.length > 0) {
+        setError(`User was created, but ${uploadIssues.join(' and ')} could not be uploaded.`);
+      }
       
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -536,6 +566,10 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     setEditRole(String(currentRole));
   };
 
+  const toggleSelectedUser = (userId) => {
+    setSelectedUserId((prev) => (prev === userId ? null : userId));
+  };
+
   if (!isAdmin) {
     return (
       <div className="user-management">
@@ -573,7 +607,7 @@ To fix this:
       {success && <div className="alert alert-success">{success}</div>}
 
       {/* Add User Form */}
-      <form onSubmit={handleSubmit} className="add-user-form">
+      <form key={addUserFormKey} onSubmit={handleSubmit} className="add-user-form">
         <h4>Add New User</h4>
         
         <div className="form-group">
@@ -643,6 +677,30 @@ To fix this:
           {formErrors.roleId && <span id="roleId-error" className="error-text">{formErrors.roleId}</span>}
         </div>
 
+        <div className="form-group">
+          <label htmlFor="newUserPhoto">Profile Photo</label>
+          <input
+            id="newUserPhoto"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg,image/webp"
+            onChange={(e) => setNewUserPhotoFile(e.target.files?.[0] || null)}
+            disabled={loading}
+          />
+          <small className="helper-text">Optional. Uploads to the new user account after it is created.</small>
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="newUserSignature">E-Signature</label>
+          <input
+            id="newUserSignature"
+            type="file"
+            accept="image/png,image/jpeg,image/jpg"
+            onChange={(e) => setNewUserSignatureFile(e.target.files?.[0] || null)}
+            disabled={loading}
+          />
+          <small className="helper-text">Optional. Uploads to the new user account after it is created.</small>
+        </div>
+
         <button 
           type="submit" 
           disabled={loading}
@@ -667,12 +725,24 @@ To fix this:
                   <th>Role</th>
                   <th>Photo</th>
                   <th>E-Signature</th>
-                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {allUsers.map(u => (
-                  <tr key={u.id} className={editingId === u.id ? 'editing' : ''}>
+                  <Fragment key={u.id}>
+                    <tr
+                      key={u.id}
+                      className={`${editingId === u.id ? 'editing' : ''} ${selectedUserId === u.id ? 'selected' : ''}`}
+                      onClick={() => toggleSelectedUser(u.id)}
+                      tabIndex={0}
+                      role="button"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          toggleSelectedUser(u.id);
+                        }
+                      }}
+                    >
                     <td>{u.name}</td>
                     <td className="email-cell">{u.email}</td>
                     <td className="role-cell">
@@ -694,20 +764,49 @@ To fix this:
                       )}
                     </td>
                     <td className="photo-cell">
-                      {hasUserPhoto(u) ? (
-                        <div className="photo-status has-photo">
-                          <span>Available</span>
+                      <div className="photo-status-wrap">
+                        {hasUserPhoto(u) ? (
+                          <div className="photo-status has-photo">
+                            <span>Available</span>
+                            <button
+                              type="button"
+                              className="btn-link"
+                              onClick={() => handlePreviewPhoto(u)}
+                            >
+                              Preview
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="photo-status no-photo">No photo</span>
+                        )}
+                        <div className="photo-actions">
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/jpg,image/webp"
+                            onChange={(e) => handlePhotoFileChange(u.id, e.target.files?.[0] || null)}
+                            disabled={loading || photoBusyUserId === u.id}
+                            aria-label={`Select profile photo for ${u.name}`}
+                          />
                           <button
                             type="button"
-                            className="btn-link"
-                            onClick={() => handlePreviewPhoto(u)}
+                            onClick={() => handleUploadPhoto(u.id)}
+                            disabled={loading || photoBusyUserId === u.id || !photoFiles[u.id]}
+                            className="btn btn-sm btn-primary"
+                            aria-label={`Upload profile photo for ${u.name}`}
                           >
-                            Preview
+                            {photoBusyUserId === u.id ? 'Uploading...' : 'Upload Photo'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePhoto(u.id)}
+                            disabled={loading || photoBusyUserId === u.id || !hasUserPhoto(u)}
+                            className="btn btn-sm btn-secondary"
+                            aria-label={`Remove profile photo for ${u.name}`}
+                          >
+                            Remove Photo
                           </button>
                         </div>
-                      ) : (
-                        <span className="photo-status no-photo">No photo</span>
-                      )}
+                      </div>
                     </td>
                     <td className="signature-cell">
                       {hasUserSignature(u) ? (
@@ -725,109 +824,110 @@ To fix this:
                         <span className="signature-status no-signature">No signature</span>
                       )}
                     </td>
-                    <td className="actions-cell">
-                      {editingId === u.id ? (
-                        <>
-                          <button 
-                            onClick={() => handleEditRole(u.id)}
-                            disabled={loading}
-                            className="btn btn-sm btn-success"
-                            aria-label={`Save role changes for ${u.name}`}
-                          >
-                            Save
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditRole('');
-                            }}
-                            disabled={loading}
-                            className="btn btn-sm btn-secondary"
-                            aria-label={`Cancel editing ${u.name}`}
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button 
-                            onClick={() => startEditRole(u.id, u.role_id)}
-                            disabled={loading}
-                            className="btn btn-sm btn-warning"
-                            aria-label={`Edit role for ${u.name}`}
-                          >
-                            Edit Role
-                          </button>
-                          <button 
-                            onClick={() => setDeleteConfirm(u.id)}
-                            disabled={loading}
-                            className="btn btn-sm btn-danger"
-                            aria-label={`Delete ${u.name}`}
-                          >
-                            Delete
-                          </button>
-                          <div className="photo-actions">
-                            <input
-                              type="file"
-                              accept="image/png,image/jpeg,image/jpg,image/webp"
-                              onChange={(e) => handlePhotoFileChange(u.id, e.target.files?.[0] || null)}
-                              disabled={loading || photoBusyUserId === u.id}
-                              aria-label={`Select profile photo for ${u.name}`}
-                            />
-                            <button
-                              onClick={() => handleUploadPhoto(u.id)}
-                              disabled={loading || photoBusyUserId === u.id || !photoFiles[u.id]}
-                              className="btn btn-sm btn-primary"
-                              aria-label={`Upload profile photo for ${u.name}`}
-                            >
-                              {photoBusyUserId === u.id ? 'Uploading...' : 'Upload Photo'}
-                            </button>
-                            <button
-                              onClick={() => handleDeletePhoto(u.id)}
-                              disabled={loading || photoBusyUserId === u.id || !hasUserPhoto(u)}
-                              className="btn btn-sm btn-secondary"
-                              aria-label={`Remove profile photo for ${u.name}`}
-                            >
-                              Remove Photo
-                            </button>
-                          </div>
-                          <div className="signature-actions">
-                            <input
-                              type="file"
-                              accept="image/png,image/jpeg,image/jpg"
-                              onChange={(e) => handleSignatureFileChange(u.id, e.target.files?.[0] || null)}
-                              disabled={loading || signatureBusyUserId === u.id}
-                              aria-label={`Select e-signature for ${u.name}`}
-                            />
-                            <button
-                              onClick={() => handleUploadSignature(u.id)}
-                              disabled={loading || signatureBusyUserId === u.id || !signatureFiles[u.id]}
-                              className="btn btn-sm btn-primary"
-                              aria-label={`Upload e-signature for ${u.name}`}
-                            >
-                              {signatureBusyUserId === u.id ? 'Uploading...' : 'Upload Signature'}
-                            </button>
-                            <button
-                              onClick={() => handleDeleteSignature(u.id)}
-                              disabled={loading || signatureBusyUserId === u.id || !hasUserSignature(u)}
-                              className="btn btn-sm btn-secondary"
-                              aria-label={`Remove e-signature for ${u.name}`}
-                            >
-                              Remove Signature
-                            </button>
-                            <button
-                              onClick={() => openDrawSignatureModal(u)}
-                              disabled={loading || signatureBusyUserId === u.id}
-                              className="btn btn-sm btn-warning"
-                              aria-label={`Draw e-signature for ${u.name}`}
-                            >
-                              Draw with Mouse
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </td>
                   </tr>
+                  {selectedUserId === u.id && (
+                    <tr className="actions-row" key={`${u.id}-actions`}>
+                      <td colSpan={5}>
+                        <div className="actions-panel">
+                          <div className="actions-panel-header">
+                            <strong>Actions for {u.name}</strong>
+                            <button
+                              type="button"
+                              className="btn-link"
+                              onClick={() => setSelectedUserId(null)}
+                            >
+                              Hide actions
+                            </button>
+                          </div>
+                          <div className="actions-cell">
+                            {editingId === u.id ? (
+                              <>
+                                <button 
+                                  type="button"
+                                  onClick={() => handleEditRole(u.id)}
+                                  disabled={loading}
+                                  className="btn btn-sm btn-success"
+                                  aria-label={`Save role changes for ${u.name}`}
+                                >
+                                  Save
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingId(null);
+                                    setEditRole('');
+                                  }}
+                                  disabled={loading}
+                                  className="btn btn-sm btn-secondary"
+                                  aria-label={`Cancel editing ${u.name}`}
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button 
+                                  type="button"
+                                  onClick={() => startEditRole(u.id, u.role_id)}
+                                  disabled={loading}
+                                  className="btn btn-sm btn-warning"
+                                  aria-label={`Edit role for ${u.name}`}
+                                >
+                                  Edit Role
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setDeleteConfirm(u.id)}
+                                  disabled={loading}
+                                  className="btn btn-sm btn-danger"
+                                  aria-label={`Delete ${u.name}`}
+                                >
+                                  Delete
+                                </button>
+                                <div className="signature-actions">
+                                  <input
+                                    type="file"
+                                    accept="image/png,image/jpeg,image/jpg"
+                                    onChange={(e) => handleSignatureFileChange(u.id, e.target.files?.[0] || null)}
+                                    disabled={loading || signatureBusyUserId === u.id}
+                                    aria-label={`Select e-signature for ${u.name}`}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUploadSignature(u.id)}
+                                    disabled={loading || signatureBusyUserId === u.id || !signatureFiles[u.id]}
+                                    className="btn btn-sm btn-primary"
+                                    aria-label={`Upload e-signature for ${u.name}`}
+                                  >
+                                    {signatureBusyUserId === u.id ? 'Uploading...' : 'Upload Signature'}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteSignature(u.id)}
+                                    disabled={loading || signatureBusyUserId === u.id || !hasUserSignature(u)}
+                                    className="btn btn-sm btn-secondary"
+                                    aria-label={`Remove e-signature for ${u.name}`}
+                                  >
+                                    Remove Signature
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openDrawSignatureModal(u)}
+                                    disabled={loading || signatureBusyUserId === u.id}
+                                    className="btn btn-sm btn-warning"
+                                    aria-label={`Draw e-signature for ${u.name}`}
+                                  >
+                                    Draw with Mouse
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -846,12 +946,14 @@ To fix this:
             <p className="warning-text">This action cannot be undone.</p>
             <div className="modal-actions">
               <button 
+                type="button"
                 onClick={() => setDeleteConfirm(null)}
                 className="btn btn-secondary"
               >
                 Cancel
               </button>
               <button 
+                type="button"
                 onClick={() => handleDelete(deleteConfirm)}
                 disabled={loading}
                 className="btn btn-danger"
@@ -883,9 +985,10 @@ To fix this:
             />
             <p className="signature-pad-hint">Use your mouse to sign. You can clear and redraw before saving.</p>
             <div className="modal-actions">
-              <button onClick={clearDrawnSignature} className="btn btn-secondary">Clear</button>
-              <button onClick={closeDrawSignatureModal} className="btn btn-secondary">Cancel</button>
+              <button type="button" onClick={clearDrawnSignature} className="btn btn-secondary">Clear</button>
+              <button type="button" onClick={closeDrawSignatureModal} className="btn btn-secondary">Cancel</button>
               <button
+                type="button"
                 onClick={saveDrawnSignature}
                 disabled={signatureBusyUserId === drawSignatureUser.id}
                 className="btn btn-primary"
