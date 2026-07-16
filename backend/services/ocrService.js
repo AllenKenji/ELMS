@@ -51,53 +51,80 @@ async function extractTextFromPdf(buffer) {
   }
 
   if (parsedText) {
+    console.info('OCR scan: extracted PDF text-layer content.');
     return parsedText;
   }
 
+  console.info('OCR scan: no PDF text-layer content; falling back to rasterized OCR.');
   return extractTextFromPdfUsingOcr(buffer, pageCount);
 }
 
 async function extractTextFromPdfUsingOcr(buffer, pageCountHint = 1) {
+  const hintedPages = Math.max(1, Number(pageCountHint) || 1);
+  const maxPagesToTry = Math.max(PDF_OCR_MAX_PAGES, hintedPages);
   const pagesToProcess = Array.from(
-    { length: Math.min(PDF_OCR_MAX_PAGES, Math.max(1, Number(pageCountHint) || 1)) },
+    { length: maxPagesToTry },
     (_, index) => index + 1,
   );
-
-  const renderedPages = await pdfToPng(buffer, {
-    pagesToProcess,
-    returnPageContent: true,
-    viewportScale: 2,
-    disableFontFace: false,
-    useSystemFonts: true,
-    processPagesInParallel: true,
-    concurrencyLimit: 2,
-    verbosityLevel: VerbosityLevel.ERRORS,
-  });
-
-  if (!Array.isArray(renderedPages) || !renderedPages.length) {
-    return '';
-  }
-
-  const worker = await createWorker('eng');
-  try {
-    const chunks = [];
-
-    for (const page of renderedPages) {
-      if (page?.kind !== 'content' || !page.content) {
-        continue;
-      }
-
-      const result = await worker.recognize(page.content);
-      const pageText = normalizeExtractedText(result?.data?.text || '');
-      if (pageText) {
-        chunks.push(pageText);
-      }
+  const tryExtract = async (viewportScale) => {
+    let renderedPages = [];
+    try {
+      renderedPages = await pdfToPng(buffer, {
+        pagesToProcess,
+        returnPageContent: true,
+        viewportScale,
+        disableFontFace: false,
+        useSystemFonts: true,
+        processPagesInParallel: true,
+        concurrencyLimit: 2,
+        verbosityLevel: VerbosityLevel.ERRORS,
+      });
+    } catch (err) {
+      console.warn(`PDF page rasterization for OCR failed (scale=${viewportScale}):`, err.message);
+      return '';
     }
 
-    return normalizeExtractedText(chunks.join('\n\n'));
-  } finally {
-    await worker.terminate();
+    if (!Array.isArray(renderedPages) || !renderedPages.length) {
+      console.warn(`OCR scan: no pages rendered from PDF for OCR (scale=${viewportScale}).`);
+      return '';
+    }
+
+    const worker = await createWorker('eng');
+    try {
+      const chunks = [];
+
+      for (const page of renderedPages) {
+        if (!page?.content) {
+          continue;
+        }
+
+        const result = await worker.recognize(page.content);
+        const pageText = normalizeExtractedText(result?.data?.text || '');
+        if (pageText) {
+          chunks.push(pageText);
+        }
+      }
+
+      return normalizeExtractedText(chunks.join('\n\n'));
+    } finally {
+      await worker.terminate();
+    }
+  };
+
+  const firstPassText = await tryExtract(2);
+  if (firstPassText) {
+    console.info('OCR scan: extracted text from rasterized PDF pages (scale=2).');
+    return firstPassText;
   }
+
+  const secondPassText = await tryExtract(3);
+  if (secondPassText) {
+    console.info('OCR scan: extracted text from rasterized PDF pages (scale=3 retry).');
+    return secondPassText;
+  }
+
+  console.warn('OCR scan: rasterized PDF pages produced no readable OCR text after retries.');
+  return '';
 }
 
 async function extractTextFromImage(buffer) {
