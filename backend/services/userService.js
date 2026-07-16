@@ -70,6 +70,40 @@ async function setSignatureForUser(targetUserId, signatureAsset, actorUserId, ac
   return result.rows[0];
 }
 
+async function setProfilePhotoForUser(targetUserId, photoAsset, actorUserId, actionLabel) {
+  const existing = await User.findProfilePhotoById(targetUserId);
+  if (existing.rowCount === 0) {
+    const err = new Error('User not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const previousUrl = existing.rows[0].e_profile_photo_url;
+  const nextPhotoUrl = photoAsset?.url || null;
+  const nextPhotoData = photoAsset?.data || null;
+  const nextPhotoMimeType = photoAsset?.mimeType || null;
+
+  const result = await User.updateProfilePhotoAsset(
+    targetUserId,
+    nextPhotoUrl,
+    nextPhotoData,
+    nextPhotoMimeType,
+  );
+
+  if (previousUrl && previousUrl !== nextPhotoUrl) {
+    await removeFileIfExists(previousUrl);
+  }
+
+  await AuditLog.create(
+    null,
+    actorUserId,
+    actionLabel,
+    `Updated profile photo for user ID ${targetUserId}`
+  );
+
+  return result.rows[0];
+}
+
 /**
  * Retrieve all users.
  * @returns {Promise<Array>}
@@ -182,6 +216,41 @@ exports.deleteOwnSignature = async (userId) => {
   return { success: true };
 };
 
+exports.updateOwnProfilePhoto = async (userId, photoAsset) => {
+  await ensureSignatureSchema();
+  return setProfilePhotoForUser(userId, photoAsset, userId, 'UPDATE_PROFILE_PHOTO');
+};
+
+exports.getOwnProfilePhoto = async (userId) => {
+  await ensureSignatureSchema();
+  const result = await User.findProfilePhotoById(userId);
+  if (result.rowCount === 0) {
+    const err = new Error('User not found');
+    err.status = 404;
+    throw err;
+  }
+  return result.rows[0];
+};
+
+exports.deleteOwnProfilePhoto = async (userId) => {
+  await ensureSignatureSchema();
+  const existing = await User.findProfilePhotoById(userId);
+  if (existing.rowCount === 0) {
+    const err = new Error('User not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const previousUrl = existing.rows[0].e_profile_photo_url;
+  await User.updateProfilePhotoAsset(userId, null, null, null);
+  if (previousUrl) {
+    await removeFileIfExists(previousUrl);
+  }
+
+  await AuditLog.create(null, userId, 'DELETE_PROFILE_PHOTO', 'Deleted account profile photo');
+  return { success: true };
+};
+
 exports.updateUserSignatureByAdmin = async (targetUserId, signatureAsset, adminUserId) => {
   await ensureSignatureSchema();
   return setSignatureForUser(targetUserId, signatureAsset, adminUserId, 'ADMIN_UPDATE_SIGNATURE');
@@ -212,6 +281,36 @@ exports.deleteUserSignatureByAdmin = async (targetUserId, adminUserId) => {
   return { success: true };
 };
 
+exports.updateUserProfilePhotoByAdmin = async (targetUserId, photoAsset, adminUserId) => {
+  await ensureSignatureSchema();
+  return setProfilePhotoForUser(targetUserId, photoAsset, adminUserId, 'ADMIN_UPDATE_PROFILE_PHOTO');
+};
+
+exports.deleteUserProfilePhotoByAdmin = async (targetUserId, adminUserId) => {
+  await ensureSignatureSchema();
+  const existing = await User.findProfilePhotoById(targetUserId);
+  if (existing.rowCount === 0) {
+    const err = new Error('User not found');
+    err.status = 404;
+    throw err;
+  }
+
+  const previousUrl = existing.rows[0].e_profile_photo_url;
+  await User.updateProfilePhotoAsset(targetUserId, null, null, null);
+  if (previousUrl) {
+    await removeFileIfExists(previousUrl);
+  }
+
+  await AuditLog.create(
+    null,
+    adminUserId,
+    'ADMIN_DELETE_PROFILE_PHOTO',
+    `Deleted profile photo for user ID ${targetUserId}`
+  );
+
+  return { success: true };
+};
+
 exports.findSignatureByName = async (name) => {
   await ensureSignatureSchema();
   if (!name) return null;
@@ -230,5 +329,12 @@ exports.findSignatureById = async (id) => {
   await ensureSignatureSchema();
   if (!id) return null;
   const result = await User.findSignatureById(id);
+  return result.rows[0] || null;
+};
+
+exports.findProfilePhotoById = async (id) => {
+  await ensureSignatureSchema();
+  if (!id) return null;
+  const result = await User.findProfilePhotoById(id);
   return result.rows[0] || null;
 };

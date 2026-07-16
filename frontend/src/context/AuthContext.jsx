@@ -20,6 +20,16 @@ function decodeValidUser(token) {
   }
 }
 
+function readStoredUser() {
+  try {
+    const storedUser = sessionStorage.getItem('authUser');
+    if (!storedUser) return null;
+    return JSON.parse(storedUser);
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }) {
   const [accessToken, setAccessToken] = useState(() => {
     const storedAccessToken = sessionStorage.getItem('accessToken');
@@ -38,6 +48,9 @@ export function AuthProvider({ children }) {
   });
   const [refreshToken, setRefreshToken] = useState(sessionStorage.getItem('refreshToken'));
   const [user, setUser] = useState(() => {
+    const storedUser = readStoredUser();
+    if (storedUser) return storedUser;
+
     const storedAccessToken = sessionStorage.getItem('accessToken');
     return decodeValidUser(storedAccessToken);
   });
@@ -49,19 +62,24 @@ export function AuthProvider({ children }) {
     setRefreshToken(tokens.refreshToken);
     if (tokens.user) {
       setUser(tokens.user);
+      sessionStorage.setItem('authUser', JSON.stringify(tokens.user));
       return;
     }
 
     try {
-      setUser(jwtDecode(tokens.accessToken));
+      const decodedUser = jwtDecode(tokens.accessToken);
+      setUser(decodedUser);
+      sessionStorage.setItem('authUser', JSON.stringify(decodedUser));
     } catch {
       setUser(null);
+      sessionStorage.removeItem('authUser');
     }
   };
 
   const logout = () => {
     sessionStorage.removeItem('accessToken');
     sessionStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('authUser');
     setAccessToken(null);
     setRefreshToken(null);
     setUser(null);
@@ -77,14 +95,23 @@ export function AuthProvider({ children }) {
           refreshToken,
         });
         const { accessToken: newAccessToken } = res.data;
+        const refreshedUser = res.data?.user || null;
 
         if (newAccessToken) {
           sessionStorage.setItem('accessToken', newAccessToken);
           setAccessToken(newAccessToken);
-          try {
-            setUser(jwtDecode(newAccessToken));
-          } catch {
-            setUser(null);
+          if (refreshedUser) {
+            setUser(refreshedUser);
+            sessionStorage.setItem('authUser', JSON.stringify(refreshedUser));
+          } else {
+            try {
+              const decodedUser = jwtDecode(newAccessToken);
+              setUser(decodedUser);
+              sessionStorage.setItem('authUser', JSON.stringify(decodedUser));
+            } catch {
+              setUser(null);
+              sessionStorage.removeItem('authUser');
+            }
           }
         }
       } catch (err) {

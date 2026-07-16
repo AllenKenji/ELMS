@@ -42,15 +42,20 @@ async function refreshAccessTokenIfNeeded() {
         if (!newAccessToken) {
           sessionStorage.removeItem('accessToken');
           sessionStorage.removeItem('refreshToken');
+          sessionStorage.removeItem('authUser');
           return null;
         }
 
         sessionStorage.setItem('accessToken', newAccessToken);
+        if (response.data?.user) {
+          sessionStorage.setItem('authUser', JSON.stringify(response.data.user));
+        }
         return newAccessToken;
       })
       .catch(() => {
         sessionStorage.removeItem('accessToken');
         sessionStorage.removeItem('refreshToken');
+        sessionStorage.removeItem('authUser');
         return null;
       })
       .finally(() => {

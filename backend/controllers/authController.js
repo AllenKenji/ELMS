@@ -83,7 +83,7 @@ exports.login = async (req, res) => {
     res.json({
       accessToken,
       refreshToken,
-      user: { id: user.id, name: user.name, email: user.email, role: roleName },
+      user: { id: user.id, name: user.name, email: user.email, role: roleName, photo_url: user.e_profile_photo_url || null },
     });
   } catch (err) {
     console.error('Login error:', err);
@@ -103,7 +103,7 @@ exports.refresh = (req, res) => {
     const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
 
     pool.query(
-      `SELECT u.id, u.name, u.email, r.role_name
+      `SELECT u.id, u.name, u.email, u.e_profile_photo_url, r.role_name
        FROM users u
        LEFT JOIN roles r ON r.id = u.role_id
        WHERE u.id = $1`,
@@ -124,7 +124,16 @@ exports.refresh = (req, res) => {
           { expiresIn: '15m' }
         );
 
-        return res.json({ accessToken: newAccessToken });
+        return res.json({
+          accessToken: newAccessToken,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            role: normalizedRoleName,
+            photo_url: user.e_profile_photo_url || null,
+          },
+        });
       }
     );
   } catch (err) {

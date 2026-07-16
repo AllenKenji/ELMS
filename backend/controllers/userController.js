@@ -28,6 +28,10 @@ function signatureDataToBuffer(signatureData) {
   }
 }
 
+function photoDataToBuffer(photoData) {
+  return signatureDataToBuffer(photoData);
+}
+
 async function sendSignaturePreview(res, signatureRecord) {
   const signatureBuffer = signatureDataToBuffer(signatureRecord?.e_signature_data);
   if (signatureBuffer?.length) {
@@ -50,6 +54,30 @@ async function sendSignaturePreview(res, signatureRecord) {
   }
 
   res.status(404).json({ error: 'E-signature preview not available' });
+}
+
+async function sendPhotoPreview(res, photoRecord) {
+  const photoBuffer = photoDataToBuffer(photoRecord?.e_profile_photo_data);
+  if (photoBuffer?.length) {
+    res.setHeader('Content-Type', photoRecord?.e_profile_photo_mime_type || 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(photoBuffer);
+    return;
+  }
+
+  const photoUrl = photoRecord?.e_profile_photo_url;
+  if (photoUrl && photoUrl.startsWith('/uploads/')) {
+    const absolutePath = path.join(__dirname, '..', photoUrl.replace(/^\//, '').replace(/\//g, path.sep));
+    try {
+      await fs.access(absolutePath);
+      res.sendFile(absolutePath);
+      return;
+    } catch {
+      // Fall through to 404 when file no longer exists.
+    }
+  }
+
+  res.status(404).json({ error: 'Profile photo preview not available' });
 }
 
 /**
@@ -99,6 +127,83 @@ exports.updateRole = async (req, res) => {
     console.error('Change role error:', err);
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Failed to change user role' });
+  }
+};
+
+/**
+ * Upload or replace current user's profile photo.
+ * POST /users/me/photo
+ */
+exports.uploadMyProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Profile photo image file is required' });
+    }
+
+    const photoUrl = `/uploads/profile-photos/${req.file.filename}`;
+    const photoData = await fs.readFile(req.file.path);
+    const user = await userService.updateOwnProfilePhoto(req.user.id, {
+      url: photoUrl,
+      data: photoData,
+      mimeType: req.file.mimetype,
+    });
+    res.json({
+      message: 'Profile photo uploaded successfully',
+      photo_url: user.e_profile_photo_url,
+    });
+  } catch (err) {
+    console.error('Upload profile photo error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to upload profile photo' });
+  }
+};
+
+/**
+ * Get current user's profile photo.
+ * GET /users/me/photo
+ */
+exports.getMyProfilePhoto = async (req, res) => {
+  try {
+    const user = await userService.getOwnProfilePhoto(req.user.id);
+    res.json({
+      user_id: user.id,
+      name: user.name,
+      photo_url: user.e_profile_photo_url || null,
+    });
+  } catch (err) {
+    console.error('Get profile photo error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch profile photo' });
+  }
+};
+
+/**
+ * Preview current user's profile photo.
+ * GET /users/me/photo/preview
+ */
+exports.getMyProfilePhotoPreview = async (req, res) => {
+  try {
+    const user = await userService.getOwnProfilePhoto(req.user.id);
+    await sendPhotoPreview(res, user);
+  } catch (err) {
+    console.error('Get my profile photo preview error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch profile photo preview' });
+  }
+};
+
+/**
+ * Delete current user's profile photo.
+ * DELETE /users/me/photo
+ */
+exports.deleteMyProfilePhoto = async (req, res) => {
+  try {
+    await userService.deleteOwnProfilePhoto(req.user.id);
+    res.json({ message: 'Profile photo deleted successfully' });
+  } catch (err) {
+    console.error('Delete profile photo error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to delete profile photo' });
   }
 };
 
@@ -257,5 +362,67 @@ exports.adminDeleteUserSignature = async (req, res) => {
     console.error('Admin delete signature error:', err);
     if (err.status) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: 'Failed to delete user e-signature' });
+  }
+};
+
+/**
+ * Admin: upload or replace profile photo for any user account.
+ * POST /users/:id/photo
+ */
+exports.adminUploadUserProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Profile photo image file is required' });
+    }
+
+    const photoUrl = `/uploads/profile-photos/${req.file.filename}`;
+    const photoData = await fs.readFile(req.file.path);
+    const user = await userService.updateUserProfilePhotoByAdmin(req.params.id, {
+      url: photoUrl,
+      data: photoData,
+      mimeType: req.file.mimetype,
+    }, req.user.id);
+    res.json({
+      message: 'User profile photo uploaded successfully',
+      user_id: user.id,
+      photo_url: user.e_profile_photo_url,
+    });
+  } catch (err) {
+    console.error('Admin upload profile photo error:', err);
+    if (req.file?.path) {
+      await fs.unlink(req.file.path).catch(() => {});
+    }
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to upload user profile photo' });
+  }
+};
+
+/**
+ * Admin: preview profile photo for any user account.
+ * GET /users/:id/photo/preview
+ */
+exports.adminGetUserProfilePhotoPreview = async (req, res) => {
+  try {
+    const user = await userService.getOwnProfilePhoto(req.params.id);
+    await sendPhotoPreview(res, user);
+  } catch (err) {
+    console.error('Admin get profile photo preview error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch user profile photo preview' });
+  }
+};
+
+/**
+ * Admin: delete profile photo for any user account.
+ * DELETE /users/:id/photo
+ */
+exports.adminDeleteUserProfilePhoto = async (req, res) => {
+  try {
+    await userService.deleteUserProfilePhotoByAdmin(req.params.id, req.user.id);
+    res.json({ message: 'User profile photo deleted successfully' });
+  } catch (err) {
+    console.error('Admin delete profile photo error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to delete user profile photo' });
   }
 };

@@ -29,6 +29,8 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   const [formErrors, setFormErrors] = useState({});
   const [signatureFiles, setSignatureFiles] = useState({});
   const [signatureBusyUserId, setSignatureBusyUserId] = useState(null);
+  const [photoFiles, setPhotoFiles] = useState({});
+  const [photoBusyUserId, setPhotoBusyUserId] = useState(null);
   const [drawSignatureUser, setDrawSignatureUser] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawnStroke, setHasDrawnStroke] = useState(false);
@@ -259,8 +261,16 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     return user?.e_signature_url || user?.signature_url || null;
   };
 
+  const getUserPhotoUrl = (user) => {
+    return user?.e_profile_photo_url || user?.photo_url || user?.profile_photo_url || null;
+  };
+
   const hasUserSignature = (user) => {
     return Boolean(getUserSignatureUrl(user) || user?.e_signature_has_data);
+  };
+
+  const hasUserPhoto = (user) => {
+    return Boolean(getUserPhotoUrl(user) || user?.e_profile_photo_has_data);
   };
 
   const getUserSignaturePreviewUrl = (user) => {
@@ -282,6 +292,21 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     }
   };
 
+  const handlePreviewPhoto = async (user) => {
+    try {
+      const response = await api.get(`/users/${user.id}/photo/preview`, {
+        responseType: 'blob',
+      });
+
+      const mimeType = response.headers?.['content-type'] || 'image/png';
+      const objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }));
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      setError(err?.message || 'Failed to load profile photo preview.');
+    }
+  };
+
   const toAbsoluteSignatureUrl = (signatureUrl) => {
     if (!signatureUrl) return null;
     if (/^https?:\/\//i.test(signatureUrl)) return signatureUrl;
@@ -290,6 +315,13 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
 
   const handleSignatureFileChange = (userId, file) => {
     setSignatureFiles((prev) => ({
+      ...prev,
+      [userId]: file || null,
+    }));
+  };
+
+  const handlePhotoFileChange = (userId, file) => {
+    setPhotoFiles((prev) => ({
       ...prev,
       [userId]: file || null,
     }));
@@ -308,6 +340,22 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     const signatureUrl = res.data?.signature_url || null;
     setAllUsers((prev) => prev.map((u) => (
       u.id === userId ? { ...u, e_signature_url: signatureUrl } : u
+    )));
+  };
+
+  const uploadPhotoFile = async (userId, file) => {
+    const payload = new FormData();
+    payload.append('photo', file);
+
+    const res = await api.post(`/users/${userId}/photo`, payload, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    const photoUrl = res.data?.photo_url || null;
+    setAllUsers((prev) => prev.map((u) => (
+      u.id === userId ? { ...u, e_profile_photo_url: photoUrl } : u
     )));
   };
 
@@ -346,6 +394,44 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
       setError(err?.message || 'Failed to remove e-signature. Please try again.');
     } finally {
       setSignatureBusyUserId(null);
+    }
+  };
+
+  const handleUploadPhoto = async (userId) => {
+    const selectedFile = photoFiles[userId];
+    if (!selectedFile) {
+      setError('Please select a profile photo first.');
+      return;
+    }
+
+    try {
+      setPhotoBusyUserId(userId);
+      setError('');
+      await uploadPhotoFile(userId, selectedFile);
+      setPhotoFiles((prev) => ({ ...prev, [userId]: null }));
+      setSuccess('Profile photo uploaded successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err?.message || 'Failed to upload profile photo. Please try again.');
+    } finally {
+      setPhotoBusyUserId(null);
+    }
+  };
+
+  const handleDeletePhoto = async (userId) => {
+    try {
+      setPhotoBusyUserId(userId);
+      setError('');
+      await api.delete(`/users/${userId}/photo`);
+      setAllUsers((prev) => prev.map((u) => (
+        u.id === userId ? { ...u, e_profile_photo_url: null } : u
+      )));
+      setSuccess('Profile photo removed successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err?.message || 'Failed to remove profile photo. Please try again.');
+    } finally {
+      setPhotoBusyUserId(null);
     }
   };
 
@@ -579,6 +665,7 @@ To fix this:
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
+                  <th>Photo</th>
                   <th>E-Signature</th>
                   <th>Actions</th>
                 </tr>
@@ -604,6 +691,22 @@ To fix this:
                         <span className={`role-badge role-${editRole || u.role_id}`}>
                           {getRoleName(u.role_id)}
                         </span>
+                      )}
+                    </td>
+                    <td className="photo-cell">
+                      {hasUserPhoto(u) ? (
+                        <div className="photo-status has-photo">
+                          <span>Available</span>
+                          <button
+                            type="button"
+                            className="btn-link"
+                            onClick={() => handlePreviewPhoto(u)}
+                          >
+                            Preview
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="photo-status no-photo">No photo</span>
                       )}
                     </td>
                     <td className="signature-cell">
@@ -663,6 +766,31 @@ To fix this:
                           >
                             Delete
                           </button>
+                          <div className="photo-actions">
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/jpg,image/webp"
+                              onChange={(e) => handlePhotoFileChange(u.id, e.target.files?.[0] || null)}
+                              disabled={loading || photoBusyUserId === u.id}
+                              aria-label={`Select profile photo for ${u.name}`}
+                            />
+                            <button
+                              onClick={() => handleUploadPhoto(u.id)}
+                              disabled={loading || photoBusyUserId === u.id || !photoFiles[u.id]}
+                              className="btn btn-sm btn-primary"
+                              aria-label={`Upload profile photo for ${u.name}`}
+                            >
+                              {photoBusyUserId === u.id ? 'Uploading...' : 'Upload Photo'}
+                            </button>
+                            <button
+                              onClick={() => handleDeletePhoto(u.id)}
+                              disabled={loading || photoBusyUserId === u.id || !hasUserPhoto(u)}
+                              className="btn btn-sm btn-secondary"
+                              aria-label={`Remove profile photo for ${u.name}`}
+                            >
+                              Remove Photo
+                            </button>
+                          </div>
                           <div className="signature-actions">
                             <input
                               type="file"

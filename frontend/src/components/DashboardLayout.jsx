@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import NotificationBell from './NotificationBell';
+import { API_BASE_URL } from '../api/api';
 import '../styles/DashboardLayout.css'; 
 import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaLayerGroup, FaChartBar, FaCalendarAlt, FaEdit, FaInbox, FaRobot } from 'react-icons/fa';
 
@@ -10,6 +11,11 @@ export default function DashboardLayout() {
   // console.log('DashboardLayout user:', user);
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [avatarErrored, setAvatarErrored] = useState(false);
+
+  useEffect(() => {
+    setAvatarErrored(false);
+  }, [user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url]);
 
   // Close sidebar when navigating
   const handleNavClick = () => {
@@ -99,6 +105,13 @@ export default function DashboardLayout() {
   const links = sidebarLinksByRole[user?.role] || [];
   // console.log('Sidebar links for role', user?.role, links);
 
+  const userPhotoUrl = useMemo(() => {
+    const rawPhotoUrl = user?.photo_url || user?.e_profile_photo_url || user?.profile_photo_url || '';
+    if (!rawPhotoUrl) return null;
+    if (/^https?:\/\//i.test(rawPhotoUrl)) return rawPhotoUrl;
+    return `${API_BASE_URL}${rawPhotoUrl.startsWith('/') ? '' : '/'}${rawPhotoUrl}`;
+  }, [user]);
+
   return (
     <div className="dashboard-container">
       {/* Mobile Hamburger Toggle Button */}
@@ -171,8 +184,17 @@ export default function DashboardLayout() {
           <div className="topbar-right">
             <div className="topbar-user">
               {user && <NotificationBell />}
-              <div className="user-avatar">
-                {user?.name?.charAt(0).toUpperCase() || 'U'}
+              <div className="user-avatar" aria-hidden="true">
+                {userPhotoUrl && !avatarErrored ? (
+                  <img
+                    src={userPhotoUrl}
+                    alt={user?.name || 'User profile photo'}
+                    className="user-avatar-image"
+                    onError={() => setAvatarErrored(true)}
+                  />
+                ) : (
+                  <span>{user?.name?.charAt(0).toUpperCase() || 'U'}</span>
+                )}
               </div>
               <div className="user-info">
                 <p className="user-name">{user?.name || 'User'}</p>

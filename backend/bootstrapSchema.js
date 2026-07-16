@@ -19,6 +19,9 @@ async function ensureCoreSchema() {
       e_signature_url TEXT,
       e_signature_data BYTEA,
       e_signature_mime_type TEXT,
+      e_profile_photo_url TEXT,
+      e_profile_photo_data BYTEA,
+      e_profile_photo_mime_type TEXT,
       role_id INTEGER REFERENCES roles(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
@@ -29,7 +32,10 @@ async function ensureCoreSchema() {
     ALTER TABLE users
     ADD COLUMN IF NOT EXISTS e_signature_url TEXT,
     ADD COLUMN IF NOT EXISTS e_signature_data BYTEA,
-    ADD COLUMN IF NOT EXISTS e_signature_mime_type TEXT;
+    ADD COLUMN IF NOT EXISTS e_signature_mime_type TEXT,
+    ADD COLUMN IF NOT EXISTS e_profile_photo_url TEXT,
+    ADD COLUMN IF NOT EXISTS e_profile_photo_data BYTEA,
+    ADD COLUMN IF NOT EXISTS e_profile_photo_mime_type TEXT;
   `);
 
   await pool.query(`
