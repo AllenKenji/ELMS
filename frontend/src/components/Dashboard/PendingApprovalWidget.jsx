@@ -7,7 +7,7 @@ export default function PendingApprovalWidget({ items, loading }) {
   if (loading) {
     return (
       <div className="pending-widget">
-        <h3>⏳ Pending Your Action</h3>
+        <h3>⏳ Pending Review</h3>
         <div className="loading-skeleton">
           {[1, 2].map(i => (
             <div key={i} className="skeleton-item"></div>
@@ -49,7 +49,7 @@ export default function PendingApprovalWidget({ items, loading }) {
   return (
     <div className="pending-widget">
       <div className="widget-header">
-        <h3>⏳ Pending Your Action</h3>
+        <h3>⏳ Pending Review</h3>
         {items && items.length > 0 && (
           <span className="pending-badge">{items.length}</span>
         )}
@@ -88,7 +88,7 @@ export default function PendingApprovalWidget({ items, loading }) {
         </div>
       ) : (
         <div className="empty-pending">
-          <p>✅ No pending items - Great job!</p>
+          <p>✅ No pending review items - Great job!</p>
         </div>
       )}
     </div>

@@ -153,29 +153,41 @@ export const usePendingItems = () => {
         setLoading(true);
         setError('');
 
-        const ordinancesRes = await api.get('/ordinances');
-        const ordinances = ordinancesRes.data || [];
+        const [ordinancesRes, resolutionsRes] = await Promise.allSettled([
+          api.get('/ordinances'),
+          api.get('/resolutions'),
+        ]);
 
-        // Get pending statuses
-        const pendingItems = ordinances
-          .filter(o => ['Draft', 'Submitted', 'Under Review'].includes(o.status))
-          .map(o => ({
-            id: o.id,
-            title: o.title,
-            type: 'Ordinance',
-            status: o.status,
-            daysOld: Math.floor(
-              (new Date() - new Date(o.created_at)) / (1000 * 60 * 60 * 24)
-            ),
-            proposer: o.proposer_name,
-            icon: '📋',
-            priority: o.status === 'Draft' ? 'low' : o.status === 'Submitted' ? 'medium' : 'high',
-          }))
-          .sort((a, b) => {
-            // Sort by priority (high first)
-            const priorityOrder = { high: 0, medium: 1, low: 2 };
-            return priorityOrder[a.priority] - priorityOrder[b.priority];
-          });
+        const ordinances = ordinancesRes.status === 'fulfilled' ? (ordinancesRes.value.data || []) : [];
+        const resolutions = resolutionsRes.status === 'fulfilled' ? (resolutionsRes.value.data || []) : [];
+
+        const normalizeDaysOld = (createdAt) => Math.max(0, Math.floor(
+          (new Date() - new Date(createdAt)) / (1000 * 60 * 60 * 24)
+        ));
+
+        const buildPendingItem = (item, type) => ({
+          id: item.id,
+          title: item.title,
+          type,
+          status: item.status,
+          daysOld: normalizeDaysOld(item.created_at),
+          proposer: item.proposer_name,
+          icon: type === 'Resolution' ? '📄' : '📋',
+          priority: item.status === 'Submitted' ? 'medium' : 'high',
+        });
+
+        // Pending action should exclude drafts entirely.
+        const pendingItems = [
+          ...ordinances
+            .filter((o) => ['Submitted', 'Under Review'].includes(o.status))
+            .map((o) => buildPendingItem(o, 'Ordinance')),
+          ...resolutions
+            .filter((r) => ['Submitted', 'Under Review'].includes(r.status))
+            .map((r) => buildPendingItem(r, 'Resolution')),
+        ].sort((a, b) => {
+          const priorityOrder = { high: 0, medium: 1, low: 2 };
+          return priorityOrder[a.priority] - priorityOrder[b.priority];
+        });
 
         setItems(pendingItems);
       } catch (err) {
