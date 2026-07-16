@@ -259,6 +259,14 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     return user?.e_signature_url || user?.signature_url || null;
   };
 
+  const hasUserSignature = (user) => {
+    return Boolean(getUserSignatureUrl(user) || user?.e_signature_has_data);
+  };
+
+  const getUserSignaturePreviewUrl = (user) => {
+    return `${API_BASE_URL}/users/${user.id}/signature/preview`;
+  };
+
   const toAbsoluteSignatureUrl = (signatureUrl) => {
     if (!signatureUrl) return null;
     if (/^https?:\/\//i.test(signatureUrl)) return signatureUrl;
@@ -584,11 +592,11 @@ To fix this:
                       )}
                     </td>
                     <td className="signature-cell">
-                      {getUserSignatureUrl(u) ? (
+                      {hasUserSignature(u) ? (
                         <div className="signature-status has-signature">
                           <span>Available</span>
                           <a
-                            href={toAbsoluteSignatureUrl(getUserSignatureUrl(u))}
+                            href={getUserSignaturePreviewUrl(u)}
                             target="_blank"
                             rel="noreferrer"
                           >
@@ -658,7 +666,7 @@ To fix this:
                             </button>
                             <button
                               onClick={() => handleDeleteSignature(u.id)}
-                              disabled={loading || signatureBusyUserId === u.id || !getUserSignatureUrl(u)}
+                              disabled={loading || signatureBusyUserId === u.id || !hasUserSignature(u)}
                               className="btn btn-sm btn-secondary"
                               aria-label={`Remove e-signature for ${u.name}`}
                             >

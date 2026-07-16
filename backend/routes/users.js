@@ -7,10 +7,12 @@ const authorizeRoles = require('../middleware/roles');
 const signatureUpload = require('../middleware/userSignatureUpload');
 
 router.get('/me/signature', authenticateToken, userController.getMySignature);
+router.get('/me/signature/preview', authenticateToken, userController.getMySignaturePreview);
 router.post('/me/signature', authenticateToken, signatureUpload.single('signature'), userController.uploadMySignature);
 router.delete('/me/signature', authenticateToken, userController.deleteMySignature);
 
 router.get('/:id/signature', authenticateToken, authorizeRoles('Admin'), userController.adminGetUserSignature);
+router.get('/:id/signature/preview', authenticateToken, authorizeRoles('Admin'), userController.adminGetUserSignaturePreview);
 router.post('/:id/signature', authenticateToken, authorizeRoles('Admin'), signatureUpload.single('signature'), userController.adminUploadUserSignature);
 router.delete('/:id/signature', authenticateToken, authorizeRoles('Admin'), userController.adminDeleteUserSignature);
 

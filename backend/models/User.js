@@ -16,7 +16,9 @@ exports.ensureSignatureColumn = async () => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findAll = async () => {
   return pool.query(
-    `SELECT u.id, u.name, u.email, u.role_id, u.e_signature_url, r.role_name, r.role_name AS role
+    `SELECT u.id, u.name, u.email, u.role_id, u.e_signature_url,
+            (u.e_signature_data IS NOT NULL) AS e_signature_has_data,
+            r.role_name, r.role_name AS role
      FROM users u
      LEFT JOIN roles r ON r.id = u.role_id`
   );

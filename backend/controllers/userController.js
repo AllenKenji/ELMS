@@ -3,6 +3,54 @@
  */
 const userService = require('../services/userService');
 const fs = require('fs/promises');
+const path = require('path');
+
+function signatureDataToBuffer(signatureData) {
+  if (!signatureData) return null;
+  if (Buffer.isBuffer(signatureData)) return signatureData;
+  if (typeof signatureData !== 'string') return null;
+
+  const trimmed = signatureData.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('\\x')) {
+    try {
+      return Buffer.from(trimmed.slice(2), 'hex');
+    } catch {
+      return null;
+    }
+  }
+
+  try {
+    return Buffer.from(trimmed, 'base64');
+  } catch {
+    return null;
+  }
+}
+
+async function sendSignaturePreview(res, signatureRecord) {
+  const signatureBuffer = signatureDataToBuffer(signatureRecord?.e_signature_data);
+  if (signatureBuffer?.length) {
+    res.setHeader('Content-Type', signatureRecord?.e_signature_mime_type || 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(signatureBuffer);
+    return;
+  }
+
+  const signatureUrl = signatureRecord?.e_signature_url;
+  if (signatureUrl && signatureUrl.startsWith('/uploads/')) {
+    const absolutePath = path.join(__dirname, '..', signatureUrl.replace(/^\//, '').replace(/\//g, path.sep));
+    try {
+      await fs.access(absolutePath);
+      res.sendFile(absolutePath);
+      return;
+    } catch {
+      // Fall through to 404 when file no longer exists.
+    }
+  }
+
+  res.status(404).json({ error: 'E-signature preview not available' });
+}
 
 /**
  * Get all users.
@@ -102,6 +150,21 @@ exports.getMySignature = async (req, res) => {
 };
 
 /**
+ * Preview current user's e-signature image.
+ * GET /users/me/signature/preview
+ */
+exports.getMySignaturePreview = async (req, res) => {
+  try {
+    const user = await userService.getOwnSignature(req.user.id);
+    await sendSignaturePreview(res, user);
+  } catch (err) {
+    console.error('Get my signature preview error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch e-signature preview' });
+  }
+};
+
+/**
  * Delete current user's e-signature.
  * DELETE /users/me/signature
  */
@@ -164,6 +227,21 @@ exports.adminGetUserSignature = async (req, res) => {
     console.error('Admin get signature error:', err);
     if (err.status) return res.status(err.status).json({ error: err.message });
     res.status(500).json({ error: 'Failed to fetch user e-signature' });
+  }
+};
+
+/**
+ * Admin: preview signature image for any user account.
+ * GET /users/:id/signature/preview
+ */
+exports.adminGetUserSignaturePreview = async (req, res) => {
+  try {
+    const user = await userService.getOwnSignature(req.params.id);
+    await sendSignaturePreview(res, user);
+  } catch (err) {
+    console.error('Admin get signature preview error:', err);
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    res.status(500).json({ error: 'Failed to fetch user e-signature preview' });
   }
 };
 
