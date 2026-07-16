@@ -161,6 +161,11 @@ export default function LocalMeetingRecorder({
   const [error, setError] = useState('');
   const [localDownload, setLocalDownload] = useState(null);
   const [chunkStats, setChunkStats] = useState({ count: 0, bytes: 0 });
+  const [recordingLinkInput, setRecordingLinkInput] = useState('');
+  const [isSavingRecordingLink, setIsSavingRecordingLink] = useState(false);
+  const [isRefreshingRecording, setIsRefreshingRecording] = useState(false);
+  const [isDeletingRecording, setIsDeletingRecording] = useState(false);
+  const [savedRecording, setSavedRecording] = useState(null);
 
   const mediaRecorderRef = useRef(null);
   const screenStreamRef = useRef(null);
@@ -192,8 +197,18 @@ export default function LocalMeetingRecorder({
   }, []);
 
   const canUploadToServer = Boolean(uploadUrl || (committeeId && meetingId));
-  const uploadedRecordingHref = useMemo(() => buildRecordingUrl(recordingUrl), [recordingUrl]);
-  const uploadedRecordingLabel = useMemo(() => formatRecordingDate(recordingUploadedAt), [recordingUploadedAt]);
+  const canManageCommitteeRecording = Boolean(committeeId && meetingId);
+  const uploadedRecordingHref = useMemo(() => buildRecordingUrl(savedRecording?.recording_url), [savedRecording?.recording_url]);
+  const uploadedRecordingLabel = useMemo(() => formatRecordingDate(savedRecording?.recording_uploaded_at), [savedRecording?.recording_uploaded_at]);
+
+  useEffect(() => {
+    setSavedRecording({
+      recording_url: recordingUrl || null,
+      recording_uploaded_at: recordingUploadedAt || null,
+      recording_uploaded_by_name: recordingUploadedByName || null,
+      recording_original_name: null,
+    });
+  }, [recordingUrl, recordingUploadedAt, recordingUploadedByName]);
 
   const cleanupMedia = useCallback(() => {
     const ownedStreams = [fallbackRecordingStreamRef.current, screenStreamRef.current, microphoneStreamRef.current];
@@ -272,6 +287,9 @@ export default function LocalMeetingRecorder({
       setUploadProgress(100);
       setStatus('Recording saved locally and uploaded to the server.');
       toast.success('Recording uploaded to the server.');
+      if (response?.data) {
+        setSavedRecording(response.data);
+      }
       await Promise.resolve(onUploadComplete?.(response.data));
     } catch (uploadError) {
       const message = getApiErrorMessage(uploadError, 'Recording was saved locally but the server upload failed.');
@@ -515,6 +533,87 @@ export default function LocalMeetingRecorder({
     stopRecording(true);
   }, [isRecording, stopRecording]);
 
+  const handleSaveRecordingLink = useCallback(async () => {
+    if (!canManageCommitteeRecording || isSavingRecordingLink) {
+      return;
+    }
+
+    const recordingUrlValue = String(recordingLinkInput || '').trim();
+    if (!recordingUrlValue) {
+      setError('Please enter a recording URL before saving.');
+      return;
+    }
+
+    try {
+      setError('');
+      setIsSavingRecordingLink(true);
+      const response = await api.post(
+        `/committees/${committeeId}/meetings/${meetingId}/recording-link`,
+        { recording_url: recordingUrlValue }
+      );
+      setSavedRecording(response?.data || null);
+      setRecordingLinkInput('');
+      setStatus('Recording link saved to the server.');
+      toast.success('Recording link saved.');
+      await Promise.resolve(onUploadComplete?.(response?.data));
+    } catch (saveError) {
+      const message = getApiErrorMessage(saveError, 'Failed to save recording link.');
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsSavingRecordingLink(false);
+    }
+  }, [canManageCommitteeRecording, committeeId, isSavingRecordingLink, meetingId, onUploadComplete, recordingLinkInput]);
+
+  const handleRefreshRecording = useCallback(async () => {
+    if (!canManageCommitteeRecording || isRefreshingRecording) {
+      return;
+    }
+
+    try {
+      setError('');
+      setIsRefreshingRecording(true);
+      const response = await api.get(`/committees/${committeeId}/meetings/${meetingId}/recording`);
+      setSavedRecording(response?.data || null);
+    } catch (refreshError) {
+      const message = getApiErrorMessage(refreshError, 'Failed to refresh recording details.');
+      setError(message);
+    } finally {
+      setIsRefreshingRecording(false);
+    }
+  }, [canManageCommitteeRecording, committeeId, isRefreshingRecording, meetingId]);
+
+  const handleDeleteRecording = useCallback(async () => {
+    if (!canManageCommitteeRecording || isDeletingRecording) {
+      return;
+    }
+
+    if (!window.confirm('Delete the saved recording for this meeting?')) {
+      return;
+    }
+
+    try {
+      setError('');
+      setIsDeletingRecording(true);
+      await api.delete(`/committees/${committeeId}/meetings/${meetingId}/recording`);
+      setSavedRecording({
+        recording_url: null,
+        recording_uploaded_at: null,
+        recording_uploaded_by_name: null,
+        recording_original_name: null,
+      });
+      setStatus('Saved recording removed from the server.');
+      toast.success('Saved recording deleted.');
+      await Promise.resolve(onUploadComplete?.(null));
+    } catch (deleteError) {
+      const message = getApiErrorMessage(deleteError, 'Failed to delete recording.');
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsDeletingRecording(false);
+    }
+  }, [canManageCommitteeRecording, committeeId, isDeletingRecording, meetingId, onUploadComplete]);
+
   return (
     <>
       <div className="committee-recorder-panel">
@@ -551,6 +650,50 @@ export default function LocalMeetingRecorder({
             </span>
           </div>
         )}
+        {canManageCommitteeRecording && (
+          <div className="committee-recorder-link-tools">
+            <label className="committee-recorder-upload-label" htmlFor={`recording-link-${committeeId}-${meetingId}`}>
+              Save Existing Video Link
+            </label>
+            <div className="committee-recorder-link-row">
+              <input
+                id={`recording-link-${committeeId}-${meetingId}`}
+                type="url"
+                className="committee-recorder-link-input"
+                placeholder="https://example.com/recording.mp4"
+                value={recordingLinkInput}
+                onChange={(event) => setRecordingLinkInput(event.target.value)}
+                disabled={isSavingRecordingLink || isDeletingRecording || isUploading}
+              />
+              <button
+                type="button"
+                className="btn committee-recorder-button committee-recorder-save-link"
+                onClick={handleSaveRecordingLink}
+                disabled={isSavingRecordingLink || isDeletingRecording || isUploading}
+              >
+                {isSavingRecordingLink ? 'Saving...' : 'Save Link'}
+              </button>
+            </div>
+            <div className="committee-recorder-link-actions">
+              <button
+                type="button"
+                className="btn committee-recorder-button committee-recorder-refresh-link"
+                onClick={handleRefreshRecording}
+                disabled={isRefreshingRecording || isSavingRecordingLink || isDeletingRecording || isUploading}
+              >
+                {isRefreshingRecording ? 'Refreshing...' : 'Refresh Saved Video'}
+              </button>
+              <button
+                type="button"
+                className="btn committee-recorder-button committee-recorder-delete-link"
+                onClick={handleDeleteRecording}
+                disabled={!savedRecording?.recording_url || isDeletingRecording || isSavingRecordingLink || isUploading}
+              >
+                {isDeletingRecording ? 'Deleting...' : 'Delete Saved Video'}
+              </button>
+            </div>
+          </div>
+        )}
         <div className="committee-recorder-upload-row">
           <span className="committee-recorder-upload-label">Capture Diagnostics</span>
           <span className="committee-recorder-upload-value">
@@ -563,9 +706,9 @@ export default function LocalMeetingRecorder({
             <a href={uploadedRecordingHref} target="_blank" rel="noopener noreferrer" className="committee-recorder-link">
               Open server copy
             </a>
-            {(uploadedRecordingLabel || recordingUploadedByName) && (
+            {(uploadedRecordingLabel || savedRecording?.recording_uploaded_by_name) && (
               <p className="committee-recorder-meta">
-                {recordingUploadedByName ? `Uploaded by ${recordingUploadedByName}` : 'Uploaded'}
+                {savedRecording?.recording_uploaded_by_name ? `Uploaded by ${savedRecording.recording_uploaded_by_name}` : 'Uploaded'}
                 {uploadedRecordingLabel ? ` on ${uploadedRecordingLabel}` : ''}
               </p>
             )}

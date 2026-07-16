@@ -90,6 +90,64 @@ exports.uploadMeetingRecording = async (req, res) => {
     res.status(500).json({ error: 'Error uploading committee meeting recording' });
   }
 };
+
+/**
+ * Get committee meeting recording metadata.
+ * GET /committees/:id/meetings/:meetingId/recording
+ */
+exports.getMeetingRecording = async (req, res) => {
+  try {
+    const meeting = await require('../services/committeeService').getMeetingRecording(
+      req.params.id,
+      req.params.meetingId
+    );
+    res.json(meeting);
+  } catch (err) {
+    console.error('Get committee meeting recording error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error fetching committee meeting recording' });
+  }
+};
+
+/**
+ * Save committee meeting recording URL.
+ * POST /committees/:id/meetings/:meetingId/recording-link
+ */
+exports.saveMeetingRecordingLink = async (req, res) => {
+  try {
+    const meeting = await require('../services/committeeService').saveMeetingRecordingLink(
+      req.params.id,
+      req.params.meetingId,
+      req.body?.recording_url,
+      req.user.id
+    );
+    res.status(200).json(meeting);
+  } catch (err) {
+    console.error('Save committee meeting recording link error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error saving committee meeting recording link' });
+  }
+};
+
+/**
+ * Delete committee meeting recording metadata (and local file when applicable).
+ * DELETE /committees/:id/meetings/:meetingId/recording
+ */
+exports.deleteMeetingRecording = async (req, res) => {
+  try {
+    await require('../services/committeeService').deleteMeetingRecording(
+      req.params.id,
+      req.params.meetingId,
+      req.user.id
+    );
+    res.json({ message: 'Meeting recording deleted successfully' });
+  } catch (err) {
+    console.error('Delete committee meeting recording error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: 'Error deleting committee meeting recording' });
+  }
+};
 /**
  * Committee Controller - Handles committee HTTP requests.
  */

@@ -290,6 +290,137 @@ exports.saveMeetingRecording = async (committeeId, meetingId, file, userId) => {
   }
 };
 
+exports.getMeetingRecording = async (committeeId, meetingId) => {
+  const meetingResult = await pool.query(
+    `SELECT cm.id,
+            cm.committee_id,
+            cm.recording_url,
+            cm.recording_original_name,
+            cm.recording_uploaded_at,
+            cm.recording_uploaded_by,
+            uploader.name AS recording_uploaded_by_name
+     FROM committee_meetings cm
+     LEFT JOIN users uploader ON uploader.id = cm.recording_uploaded_by
+     WHERE cm.id = $1 AND cm.committee_id = $2`,
+    [meetingId, committeeId]
+  );
+
+  if (!meetingResult.rows.length) {
+    const err = new Error('Meeting not found');
+    err.status = 404;
+    throw err;
+  }
+
+  return meetingResult.rows[0];
+};
+
+exports.saveMeetingRecordingLink = async (committeeId, meetingId, recordingUrl, userId) => {
+  const normalizedUrl = String(recordingUrl || '').trim();
+  if (!normalizedUrl) {
+    const err = new Error('recording_url is required');
+    err.status = 400;
+    throw err;
+  }
+
+  if (!/^https?:\/\//i.test(normalizedUrl) && !normalizedUrl.startsWith('/uploads/')) {
+    const err = new Error('recording_url must be an http(s) URL or an uploads path');
+    err.status = 400;
+    throw err;
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const existingMeetingResult = await client.query(
+      'SELECT id, recording_url FROM committee_meetings WHERE id = $1 AND committee_id = $2 FOR UPDATE',
+      [meetingId, committeeId]
+    );
+
+    if (existingMeetingResult.rows.length === 0) {
+      const err = new Error('Meeting not found');
+      err.status = 404;
+      throw err;
+    }
+
+    const previousRecordingUrl = existingMeetingResult.rows[0].recording_url;
+
+    await client.query(
+      `UPDATE committee_meetings
+       SET recording_url = $1,
+           recording_original_name = $2,
+           recording_uploaded_at = NOW(),
+           recording_uploaded_by = $3,
+           updated_at = NOW()
+       WHERE id = $4 AND committee_id = $5`,
+      [normalizedUrl, null, userId, meetingId, committeeId]
+    );
+
+    await AuditLog.create(client, userId, 'MEETING_RECORDING_LINK_SAVED', `Recording link saved for meeting ID ${meetingId}`);
+    await client.query('COMMIT');
+
+    if (
+      previousRecordingUrl &&
+      previousRecordingUrl !== normalizedUrl &&
+      previousRecordingUrl.startsWith(RECORDING_UPLOAD_PREFIX)
+    ) {
+      await deleteMeetingRecordingFile(previousRecordingUrl);
+    }
+
+    return await exports.getMeetingRecording(committeeId, meetingId);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+exports.deleteMeetingRecording = async (committeeId, meetingId, userId) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const existingMeetingResult = await client.query(
+      'SELECT id, recording_url FROM committee_meetings WHERE id = $1 AND committee_id = $2 FOR UPDATE',
+      [meetingId, committeeId]
+    );
+
+    if (existingMeetingResult.rows.length === 0) {
+      const err = new Error('Meeting not found');
+      err.status = 404;
+      throw err;
+    }
+
+    const previousRecordingUrl = existingMeetingResult.rows[0].recording_url;
+
+    await client.query(
+      `UPDATE committee_meetings
+       SET recording_url = NULL,
+           recording_original_name = NULL,
+           recording_uploaded_at = NULL,
+           recording_uploaded_by = NULL,
+           updated_at = NOW()
+       WHERE id = $1 AND committee_id = $2`,
+      [meetingId, committeeId]
+    );
+
+    await AuditLog.create(client, userId, 'MEETING_RECORDING_DELETED', `Recording deleted for meeting ID ${meetingId}`);
+    await client.query('COMMIT');
+
+    if (previousRecordingUrl && previousRecordingUrl.startsWith(RECORDING_UPLOAD_PREFIX)) {
+      await deleteMeetingRecordingFile(previousRecordingUrl);
+    }
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 // === Committee Operations ===
 exports.createCommittee = async ({ name, description, chair_id, vice_chair_id, member_ids, status, committee_secretary_id }, userId) => {
   if (!name) {

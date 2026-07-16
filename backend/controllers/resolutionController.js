@@ -250,6 +250,7 @@ exports.updateApproval = async (req, res) => {
 exports.generatePdf = async (req, res) => {
   try {
     const resolution = await resolutionService.getResolutionById(req.params.id);
+    const committeeReport = await resolutionService.getCommitteeReport(req.params.id).catch(() => null);
     let settings = null;
     try {
       settings = await settingsService.getSettings();
@@ -289,6 +290,7 @@ exports.generatePdf = async (req, res) => {
     const secretarySignature = secretaryByName || secretaryByRole || null;
 
     generateResolutionPdf(resolution, res, {
+      committeeReport: committeeReport || null,
       header: {
         municipality: settings?.municipality_name || settings?.city_name || process.env.PDF_MUNICIPALITY,
         barangay: settings?.barangay_name || process.env.PDF_BARANGAY,

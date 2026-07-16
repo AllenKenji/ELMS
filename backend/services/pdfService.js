@@ -49,6 +49,71 @@ function pickFirstNonEmpty(...values) {
   return '';
 }
 
+function resolvePdfPublicBaseUrl() {
+  return pickFirstNonEmpty(
+    process.env.PDF_PUBLIC_BASE_URL,
+    process.env.PUBLIC_BASE_URL,
+    process.env.APP_BASE_URL,
+    process.env.FRONTEND_URL
+  );
+}
+
+function buildAbsoluteUrl(baseUrl, relativePath) {
+  const base = String(baseUrl || '').trim().replace(/\/+$/, '');
+  const rel = String(relativePath || '').trim();
+  if (!base || !rel) return '';
+  return `${base}${rel.startsWith('/') ? '' : '/'}${rel}`;
+}
+
+function resolvePdfLinkValue(value) {
+  const text = normalizePdfText(value);
+  if (!text) return { display: '', href: '' };
+
+  if (/^https?:\/\//i.test(text)) {
+    return { display: text, href: text };
+  }
+
+  if (text.startsWith('/uploads/')) {
+    const absolute = buildAbsoluteUrl(resolvePdfPublicBaseUrl(), text);
+    if (absolute) {
+      return { display: text, href: absolute };
+    }
+  }
+
+  return { display: text, href: '' };
+}
+
+function extractMeetingRecordingUrl(rawText) {
+  const text = String(rawText || '');
+  if (!text.trim()) return '';
+
+  const labeledMatch = text.match(/meeting\s+recording\s*:\s*(\S+)/i);
+  if (labeledMatch && labeledMatch[1]) {
+    return normalizePdfText(labeledMatch[1]);
+  }
+
+  const urlMatch = text.match(/https?:\/\/\S+/i);
+  if (urlMatch && urlMatch[0]) {
+    return normalizePdfText(urlMatch[0]);
+  }
+
+  return '';
+}
+
+function resolveCommitteeRecordingForPdf(docData, options = {}) {
+  const committeeReport = options.committeeReport || {};
+
+  return pickFirstNonEmpty(
+    committeeReport.recording_url,
+    committeeReport.meeting_recording_url,
+    extractMeetingRecordingUrl(committeeReport.report_content),
+    docData.meeting_recording_url,
+    docData.recording_url,
+    extractMeetingRecordingUrl(docData.report_content),
+    extractMeetingRecordingUrl(docData.remarks)
+  );
+}
+
 /**
  * Formats a date value for display in the PDF.
  * @param {string|Date|null} value
@@ -288,15 +353,38 @@ function writeDocumentTitleBlock(doc, numberLabel, numberValue, title) {
  * @param {string} value
  */
 function writeMetaRow(doc, label, value) {
-  const safeValue = normalizePdfText(value) || 'N/A';
+  const { display: resolvedValue, href } = resolvePdfLinkValue(value);
+  const safeValue = resolvedValue || 'N/A';
   const { left, right } = doc.page.margins;
   const contentWidth = doc.page.width - left - right;
 
+  if (!href) {
+    doc
+      .font('Helvetica')
+      .fontSize(10)
+      .fillColor('#555555')
+      .text(`${label}: ${safeValue}`, left, doc.y, { width: contentWidth, align: 'justify' })
+      .moveDown(0.2);
+    return;
+  }
+
+  const rowY = doc.y;
   doc
     .font('Helvetica')
     .fontSize(10)
     .fillColor('#555555')
-    .text(`${label}: ${safeValue}`, left, doc.y, { width: contentWidth, align: 'justify' })
+    .text(`${label}: `, left, rowY, { continued: true });
+
+  doc
+    .font('Helvetica')
+    .fontSize(10)
+    .fillColor('#0f5fa8')
+    .text(safeValue, {
+      width: contentWidth,
+      link: href,
+      underline: true,
+    })
+    .fillColor('#555555')
     .moveDown(0.2);
 }
 
@@ -546,6 +634,10 @@ function generateOrdinancePdf(ordinance, stream, options = {}) {
 
   writeMetaRow(doc, 'Status', ordinance.status);
   writeMetaRow(doc, 'Proposed By', ordinance.proposer_name || 'N/A');
+  const ordinanceMeetingRecordingUrl = resolveCommitteeRecordingForPdf(ordinance, options);
+  if (ordinanceMeetingRecordingUrl) {
+    writeMetaRow(doc, 'Meeting Recording', ordinanceMeetingRecordingUrl);
+  }
   // Co-authors
   if (Array.isArray(ordinance.co_authors) && ordinance.co_authors.length > 0) {
     const coAuthorNames = ordinance.co_authors.map(c => c.name + (c.email ? ` <${c.email}>` : '')).join(', ');
@@ -616,6 +708,10 @@ function generateResolutionPdf(resolution, stream, options = {}) {
 
   writeMetaRow(doc, 'Status', resolution.status);
   writeMetaRow(doc, 'Proposed By', resolution.proposer_name || 'N/A');
+  const resolutionMeetingRecordingUrl = resolveCommitteeRecordingForPdf(resolution, options);
+  if (resolutionMeetingRecordingUrl) {
+    writeMetaRow(doc, 'Meeting Recording', resolutionMeetingRecordingUrl);
+  }
   if (Array.isArray(resolution.co_authors) && resolution.co_authors.length > 0) {
     const coAuthorNames = resolution.co_authors.map(c => c.name + (c.email ? ` <${c.email}>` : '')).join(', ');
     writeMetaRow(doc, 'Co-authors', coAuthorNames);

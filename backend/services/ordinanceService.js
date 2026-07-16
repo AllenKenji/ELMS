@@ -17,6 +17,68 @@ function isCouncilorRole(role) {
   return String(role || '').trim().toLowerCase() === 'councilor';
 }
 
+function normalizeAttendeesValue(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || '').trim()).filter(Boolean);
+  }
+
+  if (typeof value !== 'string') {
+    return [];
+  }
+
+  const text = value.trim();
+  if (!text) {
+    return [];
+  }
+
+  if (text.startsWith('[') && text.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed.map((item) => String(item || '').trim()).filter(Boolean);
+      }
+    } catch {
+      // Fallback to comma-separated parsing below.
+    }
+  }
+
+  return text.split(',').map((item) => item.trim()).filter(Boolean);
+}
+
+async function getLatestEndedCommitteeMeetingForOrdinance(client, ordinanceId, committeeId) {
+  const result = await client.query(
+    `SELECT cm.meeting_date,
+            cm.recording_url,
+            COALESCE(minutes.attendees, minutes.participants) AS meeting_attendees
+     FROM committee_meetings cm
+     LEFT JOIN committee_minutes minutes ON minutes.id = cm.minutes_id
+     WHERE cm.ordinance_id = $1
+       AND cm.committee_id = $2
+       AND cm.ended = TRUE
+     ORDER BY cm.meeting_date DESC, cm.updated_at DESC, cm.created_at DESC
+     LIMIT 1`,
+    [ordinanceId, committeeId]
+  );
+
+  return result.rows[0] || null;
+}
+
+function appendMeetingRecordingLine(reportContent, recordingUrl) {
+  const normalizedUrl = String(recordingUrl || '').trim();
+  const normalizedContent = String(reportContent || '').trim();
+
+  if (!normalizedUrl) {
+    return normalizedContent;
+  }
+
+  if (normalizedContent.includes(normalizedUrl)) {
+    return normalizedContent;
+  }
+
+  const recordingLine = `Meeting recording: ${normalizedUrl}`;
+  return normalizedContent ? `${normalizedContent}\n\n${recordingLine}` : recordingLine;
+}
+
 async function generateNextOrdinanceNumber() {
   const year = new Date().getFullYear();
   const extractPattern = `^ORD-${year}-(\\d+)$`;
@@ -964,15 +1026,25 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
       const e = new Error('Only the committee chair or committee secretary can submit the committee report'); e.status = 403; throw e;
     }
 
+    const latestEndedMeeting = await getLatestEndedCommitteeMeetingForOrdinance(client, id, committeeId);
+    const resolvedMeetingDate = latestEndedMeeting?.meeting_date || reportData.meeting_date || null;
+    const resolvedAttendees = latestEndedMeeting
+      ? normalizeAttendeesValue(latestEndedMeeting.meeting_attendees)
+      : normalizeAttendeesValue(reportData.attendees);
+    const resolvedReportContent = appendMeetingRecordingLine(
+      reportData.report_content,
+      latestEndedMeeting?.recording_url
+    );
+
     const report = await Ordinance.insertCommitteeReport(client, {
       ordinanceId: id,
       committeeId: reportData.committee_id || ordinance.committee_id,
       submittedBy: userId,
       recommendation: reportData.recommendation,
-      reportContent: reportData.report_content,
-      meetingDate: reportData.meeting_date,
+      reportContent: resolvedReportContent,
+      meetingDate: resolvedMeetingDate,
       meetingMinutes: reportData.meeting_minutes,
-      attendees: reportData.attendees,
+      attendees: resolvedAttendees,
     });
 
     await client.query(
