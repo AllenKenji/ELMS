@@ -103,14 +103,15 @@
 
 /* Buttons */
 .btn {
-  padding: 0.75rem 1.25rem;
+  padding: 0.58rem 0.92rem;
   border: none;
   border-radius: 4px;
-  font-size: 0.95rem;
+  font-size: 0.86rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
   font-family: inherit;
+  line-height: 1.2;
 }
 
 .btn:disabled {
@@ -128,8 +129,8 @@
 }
 
 .btn-sm {
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
+  padding: 0.38rem 0.62rem;
+  font-size: 0.78rem;
 }
 
 .btn-success {
@@ -257,6 +258,12 @@
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.actions-cell .btn {
+  padding: 0.38rem 0.62rem;
+  font-size: 0.78rem;
 }
 
 .signature-cell {
@@ -290,6 +297,10 @@
   gap: 0.4rem;
   margin-top: 0.35rem;
   width: 220px;
+}
+
+.signature-actions .btn {
+  width: 100%;
 }
 
 .signature-actions input[type="file"] {
