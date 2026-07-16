@@ -6,7 +6,7 @@ const pool = require('../db');
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findAll = async () => {
   return pool.query(
-    `SELECT u.id, u.name, u.email, u.role_id, r.role_name, r.role_name AS role
+    `SELECT u.id, u.name, u.email, u.role_id, u.e_signature_url, r.role_name, r.role_name AS role
      FROM users u
      LEFT JOIN roles r ON r.id = u.role_id`
   );
@@ -34,7 +34,7 @@ exports.create = async (name, email, passwordHash, roleId) => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.updateRole = async (id, roleId) => {
   return pool.query(
-    'UPDATE users SET role_id = $1 WHERE id = $2 RETURNING id, name, email, role_id',
+    'UPDATE users SET role_id = $1 WHERE id = $2 RETURNING id, name, email, role_id, e_signature_url',
     [roleId, id]
   );
 };
@@ -47,10 +47,41 @@ exports.deleteById = async (client, id) => {
 /** @returns {Promise<import('pg').QueryResult>} */
 exports.findWithRoleById = async (id) => {
   return pool.query(
-    `SELECT u.id, u.name, u.email, r.role_name
+    `SELECT u.id, u.name, u.email, u.e_signature_url, r.role_name
      FROM users u
      LEFT JOIN roles r ON r.id = u.role_id
      WHERE u.id = $1`,
     [id]
+  );
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
+exports.updateSignatureUrl = async (id, signatureUrl) => {
+  return pool.query(
+    `UPDATE users
+     SET e_signature_url = $1,
+         updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, name, email, role_id, e_signature_url`,
+    [signatureUrl, id]
+  );
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
+exports.findSignatureById = async (id) => {
+  return pool.query(
+    'SELECT id, name, e_signature_url FROM users WHERE id = $1',
+    [id]
+  );
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
+exports.findSignatureByName = async (name) => {
+  return pool.query(
+    `SELECT id, name, e_signature_url
+     FROM users
+     WHERE LOWER(name) = LOWER($1)
+     LIMIT 1`,
+    [name]
   );
 };

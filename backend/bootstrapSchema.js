@@ -16,10 +16,16 @@ async function ensureCoreSchema() {
       name VARCHAR(255) NOT NULL,
       email VARCHAR(255) NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
+      e_signature_url TEXT,
       role_id INTEGER REFERENCES roles(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
     );
+  `);
+
+  await pool.query(`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS e_signature_url TEXT;
   `);
 
   await pool.query(`

@@ -4,6 +4,7 @@
 const resolutionService = require('../services/resolutionService');
 const { generateResolutionPdf } = require('../services/pdfService');
 const settingsService = require('../services/settingsService');
+const userService = require('../services/userService');
 
 /**
  * Get workflow status for a resolution.
@@ -260,6 +261,20 @@ exports.generatePdf = async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
+    const proposerSignature = resolution?.proposer_id
+      ? (await userService.findSignatureById(resolution.proposer_id))?.e_signature_url
+      : (await userService.findSignatureByName(resolution?.proposer_name))?.e_signature_url;
+
+    const viceMayorName = settings?.vice_mayor_name || process.env.PDF_VICE_MAYOR_NAME;
+    const mayorName = settings?.mayor_name || process.env.PDF_MAYOR_NAME;
+    const secretaryName = settings?.secretary_name || process.env.PDF_SECRETARY_NAME;
+
+    const [viceMayorSignature, mayorSignature, secretarySignature] = await Promise.all([
+      userService.findSignatureByName(viceMayorName),
+      userService.findSignatureByName(mayorName),
+      userService.findSignatureByName(secretaryName),
+    ]);
+
     generateResolutionPdf(resolution, res, {
       header: {
         municipality: settings?.municipality_name || settings?.city_name || process.env.PDF_MUNICIPALITY,
@@ -267,9 +282,15 @@ exports.generatePdf = async (req, res) => {
         body: settings?.legislative_body || process.env.PDF_LEGISLATIVE_BODY,
       },
       officials: {
-        viceMayor: settings?.vice_mayor_name || process.env.PDF_VICE_MAYOR_NAME,
-        mayor: settings?.mayor_name || process.env.PDF_MAYOR_NAME,
-        secretary: settings?.secretary_name || process.env.PDF_SECRETARY_NAME,
+        viceMayor: viceMayorName,
+        mayor: mayorName,
+        secretary: secretaryName,
+        signatures: {
+          proposer: proposerSignature || null,
+          viceMayor: viceMayorSignature?.e_signature_url || null,
+          mayor: mayorSignature?.e_signature_url || null,
+          secretary: secretarySignature?.e_signature_url || null,
+        },
       },
     });
   } catch (err) {

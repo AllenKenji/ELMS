@@ -86,7 +86,37 @@ const PDF_LAYOUT = {
   approvalNameOffset: 12,
   approvalRoleOffset: 32,
   closingSectionReserve: 215,
+  signatureImageHeight: 32,
+  signatureImageVerticalGap: 6,
+  signatureImageMaxWidthRatio: 0.72,
 };
+
+function resolveSignatureImagePath(signatureUrl) {
+  if (!signatureUrl || typeof signatureUrl !== 'string') return null;
+  if (!signatureUrl.startsWith('/uploads/')) return null;
+  const relativePath = signatureUrl.replace(/^\//, '').replace(/\//g, path.sep);
+  return path.join(__dirname, '..', relativePath);
+}
+
+function drawSignatureImage(doc, signatureUrl, x, width, lineY) {
+  const signaturePath = resolveSignatureImagePath(signatureUrl);
+  if (!signaturePath) return;
+
+  const maxHeight = PDF_LAYOUT.signatureImageHeight;
+  const maxWidth = width * PDF_LAYOUT.signatureImageMaxWidthRatio;
+  const imageY = lineY - maxHeight - PDF_LAYOUT.signatureImageVerticalGap;
+  const imageX = x + (width - maxWidth) / 2;
+
+  try {
+    doc.image(signaturePath, imageX, imageY, {
+      fit: [maxWidth, maxHeight],
+      align: 'center',
+      valign: 'bottom',
+    });
+  } catch {
+    // Keep PDF generation resilient when a stored image file is missing/corrupt.
+  }
+}
 
 function ensureSpace(doc, neededHeight) {
   const safeBottom = doc.page.height - doc.page.margins.bottom - 28;
@@ -267,6 +297,7 @@ function writeSignatureBlock(doc, proposerName, officials = {}) {
     process.env.PDF_SECRETARY_NAME,
     'Secretary'
   );
+  const signatures = officials.signatures || {};
 
   doc
     .font('Helvetica')
@@ -286,6 +317,9 @@ function writeSignatureBlock(doc, proposerName, officials = {}) {
     .lineTo(left + colWidth + 20 + colWidth, lineY)
     .strokeColor('#8ca0b8')
     .stroke();
+
+  drawSignatureImage(doc, signatures.proposer, left, colWidth, lineY);
+  drawSignatureImage(doc, signatures.secretary, left + colWidth + 20, colWidth, lineY);
 
   doc
     .font('Helvetica-Bold')
@@ -337,6 +371,7 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
     process.env.PDF_MAYOR_NAME,
     'Mayor'
   );
+  const signatures = officials.signatures || {};
 
   doc
     .font('Helvetica-Bold')
@@ -355,6 +390,10 @@ function writeEnactmentAndApprovalBlocks(doc, officials = {}) {
       .lineWidth(1)
       .stroke();
   }
+
+  drawSignatureImage(doc, signatures.viceMayor, left, colWidth, lineY);
+  drawSignatureImage(doc, signatures.secretary, left + colWidth + 12, colWidth, lineY);
+  drawSignatureImage(doc, signatures.mayor, left + 2 * (colWidth + 12), colWidth, lineY);
 
   doc
     .font('Helvetica-Bold')
