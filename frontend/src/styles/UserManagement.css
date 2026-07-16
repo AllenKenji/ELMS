@@ -256,14 +256,18 @@
 
 .actions-cell {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  flex-direction: column;
+  gap: 0.28rem;
+  flex-wrap: nowrap;
   align-items: flex-start;
+  min-width: 190px;
 }
 
 .actions-cell .btn {
   padding: 0.38rem 0.62rem;
   font-size: 0.78rem;
+  width: 100%;
+  text-align: center;
 }
 
 .signature-cell {
@@ -294,9 +298,9 @@
 .signature-actions {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
-  margin-top: 0.35rem;
-  width: 220px;
+  gap: 0.28rem;
+  margin-top: 0.1rem;
+  width: 100%;
 }
 
 .signature-actions .btn {
