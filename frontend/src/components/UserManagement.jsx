@@ -35,7 +35,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   const [photoFiles, setPhotoFiles] = useState({});
   const [photoBusyUserId, setPhotoBusyUserId] = useState(null);
   const [selectedUserId, setSelectedUserId] = useState(null);
-  const [drawSignatureUser, setDrawSignatureUser] = useState(null);
+  const [drawSignatureTarget, setDrawSignatureTarget] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawnStroke, setHasDrawnStroke] = useState(false);
   const canvasRef = useRef(null);
@@ -96,7 +96,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   }, [users]);
 
   useEffect(() => {
-    if (!drawSignatureUser || !canvasRef.current) return;
+    if (!drawSignatureTarget || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
@@ -119,7 +119,7 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
 
     setHasDrawnStroke(false);
     setIsDrawing(false);
-  }, [drawSignatureUser]);
+  }, [drawSignatureTarget]);
 
   const fetchUsers = async () => {
     try {
@@ -472,13 +472,13 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     }
   };
 
-  const openDrawSignatureModal = (user) => {
-    setDrawSignatureUser(user);
+  const openDrawSignatureModal = (target) => {
+    setDrawSignatureTarget(target);
     setError('');
   };
 
   const closeDrawSignatureModal = () => {
-    setDrawSignatureUser(null);
+    setDrawSignatureTarget(null);
     setIsDrawing(false);
     setHasDrawnStroke(false);
   };
@@ -538,14 +538,16 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
   };
 
   const saveDrawnSignature = async () => {
-    if (!drawSignatureUser || !canvasRef.current) return;
+    if (!drawSignatureTarget || !canvasRef.current) return;
     if (!hasDrawnStroke) {
       setError('Please draw a signature first.');
       return;
     }
 
     try {
-      setSignatureBusyUserId(drawSignatureUser.id);
+      if (drawSignatureTarget.type === 'existing' && drawSignatureTarget.userId) {
+        setSignatureBusyUserId(drawSignatureTarget.userId);
+      }
       setError('');
       const blob = await new Promise((resolve) => {
         canvasRef.current.toBlob(resolve, 'image/png');
@@ -556,8 +558,17 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
         return;
       }
 
-      const file = new File([blob], `signature-user-${drawSignatureUser.id}.png`, { type: 'image/png' });
-      await uploadSignatureFile(drawSignatureUser.id, file);
+      if (drawSignatureTarget.type === 'new-user') {
+        const file = new File([blob], 'new-user-signature.png', { type: 'image/png' });
+        setNewUserSignatureFile(file);
+        setSuccess('E-signature drawn and attached to the new user form.');
+        setTimeout(() => setSuccess(''), 3000);
+        closeDrawSignatureModal();
+        return;
+      }
+
+      const file = new File([blob], `signature-user-${drawSignatureTarget.userId}.png`, { type: 'image/png' });
+      await uploadSignatureFile(drawSignatureTarget.userId, file);
       setSuccess('E-signature drawn and uploaded successfully.');
       setTimeout(() => setSuccess(''), 3000);
       closeDrawSignatureModal();
@@ -706,6 +717,19 @@ To fix this:
             disabled={loading}
           />
           <small className="helper-text">Optional. Uploads to the new user account after it is created.</small>
+          <div className="inline-form-actions">
+            <button
+              type="button"
+              className="btn btn-sm btn-warning"
+              onClick={() => openDrawSignatureModal({ type: 'new-user', name: form.name?.trim() || 'new user' })}
+              disabled={loading}
+            >
+              Draw with Mouse
+            </button>
+            {newUserSignatureFile && (
+              <span className="helper-text">Selected: {newUserSignatureFile.name}</span>
+            )}
+          </div>
         </div>
 
         <button 
@@ -927,7 +951,7 @@ To fix this:
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => openDrawSignatureModal(u)}
+                                      onClick={() => openDrawSignatureModal({ type: 'existing', userId: u.id, name: u.name })}
                                       disabled={loading || signatureBusyUserId === u.id}
                                       className="btn btn-sm btn-warning"
                                       aria-label={`Draw e-signature for ${u.name}`}
@@ -981,12 +1005,12 @@ To fix this:
         </div>
       )}
 
-      {drawSignatureUser && (
+      {drawSignatureTarget && (
         <div className="modal-overlay" onClick={closeDrawSignatureModal}>
           <div className="modal-content signature-modal" onClick={(e) => e.stopPropagation()}>
             <h4>Draw E-Signature</h4>
             <p>
-              Drawing signature for <strong>{drawSignatureUser.name}</strong>
+              Drawing signature for <strong>{drawSignatureTarget.name}</strong>
             </p>
             <canvas
               ref={canvasRef}
@@ -1006,10 +1030,10 @@ To fix this:
               <button
                 type="button"
                 onClick={saveDrawnSignature}
-                disabled={signatureBusyUserId === drawSignatureUser.id}
+                disabled={drawSignatureTarget.type === 'existing' && signatureBusyUserId === drawSignatureTarget.userId}
                 className="btn btn-primary"
               >
-                {signatureBusyUserId === drawSignatureUser.id ? 'Saving...' : 'Save Signature'}
+                {drawSignatureTarget.type === 'existing' && signatureBusyUserId === drawSignatureTarget.userId ? 'Saving...' : 'Save Signature'}
               </button>
             </div>
           </div>
