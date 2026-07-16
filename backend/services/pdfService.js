@@ -110,20 +110,34 @@ function resolveSignatureImageSource(signature) {
   }
 
   if (typeof signature === 'object') {
-    if (Buffer.isBuffer(signature.data)) {
-      return signature.data;
+    const dataCandidate = signature.data || signature.e_signature_data;
+    const urlCandidate = signature.url || signature.e_signature_url;
+
+    if (Buffer.isBuffer(dataCandidate)) {
+      return dataCandidate;
     }
 
-    if (typeof signature.data === 'string' && signature.data.trim()) {
+    if (typeof dataCandidate === 'string' && dataCandidate.trim()) {
+      const trimmed = dataCandidate.trim();
+
+      // PostgreSQL bytea text format usually returns as hex string prefixed with \x.
+      if (trimmed.startsWith('\\x')) {
+        try {
+          return Buffer.from(trimmed.slice(2), 'hex');
+        } catch {
+          // Ignore invalid hex payload and fall through.
+        }
+      }
+
       try {
-        return Buffer.from(signature.data, 'base64');
+        return Buffer.from(trimmed, 'base64');
       } catch {
         // Ignore invalid base64 payload and fall through to URL path.
       }
     }
 
-    if (typeof signature.url === 'string') {
-      return resolveSignatureImagePath(signature.url);
+    if (typeof urlCandidate === 'string') {
+      return resolveSignatureImagePath(urlCandidate);
     }
   }
 
