@@ -291,6 +291,16 @@
   text-decoration: underline;
 }
 
+.btn-link {
+  border: none;
+  background: transparent;
+  color: #1769aa;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
 .signature-status.no-signature {
   color: #888;
 }

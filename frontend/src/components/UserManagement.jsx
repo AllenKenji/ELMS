@@ -267,6 +267,21 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     return `${API_BASE_URL}/users/${user.id}/signature/preview`;
   };
 
+  const handlePreviewSignature = async (user) => {
+    try {
+      const response = await api.get(`/users/${user.id}/signature/preview`, {
+        responseType: 'blob',
+      });
+
+      const mimeType = response.headers?.['content-type'] || 'image/png';
+      const objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }));
+      window.open(objectUrl, '_blank', 'noopener,noreferrer');
+      setTimeout(() => window.URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      setError(err?.message || 'Failed to load signature preview.');
+    }
+  };
+
   const toAbsoluteSignatureUrl = (signatureUrl) => {
     if (!signatureUrl) return null;
     if (/^https?:\/\//i.test(signatureUrl)) return signatureUrl;
@@ -595,13 +610,13 @@ To fix this:
                       {hasUserSignature(u) ? (
                         <div className="signature-status has-signature">
                           <span>Available</span>
-                          <a
-                            href={getUserSignaturePreviewUrl(u)}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
+                            className="btn-link"
+                            onClick={() => handlePreviewSignature(u)}
                           >
                             Preview
-                          </a>
+                          </button>
                         </div>
                       ) : (
                         <span className="signature-status no-signature">No signature</span>
