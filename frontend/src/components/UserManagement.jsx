@@ -844,86 +844,97 @@ To fix this:
                               </>
                             ) : (
                               <>
-                                <button 
-                                  type="button"
-                                  onClick={() => startEditRole(u.id, u.role_id)}
-                                  disabled={loading}
-                                  className="btn btn-sm btn-warning"
-                                  aria-label={`Edit role for ${u.name}`}
-                                >
-                                  Edit Role
-                                </button>
-                                <button 
-                                  type="button"
-                                  onClick={() => setDeleteConfirm(u.id)}
-                                  disabled={loading}
-                                  className="btn btn-sm btn-danger"
-                                  aria-label={`Delete ${u.name}`}
-                                >
-                                  Delete
-                                </button>
-                                <div className="photo-actions">
-                                  <input
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/jpg,image/webp"
-                                    onChange={(e) => handlePhotoFileChange(u.id, e.target.files?.[0] || null)}
-                                    disabled={loading || photoBusyUserId === u.id}
-                                    aria-label={`Select profile photo for ${u.name}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUploadPhoto(u.id)}
-                                    disabled={loading || photoBusyUserId === u.id || !photoFiles[u.id]}
-                                    className="btn btn-sm btn-primary"
-                                    aria-label={`Upload profile photo for ${u.name}`}
-                                  >
-                                    {photoBusyUserId === u.id ? 'Uploading...' : 'Upload Photo'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeletePhoto(u.id)}
-                                    disabled={loading || photoBusyUserId === u.id || !hasUserPhoto(u)}
-                                    className="btn btn-sm btn-secondary"
-                                    aria-label={`Remove profile photo for ${u.name}`}
-                                  >
-                                    Remove Photo
-                                  </button>
+                                <div className="action-section compact-actions">
+                                  <div className="action-section-title">User</div>
+                                  <div className="action-button-row">
+                                    <button 
+                                      type="button"
+                                      onClick={() => startEditRole(u.id, u.role_id)}
+                                      disabled={loading}
+                                      className="btn btn-sm btn-warning"
+                                      aria-label={`Edit role for ${u.name}`}
+                                    >
+                                      Edit Role
+                                    </button>
+                                    <button 
+                                      type="button"
+                                      onClick={() => setDeleteConfirm(u.id)}
+                                      disabled={loading}
+                                      className="btn btn-sm btn-danger"
+                                      aria-label={`Delete ${u.name}`}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="signature-actions">
-                                  <input
-                                    type="file"
-                                    accept="image/png,image/jpeg,image/jpg"
-                                    onChange={(e) => handleSignatureFileChange(u.id, e.target.files?.[0] || null)}
-                                    disabled={loading || signatureBusyUserId === u.id}
-                                    aria-label={`Select e-signature for ${u.name}`}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleUploadSignature(u.id)}
-                                    disabled={loading || signatureBusyUserId === u.id || !signatureFiles[u.id]}
-                                    className="btn btn-sm btn-primary"
-                                    aria-label={`Upload e-signature for ${u.name}`}
-                                  >
-                                    {signatureBusyUserId === u.id ? 'Uploading...' : 'Upload Signature'}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDeleteSignature(u.id)}
-                                    disabled={loading || signatureBusyUserId === u.id || !hasUserSignature(u)}
-                                    className="btn btn-sm btn-secondary"
-                                    aria-label={`Remove e-signature for ${u.name}`}
-                                  >
-                                    Remove Signature
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => openDrawSignatureModal(u)}
-                                    disabled={loading || signatureBusyUserId === u.id}
-                                    className="btn btn-sm btn-warning"
-                                    aria-label={`Draw e-signature for ${u.name}`}
-                                  >
-                                    Draw with Mouse
-                                  </button>
+                                <div className="action-section">
+                                  <div className="action-section-title">Profile Photo</div>
+                                  <div className="photo-actions">
+                                    <input
+                                      type="file"
+                                      accept="image/png,image/jpeg,image/jpg,image/webp"
+                                      onChange={(e) => handlePhotoFileChange(u.id, e.target.files?.[0] || null)}
+                                      disabled={loading || photoBusyUserId === u.id}
+                                      aria-label={`Select profile photo for ${u.name}`}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUploadPhoto(u.id)}
+                                      disabled={loading || photoBusyUserId === u.id || !photoFiles[u.id]}
+                                      className="btn btn-sm btn-primary"
+                                      aria-label={`Upload profile photo for ${u.name}`}
+                                    >
+                                      {photoBusyUserId === u.id ? 'Uploading...' : 'Upload Photo'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePhoto(u.id)}
+                                      disabled={loading || photoBusyUserId === u.id || !hasUserPhoto(u)}
+                                      className="btn btn-sm btn-secondary"
+                                      aria-label={`Remove profile photo for ${u.name}`}
+                                    >
+                                      Remove Photo
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="action-section">
+                                  <div className="action-section-title">E-Signature</div>
+                                  <div className="signature-actions">
+                                    <input
+                                      type="file"
+                                      accept="image/png,image/jpeg,image/jpg"
+                                      onChange={(e) => handleSignatureFileChange(u.id, e.target.files?.[0] || null)}
+                                      disabled={loading || signatureBusyUserId === u.id}
+                                      aria-label={`Select e-signature for ${u.name}`}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUploadSignature(u.id)}
+                                      disabled={loading || signatureBusyUserId === u.id || !signatureFiles[u.id]}
+                                      className="btn btn-sm btn-primary"
+                                      aria-label={`Upload e-signature for ${u.name}`}
+                                    >
+                                      {signatureBusyUserId === u.id ? 'Uploading...' : 'Upload Signature'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteSignature(u.id)}
+                                      disabled={loading || signatureBusyUserId === u.id || !hasUserSignature(u)}
+                                      className="btn btn-sm btn-secondary"
+                                      aria-label={`Remove e-signature for ${u.name}`}
+                                    >
+                                      Remove Signature
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => openDrawSignatureModal(u)}
+                                      disabled={loading || signatureBusyUserId === u.id}
+                                      className="btn btn-sm btn-warning"
+                                      aria-label={`Draw e-signature for ${u.name}`}
+                                    >
+                                      Draw with Mouse
+                                    </button>
+                                  </div>
                                 </div>
                               </>
                             )}

@@ -312,11 +312,42 @@
 
 .actions-cell {
   display: flex;
-  flex-direction: row;
-  gap: 0.28rem;
+  flex-direction: column;
+  gap: 0.75rem;
   flex-wrap: wrap;
   align-items: flex-start;
   min-width: 320px;
+}
+
+.action-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #dde7f2;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.action-section.compact-actions {
+  width: auto;
+  min-width: 220px;
+}
+
+.action-section-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #4a5a6a;
+  text-transform: uppercase;
+}
+
+.action-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.28rem;
+  align-items: center;
 }
 
 .actions-cell .btn {
@@ -377,6 +408,7 @@
 
 .signature-actions input[type="file"] {
   font-size: 0.78rem;
+  max-width: 220px;
 }
 
 .photo-actions {
@@ -393,6 +425,7 @@
 
 .photo-actions input[type="file"] {
   font-size: 0.78rem;
+  max-width: 220px;
 }
 
 /* Modal Styles */
@@ -485,6 +518,11 @@
 
   .actions-cell {
     flex-direction: column;
+  }
+
+  .action-section.compact-actions {
+    width: 100%;
+    min-width: 0;
   }
 
   .signature-actions {
