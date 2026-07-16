@@ -269,11 +269,21 @@ exports.generatePdf = async (req, res) => {
     const mayorName = settings?.mayor_name || process.env.PDF_MAYOR_NAME;
     const secretaryName = settings?.secretary_name || process.env.PDF_SECRETARY_NAME;
 
-    const [viceMayorSignature, mayorSignature, secretarySignature] = await Promise.all([
+    const [viceMayorByName, mayorByName, secretaryByName] = await Promise.all([
       userService.findSignatureByName(viceMayorName),
       userService.findSignatureByName(mayorName),
       userService.findSignatureByName(secretaryName),
     ]);
+
+    const [viceMayorByRole, mayorByRole, secretaryByRole] = await Promise.all([
+      userService.findSignatureByRoleNames(['Vice Mayor']),
+      userService.findSignatureByRoleNames(['Mayor', 'Admin']),
+      userService.findSignatureByRoleNames(['Secretary']),
+    ]);
+
+    const viceMayorSignatureUrl = viceMayorByName?.e_signature_url || viceMayorByRole?.e_signature_url || null;
+    const mayorSignatureUrl = mayorByName?.e_signature_url || mayorByRole?.e_signature_url || null;
+    const secretarySignatureUrl = secretaryByName?.e_signature_url || secretaryByRole?.e_signature_url || null;
 
     generateResolutionPdf(resolution, res, {
       header: {
@@ -287,9 +297,9 @@ exports.generatePdf = async (req, res) => {
         secretary: secretaryName,
         signatures: {
           proposer: proposerSignature || null,
-          viceMayor: viceMayorSignature?.e_signature_url || null,
-          mayor: mayorSignature?.e_signature_url || null,
-          secretary: secretarySignature?.e_signature_url || null,
+          viceMayor: viceMayorSignatureUrl,
+          mayor: mayorSignatureUrl,
+          secretary: secretarySignatureUrl,
         },
       },
     });

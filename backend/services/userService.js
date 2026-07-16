@@ -189,6 +189,12 @@ exports.findSignatureByName = async (name) => {
   return result.rows[0] || null;
 };
 
+exports.findSignatureByRoleNames = async (roleNames) => {
+  if (!Array.isArray(roleNames) || roleNames.length === 0) return null;
+  const result = await User.findSignatureByRoleNames(roleNames);
+  return result.rows[0] || null;
+};
+
 exports.findSignatureById = async (id) => {
   if (!id) return null;
   const result = await User.findSignatureById(id);

@@ -80,8 +80,23 @@ exports.findSignatureByName = async (name) => {
   return pool.query(
     `SELECT id, name, e_signature_url
      FROM users
-     WHERE LOWER(name) = LOWER($1)
+     WHERE LOWER(REGEXP_REPLACE(TRIM(name), '\\s+', ' ', 'g')) = LOWER(REGEXP_REPLACE(TRIM($1), '\\s+', ' ', 'g'))
      LIMIT 1`,
     [name]
+  );
+};
+
+/** @returns {Promise<import('pg').QueryResult>} */
+exports.findSignatureByRoleNames = async (roleNames) => {
+  return pool.query(
+    `SELECT u.id, u.name, u.e_signature_url, r.role_name
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE r.role_name = ANY($1::text[])
+       AND u.e_signature_url IS NOT NULL
+       AND TRIM(u.e_signature_url) <> ''
+     ORDER BY u.id ASC
+     LIMIT 1`,
+    [roleNames]
   );
 };
