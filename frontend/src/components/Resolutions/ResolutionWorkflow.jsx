@@ -364,9 +364,14 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
   const isRejected = readingStage === 'REJECTED';
   const activeCommitteeMeetings = committeeMeetings.filter((meeting) => !meeting.ended);
   const normalizedStage = readingStage ? String(readingStage).trim().toUpperCase() : undefined;
-  const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === normalizedStage));
+  const displayStage = (
+    normalizedStage === 'SUBMITTED' && resl?.session_id_first_reading
+      ? 'FIRST_READING'
+      : normalizedStage
+  );
+  const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === displayStage));
   const availableActions = isRejected ? [] : getAvailableActions(normalizedStage, user?.role, resl, user, workflowStatus);
-  const currentStageDef = STAGES.find(s => s.key === normalizedStage);
+  const currentStageDef = STAGES.find(s => s.key === displayStage);
 
   return (
     <div className="resolution-workflow">

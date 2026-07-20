@@ -383,10 +383,15 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
   // console.log('Ordinance reading_stage:', readingStage);
   // Case-insensitive stage matching (handle null/undefined)
   const normalizedStage = readingStage ? String(readingStage).trim().toUpperCase() : undefined;
-  const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === normalizedStage));
+  const displayStage = (
+    normalizedStage === 'SUBMITTED' && ord?.session_id_first_reading
+      ? 'FIRST_READING'
+      : normalizedStage
+  );
+  const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === displayStage));
   const availableActions = isRejected ? [] : getAvailableActions(normalizedStage, user?.role, ord, user, workflowStatus);
         
-  const currentStageDef = STAGES.find(s => s.key === normalizedStage);
+  const currentStageDef = STAGES.find(s => s.key === displayStage);
 
   return (
     <div className="ordinance-workflow">
