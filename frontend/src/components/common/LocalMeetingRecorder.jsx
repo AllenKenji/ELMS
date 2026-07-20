@@ -490,10 +490,15 @@ export default function LocalMeetingRecorder({
         throw new Error('No screen video track was captured.');
       }
 
-      if (overlayStream?.getVideoTracks?.().length) {
+      const displaySurface = String(videoTrack.getSettings?.().displaySurface || '').toLowerCase();
+      const canSafelyCompositeOverlay = displaySurface !== 'monitor';
+
+      if (overlayStream?.getVideoTracks?.().length && canSafelyCompositeOverlay) {
         const composite = await createCompositeRecordingStream(recordingStream, overlayStream);
         recordingStream = composite.stream;
         compositeCleanupRef.current = composite.cleanup;
+      } else if (overlayStream?.getVideoTracks?.().length && !canSafelyCompositeOverlay) {
+        toast.info('Presenter camera overlay is disabled for full-screen monitor sharing to avoid green-screen recording issues on some multi-monitor setups.');
       }
 
       const liveBroadcastStream = new MediaStream([
