@@ -16,6 +16,16 @@ function normalizeAttendeesInput(attendeesValue) {
   return String(attendeesValue || '').trim();
 }
 
+function buildRecordingHref(recordingUrl) {
+  const normalized = String(recordingUrl || '').trim();
+  if (!normalized) return '';
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+
+  const base = String(api.defaults.baseURL || '').replace(/\/+$/, '');
+  const path = normalized.startsWith('/') ? normalized : `/${normalized}`;
+  return `${base}${path}`;
+}
+
 const STAGES = [
   { key: 'DRAFT', label: '0. Draft', icon: '✏️', desc: 'Councilor is preparing the proposed measure' },
   { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Councilor submitted to Secretary' },
@@ -108,7 +118,7 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) 
 const ACTION_LABELS = {
   'submit-to-vice-mayor': { emoji: '📤', label: 'Submit to Vice Mayor' },
   'assign-session':      { emoji: '🗓️', label: 'Record Session' },
-  'first-reading':       { emoji: '📖', label: 'Record First Reading' },
+  'first-reading':       { emoji: '🎥', label: 'Record Session' },
   'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
   'second-reading':      { emoji: '📖', label: 'Record Second Reading' },
@@ -136,6 +146,8 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
   const [createdMeeting, setCreatedMeeting] = useState(null);
   const [votingStatus, setVotingStatus] = useState(null);
   const [votingLoading, setVotingLoading] = useState(false);
+  const [sessionRecordings, setSessionRecordings] = useState([]);
+  const [loadingRecordings, setLoadingRecordings] = useState(false);
 
   const fetchVotingStatus = useCallback(async () => {
     try {
@@ -183,6 +195,10 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
     setError('');
     setCreatedMeeting(null);
 
+    if (action !== 'first-reading') {
+      setSessionRecordings([]);
+    }
+
     if (action === 'committee-report') {
       const endedMeeting = getLatestEndedMeeting(committeeMeetings, ordinanceId);
       setForm({
@@ -193,6 +209,42 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         attendees: normalizeAttendeesInput(endedMeeting?.meeting_attendees),
       });
       setActiveAction(action);
+      return;
+    }
+
+    if (action === 'first-reading') {
+      const linkedSessionId = Number(ord?.session_id_first_reading);
+      if (!Number.isInteger(linkedSessionId) || linkedSessionId <= 0) {
+        setError('No linked session found. Use Record Session first.');
+        return;
+      }
+
+      setActiveAction(action);
+      setForm({
+        selected_recording_url: '',
+        discussion_notes: '',
+      });
+
+      setLoadingRecordings(true);
+      api.get(`/sessions/${linkedSessionId}/minutes`)
+        .then((res) => {
+          const minutes = Array.isArray(res.data) ? res.data : [];
+          const recordings = minutes.flatMap((entry) => {
+            const list = Array.isArray(entry?.recordings) ? entry.recordings : [];
+            return list.map((recording) => ({
+              ...recording,
+              minutesId: entry?.id,
+              minutesTitle: entry?.title,
+            }));
+          });
+          setSessionRecordings(recordings);
+        })
+        .catch(() => {
+          setSessionRecordings([]);
+        })
+        .finally(() => {
+          setLoadingRecordings(false);
+        });
       return;
     }
 
@@ -217,8 +269,14 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         }
         body = { session_id: form.session_id };
       } else if (activeAction === 'first-reading' || activeAction === 'second-reading') {
+        if (activeAction === 'first-reading' && sessionRecordings.length > 0 && !form.selected_recording_url) {
+          setError('Please select a recorded video first.');
+          setSubmitting(false);
+          return;
+        }
+
         body = {
-          session_id: form.session_id || ord?.session_id_first_reading || null,
+          session_id: ord?.session_id_first_reading || null,
           discussion_notes: form.discussion_notes,
           presiding_officer: form.presiding_officer || null,
         };
@@ -402,6 +460,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
   const currentStageDef = STAGES.find(s => s.key === displayStage);
   const assignedSessionId = Number(ord?.session_id_first_reading || form.session_id);
   const assignedSession = sessions.find((session) => Number(session.id) === assignedSessionId);
+  const selectedRecording = sessionRecordings.find((recording) => recording.recording_url === form.selected_recording_url);
 
   return (
     <div className="ordinance-workflow">
@@ -929,15 +988,17 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
 
               {(activeAction === "assign-session" || activeAction === "first-reading" || activeAction === "second-reading") && (
                 <>
-                  <div className="form-group">
-                    <label>Session {activeAction === "assign-session" ? <span className="required">*</span> : '(optional)'}</label>
-                    <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
-                      <option value="">— Select session —</option>
-                      {sessions.map(s => (
-                        <option key={s.id} value={s.id}>{s.title} — {new Date(s.date).toLocaleDateString()}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {activeAction !== "first-reading" && (
+                    <div className="form-group">
+                      <label>Session {activeAction === "assign-session" ? <span className="required">*</span> : '(optional)'}</label>
+                      <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
+                        <option value="">— Select session —</option>
+                        {sessions.map(s => (
+                          <option key={s.id} value={s.id}>{s.title} — {new Date(s.date).toLocaleDateString()}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {activeAction === "assign-session" && assignedSession && (
                     <div className="form-group">
                       <p style={{ margin: 0, color: '#555' }}>
@@ -946,6 +1007,39 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
                       <a href={`/dashboard/sessions?sessionId=${assignedSession.id}&tab=recording`}>
                         Open Session Meeting and upload recording when ended
                       </a>
+                    </div>
+                  )}
+                  {activeAction === "first-reading" && (
+                    <div className="form-group">
+                      <label>Recorded Video {sessionRecordings.length > 0 ? <span className="required">*</span> : ''}</label>
+                      {loadingRecordings ? (
+                        <p style={{ margin: 0, color: '#666' }}>Loading session recordings...</p>
+                      ) : sessionRecordings.length === 0 ? (
+                        <p style={{ margin: 0, color: '#666' }}>
+                          No recording found for the linked session yet. Upload the meeting video in Session Details first.
+                        </p>
+                      ) : (
+                        <>
+                          <select value={form.selected_recording_url || ""} onChange={e => setField("selected_recording_url", e.target.value)}>
+                            <option value="">— Select recorded video —</option>
+                            {sessionRecordings.map((recording) => {
+                              const uploadedAt = recording?.created_at
+                                ? new Date(recording.created_at).toLocaleString()
+                                : 'Unknown upload time';
+                              return (
+                                <option key={recording.id} value={recording.recording_url}>
+                                  {`${recording.minutesTitle || `Minutes #${recording.minutesId || 'N/A'}`} - ${uploadedAt}`}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {selectedRecording?.recording_url && (
+                            <a href={buildRecordingHref(selectedRecording.recording_url)} target="_blank" rel="noopener noreferrer">
+                              Review selected video
+                            </a>
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
                   {activeAction !== "assign-session" && (
