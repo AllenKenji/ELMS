@@ -18,8 +18,8 @@ function normalizeAttendeesInput(attendeesValue) {
 
 const STAGES = [
   { key: 'DRAFT', label: '0. Draft', icon: '✏️', desc: 'Councilor is preparing the proposed measure' },
-  { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Councilor submitted to Secretary' },
-  { key: 'FIRST_READING', label: '2. First Reading', icon: '📖', desc: 'Read by title in session; referred to committee' },
+  { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Secretary assigns the session for first reading' },
+  { key: 'FIRST_READING', label: '2. First Reading', icon: '📖', desc: 'Secretary records first reading after session assignment' },
   { key: 'COMMITTEE_REVIEW', label: '3. Committee Review', icon: '🔍', desc: 'Committee deliberates and studies the measure' },
   { key: 'COMMITTEE_REPORT_SUBMITTED', label: '4. Committee Report', icon: '📋', desc: 'Committee submitted its recommendation' },
   { key: 'SECOND_READING', label: '5. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
@@ -33,8 +33,8 @@ const STAGES = [
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
 
 const ROLE_ACTIONS = {
-  Secretary: ['first-reading',     'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective'],
-  Admin:     ['assign-committee', 'first-reading', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report'],
+  Secretary: ['assign-session', 'first-reading', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective'],
+  Admin:     ['assign-session', 'assign-committee', 'first-reading', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report'],
   'Vice Mayor':   ['assign-committee', 'executive-approval', 'executive-rejection'],
   Councilor: ['submit-to-vice-mayor', 'create-meeting', 'committee-report', 'cast-vote'],
   'Committee Secretary': ['create-meeting', 'committee-report'],
@@ -57,8 +57,13 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
     case undefined:
     case 'DRAFT':
       return canDo(userRole, 'submit-to-vice-mayor') ? ['submit-to-vice-mayor'] : [];
-    case 'SUBMITTED':
+    case 'SUBMITTED': {
+      if (!res?.session_id_first_reading) {
+        return canDo(userRole, 'assign-session') ? ['assign-session'] : [];
+      }
+
       return canDo(userRole, 'first-reading') ? ['first-reading'] : [];
+    }
     case 'FIRST_READING':
       return canDo(userRole, 'assign-committee') ? ['assign-committee'] : [];
     case 'COMMITTEE_REPORT_SUBMITTED': {
@@ -92,6 +97,7 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
 
 const ACTION_LABELS = {
   'submit-to-vice-mayor': { emoji: '📤', label: 'Submit to Vice Mayor' },
+  'assign-session':      { emoji: '🗓️', label: 'Assign Session' },
   'first-reading':       { emoji: '📖', label: 'Record First Reading' },
   'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
@@ -190,8 +196,19 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
 
       if (activeAction === 'submit-to-vice-mayor') {
         body = { comment: form.comment };
+      } else if (activeAction === 'assign-session') {
+        if (!form.session_id) {
+          setError('Please select a session.');
+          setSubmitting(false);
+          return;
+        }
+        body = { session_id: form.session_id };
       } else if (activeAction === 'first-reading' || activeAction === 'second-reading') {
-        body = { session_id: form.session_id || null, discussion_notes: form.discussion_notes, presiding_officer: form.presiding_officer || null };
+        body = {
+          session_id: form.session_id || resl?.session_id_first_reading || null,
+          discussion_notes: form.discussion_notes,
+          presiding_officer: form.presiding_officer || null,
+        };
       } else if (activeAction === 'assign-committee') {
         const committeeId = form.committee_id || resl?.committee_id;
         if (!committeeId) { setError('Please select a committee.'); setSubmitting(false); return; }
@@ -655,6 +672,11 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
               {ACTION_LABELS['committee-report']?.emoji} {workflowStatus?.committeeReport ? 'Committee Report Submitted' : ACTION_LABELS['committee-report']?.label}
             </button>
           )}
+          {availableActions.includes('assign-session') && (
+            <button className="lw-action-btn lw-first-reading" onClick={() => handleActionClick('assign-session')}>
+              {ACTION_LABELS['assign-session']?.emoji} {ACTION_LABELS['assign-session']?.label}
+            </button>
+          )}
           {availableActions.includes('first-reading') && (
             <button className="lw-action-btn lw-first-reading" onClick={() => handleActionClick('first-reading')}>
               {ACTION_LABELS['first-reading']?.emoji} {ACTION_LABELS['first-reading']?.label}
@@ -817,10 +839,10 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                 </div>
               )}
 
-              {(activeAction === "first-reading" || activeAction === "second-reading") && (
+              {(activeAction === "assign-session" || activeAction === "first-reading" || activeAction === "second-reading") && (
                 <>
                   <div className="form-group">
-                    <label>Session (optional)</label>
+                    <label>Session {activeAction === "assign-session" ? <span className="required">*</span> : '(optional)'}</label>
                     <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
                       <option value="">— Select session —</option>
                       {sessions.map(s => (
@@ -828,10 +850,12 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                       ))}
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label>Discussion Notes</label>
-                    <textarea rows={3} value={form.discussion_notes || ""} onChange={e => setField("discussion_notes", e.target.value)} placeholder="Summary of discussion during reading..." />
-                  </div>
+                  {activeAction !== "assign-session" && (
+                    <div className="form-group">
+                      <label>Discussion Notes</label>
+                      <textarea rows={3} value={form.discussion_notes || ""} onChange={e => setField("discussion_notes", e.target.value)} placeholder="Summary of discussion during reading..." />
+                    </div>
+                  )}
                 </>
               )}
 

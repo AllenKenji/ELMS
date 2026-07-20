@@ -719,6 +719,73 @@ exports.submitToViceMayor = async (id, comment, userId) => {
 };
 
 /**
+ * Stage 2A: Secretary assigns session for first reading.
+ * Keeps reading_stage as SUBMITTED; first-reading recording happens in the next phase.
+ */
+exports.assignSessionForFirstReading = async (id, sessionId, userId) => {
+  const normalizedSessionId = Number(sessionId);
+  if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+    const e = new Error('A valid session is required');
+    e.status = 400;
+    throw e;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Resolution.findById(id);
+    if (!existing.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('Resolution not found');
+      e.status = 404;
+      throw e;
+    }
+
+    const resolution = existing.rows[0];
+    if ((resolution.reading_stage || '').toUpperCase() !== 'SUBMITTED') {
+      await client.query('ROLLBACK');
+      const e = new Error('Session assignment requires resolution to be in SUBMITTED stage');
+      e.status = 400;
+      throw e;
+    }
+
+    const sessionResult = await client.query('SELECT id, title FROM sessions WHERE id = $1', [normalizedSessionId]);
+    if (!sessionResult.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('Selected session was not found');
+      e.status = 400;
+      throw e;
+    }
+
+    await client.query(
+      `UPDATE resolutions
+       SET session_id_first_reading = $1,
+           updated_at = NOW()
+       WHERE id = $2`,
+      [normalizedSessionId, id]
+    );
+
+    await Resolution.insertWorkflowAction(client, id, 'ASSIGN_SESSION', 'SUBMITTED', userId, `Assigned to session ${normalizedSessionId}`);
+    await AuditLog.create(client, userId, 'ASSIGN_SESSION', `Session assigned for first reading of resolution "${resolution.title}"`);
+    await createNotification(resolution.proposer_id, `Your resolution "${resolution.title}" was assigned to a session for first reading.`);
+
+    const updated = await client.query('SELECT * FROM resolutions WHERE id = $1', [id]);
+
+    const io = getIO();
+    io.emit('resolutionSessionAssigned', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Stage 2: Secretary marks First Reading during a session.
  * Transitions: SUBMITTED → FIRST_READING
  */
@@ -735,12 +802,18 @@ exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOf
       const e = new Error('First Reading requires resolution to be in SUBMITTED stage'); e.status = 400; throw e;
     }
 
+    const normalizedSessionId = Number(sessionId || resolution.session_id_first_reading);
+    if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+      await client.query('ROLLBACK');
+      const e = new Error('Assign a session first before recording first reading'); e.status = 400; throw e;
+    }
+
     await client.query(
       `UPDATE resolutions SET session_id_first_reading=$1, reading_stage='FIRST_READING', status='Under Review', updated_at=NOW() WHERE id=$2`,
-      [sessionId || null, id]
+      [normalizedSessionId, id]
     );
     const updated = await client.query('SELECT * FROM resolutions WHERE id=$1', [id]);
-    await Resolution.insertReadingSession(client, id, sessionId, 1, discussionNotes, presidingOfficer);
+    await Resolution.insertReadingSession(client, id, normalizedSessionId, 1, discussionNotes, presidingOfficer);
     await Resolution.insertWorkflowAction(client, id, 'FIRST_READING', 'FIRST_READING', userId, discussionNotes || '');
     await AuditLog.create(client, userId, 'FIRST_READING', `First reading conducted for "${resolution.title}"`);
     await createNotification(resolution.proposer_id, `First reading conducted for your resolution "${resolution.title}".`);

@@ -37,6 +37,7 @@ router.get('/:id/sessions', workflowLimiter, authenticateToken, ordinanceControl
 router.get('/:id/workflow-status', workflowLimiter, authenticateToken, ordinanceController.getWorkflowStatus);
 router.get('/:id/committee-report', workflowLimiter, authenticateToken, ordinanceController.getCommitteeReport);
 router.post('/:id/submit-to-vice-mayor',  workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Admin'), ordinanceController.submitToViceMayor);
+router.post('/:id/assign-session',       workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.assignSession);
 router.post('/:id/first-reading',        workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), ordinanceController.firstReading);
 router.post('/:id/assign-committee',     workflowLimiter, authenticateToken, authorizeRoles('Vice Mayor', 'Secretary', 'Admin'), ordinanceController.assignCommittee);
 router.post('/:id/committee-report',     workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Committee Secretary', 'Admin'), ordinanceController.committeeReport);

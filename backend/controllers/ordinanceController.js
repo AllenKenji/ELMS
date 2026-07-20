@@ -353,6 +353,24 @@ exports.firstReading = async (req, res) => {
   }
 };
 
+/** POST /ordinances/:id/assign-session */
+exports.assignSession = async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    const result = await ordinanceService.assignSessionForFirstReading(
+      req.params.id,
+      session_id,
+      req.user.id
+    );
+    res.json(result);
+  } catch (err) {
+    console.error('Assign session error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error assigning session' });
+  }
+};
+
 /** POST /ordinances/:id/assign-committee */
 exports.assignCommittee = async (req, res) => {
   try {
