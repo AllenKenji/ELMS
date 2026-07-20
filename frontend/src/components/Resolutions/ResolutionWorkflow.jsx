@@ -956,9 +956,27 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                       <p style={{ margin: 0, color: '#555' }}>
                         Session linked: <strong>{assignedSession.title}</strong>
                       </p>
-                      <a href={`/dashboard/sessions?sessionId=${assignedSession.id}&tab=recording`}>
-                        Open Session Meeting and upload recording when ended
-                      </a>
+                          <a href={`/dashboard/sessions?sessionId=${assignedSession.id}&tab=recording`}>
+                            Open Session Meeting to record during the session and save when ready
+                          </a>
+                    </div>
+                  )}
+                  {activeAction === "first-reading" && (
+                    <div className="form-group">
+                      <label>Linked Session</label>
+                      {assignedSession ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <p style={{ margin: 0, color: '#555' }}>
+                            <strong>{assignedSession.title}</strong>
+                            {assignedSession.date ? ` - ${new Date(assignedSession.date).toLocaleDateString()}` : ''}
+                          </p>
+                          <a href={`/dashboard/sessions?sessionId=${assignedSession.id}&tab=recording`}>
+                            Open linked session recording tab
+                          </a>
+                        </div>
+                      ) : (
+                        <p style={{ margin: 0, color: '#666' }}>Linked session details are unavailable.</p>
+                      )}
                     </div>
                   )}
                   {activeAction === "first-reading" && (
