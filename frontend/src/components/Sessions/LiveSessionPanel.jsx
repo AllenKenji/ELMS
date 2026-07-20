@@ -903,7 +903,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (!['disable-camera', 'disable-audio'].includes(command)) return;
 
       if (command === 'disable-camera') {
-        stopCameraPreview();
+        if (cameraStreamRef.current) {
+          const videoTracks = cameraStreamRef.current.getVideoTracks();
+          videoTracks.forEach((track) => {
+            track.enabled = false;
+          });
+        }
+
+        setIsCameraOn(false);
         setCameraError('Host disabled your camera. You may turn it on again when allowed.');
         return;
       }
