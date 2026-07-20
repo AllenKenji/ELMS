@@ -15,10 +15,10 @@ function stopTracks(stream) {
   stream.getTracks().forEach((track) => track.stop());
 }
 
-function buildOutboundStream(sourceStream) {
+function buildOutboundStream(sourceStream, cloneTracks = true) {
   const outbound = new MediaStream();
-  sourceStream.getVideoTracks().forEach((track) => outbound.addTrack(track.clone()));
-  sourceStream.getAudioTracks().forEach((track) => outbound.addTrack(track.clone()));
+  sourceStream.getVideoTracks().forEach((track) => outbound.addTrack(cloneTracks ? track.clone() : track));
+  sourceStream.getAudioTracks().forEach((track) => outbound.addTrack(cloneTracks ? track.clone() : track));
   return outbound;
 }
 
@@ -195,10 +195,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const stopBroadcast = useCallback((stopMedia = true) => {
     setIsBroadcasting(false);
     closeBroadcasterPeers();
-
-    if (broadcastModeRef.current === 'external') {
-      stopTracks(localStreamRef.current);
-    }
 
     if (stopMedia && broadcastModeRef.current === 'manual') {
       stopTracks(localStreamRef.current);
@@ -569,8 +565,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       return undefined;
     }
 
-    stopTracks(localStreamRef.current);
-    localStreamRef.current = buildOutboundStream(broadcastStream);
+    if (broadcastModeRef.current !== 'external') {
+      stopTracks(localStreamRef.current);
+    }
+    localStreamRef.current = buildOutboundStream(broadcastStream, false);
     sourceBroadcastStreamRef.current = broadcastStream;
     broadcastModeRef.current = 'external';
     setLiveDiagnostics({
