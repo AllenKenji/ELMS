@@ -26,6 +26,39 @@ function buildRecordingHref(recordingUrl) {
   return `${base}${path}`;
 }
 
+function normalizeSessionMinutesRecordings(minutesEntries) {
+  const entries = Array.isArray(minutesEntries) ? minutesEntries : [];
+
+  return entries.flatMap((entry) => {
+    const nestedRecordings = Array.isArray(entry?.recordings) ? entry.recordings : [];
+    const normalizedNested = nestedRecordings.map((recording) => ({
+      ...recording,
+      minutesId: entry?.id,
+      minutesTitle: entry?.title,
+    }));
+
+    if (normalizedNested.length > 0) {
+      return normalizedNested;
+    }
+
+    if (!entry?.recording_url) {
+      return [];
+    }
+
+    return [{
+      id: `legacy-${entry.id}`,
+      minutesId: entry.id,
+      minutesTitle: entry.title,
+      recording_url: entry.recording_url,
+      recording_original_name: entry.recording_original_name || null,
+      recording_uploaded_at: entry.recording_uploaded_at || entry.updated_at || entry.created_at || null,
+      recording_uploaded_by_name: entry.recording_uploaded_by_name || null,
+      created_at: entry.created_at || null,
+      updated_at: entry.updated_at || null,
+    }];
+  });
+}
+
 const STAGES = [
   { key: 'DRAFT', label: '0. Draft', icon: '✏️', desc: 'Councilor is preparing the proposed measure' },
   { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Councilor submitted to Secretary' },
@@ -223,15 +256,7 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
       setLoadingRecordings(true);
       api.get(`/sessions/${linkedSessionId}/minutes`)
         .then((res) => {
-          const minutes = Array.isArray(res.data) ? res.data : [];
-          const recordings = minutes.flatMap((entry) => {
-            const list = Array.isArray(entry?.recordings) ? entry.recordings : [];
-            return list.map((recording) => ({
-              ...recording,
-              minutesId: entry?.id,
-              minutesTitle: entry?.title,
-            }));
-          });
+          const recordings = normalizeSessionMinutesRecordings(res.data);
           setSessionRecordings(recordings);
         })
         .catch(() => {

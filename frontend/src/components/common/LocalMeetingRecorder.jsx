@@ -414,6 +414,8 @@ export default function LocalMeetingRecorder({
       };
 
       recorder.onstop = async () => {
+        setIsRecording(false);
+        setStatus(canUploadToServer ? 'Recording stopped. Saving locally and preparing the server upload...' : 'Recording stopped. Saving the file locally...');
         await waitForNextTick();
 
         const recordedChunks = [...chunksRef.current];
@@ -428,7 +430,6 @@ export default function LocalMeetingRecorder({
           setStatus('Recording stopped, but no file was generated.');
           toast.error('No recording data captured. Try recording again and wait a few seconds before stopping.');
           cleanupMedia();
-          setIsRecording(false);
           return;
         }
 
@@ -450,7 +451,6 @@ export default function LocalMeetingRecorder({
           setStatus(`Recording saved locally for this ${subjectLabel}. Start again if you need another file.`);
         }
         cleanupMedia();
-        setIsRecording(false);
       };
 
       recorder.onerror = () => {
