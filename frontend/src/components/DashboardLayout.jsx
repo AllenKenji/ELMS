@@ -16,7 +16,7 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     setAvatarErrored(false);
-  }, [user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url]);
+  }, [user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url, resolvedPhotoUrl]);
 
   useEffect(() => {
     let isCancelled = false;
