@@ -17,6 +17,69 @@ function isCouncilorRole(role) {
   return String(role || '').trim().toLowerCase() === 'councilor';
 }
 
+function normalizeRoleName(role) {
+  return String(role || '').trim().toLowerCase();
+}
+
+function canAssignPrimaryAuthor(role) {
+  const normalizedRole = normalizeRoleName(role);
+  return normalizedRole === 'admin'
+    || normalizedRole === 'secretary'
+    || normalizedRole === 'committee secretary';
+}
+
+async function resolveResolutionProposer(data, user) {
+  const creatorRole = normalizeRoleName(user?.role);
+
+  // Councilors always become the author/proponent of measures they create.
+  if (isCouncilorRole(creatorRole)) {
+    return {
+      id: Number(user?.id),
+      name: String(user?.name || '').trim(),
+    };
+  }
+
+  if (!canAssignPrimaryAuthor(creatorRole)) {
+    return {
+      id: Number(user?.id),
+      name: String(user?.name || '').trim(),
+    };
+  }
+
+  const requestedProposerId = Number(data?.proposer_id);
+  if (!Number.isInteger(requestedProposerId) || requestedProposerId <= 0) {
+    const err = new Error('Primary author is required and must be a valid Councilor');
+    err.status = 400;
+    throw err;
+  }
+
+  const proposerResult = await pool.query(
+    `SELECT u.id, u.name, r.role_name
+     FROM users u
+     LEFT JOIN roles r ON r.id = u.role_id
+     WHERE u.id = $1`,
+    [requestedProposerId]
+  );
+
+  if (proposerResult.rows.length === 0) {
+    const err = new Error('Selected primary author does not exist');
+    err.status = 400;
+    throw err;
+  }
+
+  const proposer = proposerResult.rows[0];
+  if (normalizeRoleName(proposer.role_name) !== 'councilor') {
+    const err = new Error('Primary author must be a user with Councilor role');
+    err.status = 400;
+    throw err;
+  }
+
+  return {
+    id: Number(proposer.id),
+    name: String(proposer.name || '').trim(),
+  };
+}
+
 function normalizeAttendeesValue(value) {
   if (Array.isArray(value)) {
     return value.map((item) => String(item || '').trim()).filter(Boolean);
@@ -148,12 +211,14 @@ exports.createResolution = async ({
   description,
   content,
   remarks,
+  proposer_id,
   status,
   co_authors,
   whereas_clauses,
   effectivity_clause,
   attachments,
 }, user) => {
+  const proposer = await resolveResolutionProposer({ proposer_id }, user);
   const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors);
   let finalResolutionNumber = resolution_number;
   if (isCouncilorRole(user?.role) && isBlankInput(resolution_number)) {
@@ -175,8 +240,8 @@ exports.createResolution = async ({
     description,
     content,
     remarks,
-    user.id,
-    user.name,
+    proposer.id,
+    proposer.name,
     initialStatus,
     normalizedCoAuthors,
     whereas_clauses,

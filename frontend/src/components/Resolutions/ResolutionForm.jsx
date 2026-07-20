@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/api';
+import { useAuth } from '../../context/useAuth';
 import RichTextEditor from '../common/RichTextEditor';
 import { richTextToPlainText, hasMeaningfulRichText, sanitizeRichText } from '../../utils/richText';
 import '../../styles/ResolutionForm.css';
@@ -34,6 +35,7 @@ function normalizeFormData(data) {
   const coAuthors = normalizeCoAuthors(source.co_authors);
 
   return {
+    proposer_id: source.proposer_id != null ? String(source.proposer_id) : '',
     title: source.title || '',
     resolution_number: source.resolution_number || '',
     description: source.description || '',
@@ -58,6 +60,11 @@ function isCouncilorUser(user) {
   return Number(user?.role_id) === 3;
 }
 
+function canAssignPrimaryAuthor(user) {
+  const roleName = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  return roleName === 'admin' || roleName === 'secretary' || roleName === 'committee secretary';
+}
+
 function handleFileUpload(e, setFormData) {
   const files = Array.from(e.target.files);
   setFormData((prev) => ({
@@ -80,6 +87,9 @@ export default function ResolutionForm({
   initialData = null,
   initialStatusOnCreate = 'Draft',
 }) {
+  const { user } = useAuth();
+  const userCanAssignPrimaryAuthor = canAssignPrimaryAuthor(user);
+
   const [formData, setFormData] = useState(
     normalizeFormData(initialData)
   );
@@ -329,6 +339,10 @@ export default function ResolutionForm({
       newErrors.content = 'Content must be at least 20 characters';
     }
 
+    if (userCanAssignPrimaryAuthor && !String(formData.proposer_id || '').trim()) {
+      newErrors.proposer_id = 'Primary author is required';
+    }
+
 
 
     setFormErrors(newErrors);
@@ -408,6 +422,9 @@ export default function ResolutionForm({
       formPayload.append('description', sanitizeRichText(formData.description || ''));
       formPayload.append('content', sanitizeRichText(formData.content || ''));
       formPayload.append('remarks', formData.remarks.trim() || '');
+      if (userCanAssignPrimaryAuthor && formData.proposer_id) {
+        formPayload.append('proposer_id', formData.proposer_id);
+      }
       formPayload.append('status', initialStatusOnCreate);
       formData.co_authors.forEach((id) => formPayload.append('co_authors[]', id));
       parseAttachments(formData.attachments_text).forEach((att) => formPayload.append('attachments[]', att));
@@ -457,13 +474,19 @@ export default function ResolutionForm({
     description: richTextToPlainText(formData.description || '').length,
     content: richTextToPlainText(formData.content || '').length,
   };
+  const selectedPrimaryAuthor = councilorUsers.find((u) => String(u.id) === String(formData.proposer_id));
 
   return (
     <div className="resolution-form-overlay">
       <div className="form-modal">
         {/* Header */}
         <div className="form-header">
-          <h2>{resolutionId ? 'Edit Resolution' : 'Submit New Resolution'}</h2>
+          <div>
+            <h2>{resolutionId ? 'Edit Resolution' : 'Submit New Resolution'}</h2>
+            <p className="field-helper" style={{ marginTop: 4 }}>
+              Proposed by: <strong>{selectedPrimaryAuthor?.name || user?.name || 'Unknown'}</strong>
+            </p>
+          </div>
           <button
             className="btn-close"
             onClick={onCancel}
@@ -652,6 +675,32 @@ export default function ResolutionForm({
               {scanningDocument ? 'Scanning...' : 'Scan and Fill Form'}
             </button>
           </div>
+
+          {userCanAssignPrimaryAuthor && (
+            <div className="form-group">
+              <label htmlFor="proposer_id">Primary Author / Proponent <span className="required">*</span></label>
+              <select
+                id="proposer_id"
+                name="proposer_id"
+                value={formData.proposer_id}
+                onChange={handleChange}
+                disabled={loading}
+              >
+                <option value="">Select a councilor author</option>
+                {councilorUsers.map((councilor) => (
+                  <option key={councilor.id} value={String(councilor.id)}>
+                    {councilor.name}
+                  </option>
+                ))}
+              </select>
+              <p className="field-helper">Use this when encoding/scanning on behalf of the actual councilor author.</p>
+              {formErrors.proposer_id && (
+                <div className="field-hint">
+                  <span className="error-text">{formErrors.proposer_id}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="form-group">
             <label>Co-authors / Sponsors (Optional)</label>

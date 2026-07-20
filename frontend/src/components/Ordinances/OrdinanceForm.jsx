@@ -35,6 +35,7 @@ function normalizeFormData(data) {
   const coAuthors = normalizeCoAuthors(source.co_authors);
 
   return {
+    proposer_id: source.proposer_id != null ? String(source.proposer_id) : '',
     title: source.title || '',
     ordinance_number: source.ordinance_number || '',
     description: source.description || '',
@@ -78,6 +79,11 @@ function isCouncilorUser(user) {
   return Number(user?.role_id) === 3;
 }
 
+function canAssignPrimaryAuthor(user) {
+  const roleName = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  return roleName === 'admin' || roleName === 'secretary' || roleName === 'committee secretary';
+}
+
 export default function OrdinanceForm({
   onSuccess,
   onCancel,
@@ -87,6 +93,7 @@ export default function OrdinanceForm({
   initialStatusOnCreate = 'Draft',
 }) {
   const { user } = useAuth();
+  const userCanAssignPrimaryAuthor = canAssignPrimaryAuthor(user);
 
   const [formData, setFormData] = useState(
     normalizeFormData(initialData)
@@ -336,6 +343,10 @@ export default function OrdinanceForm({
       newErrors.content = 'Content must be at least 20 characters';
     }
 
+    if (userCanAssignPrimaryAuthor && !String(formData.proposer_id || '').trim()) {
+      newErrors.proposer_id = 'Primary author is required';
+    }
+
     // Removed whereas_clauses and effectivity_clause validation
 
     setFormErrors(newErrors);
@@ -416,6 +427,9 @@ export default function OrdinanceForm({
       formPayload.append('description', sanitizeRichText(formData.description || ''));
       formPayload.append('content', sanitizeRichText(formData.content || ''));
       formPayload.append('remarks', formData.remarks.trim() || '');
+      if (userCanAssignPrimaryAuthor && formData.proposer_id) {
+        formPayload.append('proposer_id', formData.proposer_id);
+      }
       formData.co_authors.forEach((id) => formPayload.append('co_authors[]', id));
       parseAttachments(formData.attachments_text).forEach((att) => formPayload.append('attachments[]', att));
       if (formData.attachments_files && formData.attachments_files.length > 0) {
@@ -474,6 +488,7 @@ export default function OrdinanceForm({
     description: richTextToPlainText(formData.description || '').length,
     content: richTextToPlainText(formData.content || '').length,
   };
+  const selectedPrimaryAuthor = councilorUsers.find((u) => String(u.id) === String(formData.proposer_id));
 
   return (
     <div className="ordinance-form-wrapper">
@@ -482,7 +497,7 @@ export default function OrdinanceForm({
           <div className="form-title-section">
             <h3>📋 {ordinanceId ? 'Edit Ordinance' : 'Submit New Ordinance'}</h3>
             <p className="form-subtitle">
-              Proposed by: <strong>{user?.name || 'Unknown'}</strong>
+              Proposed by: <strong>{selectedPrimaryAuthor?.name || user?.name || 'Unknown'}</strong>
             </p>
           </div>
           {onCancel && (
@@ -682,6 +697,30 @@ export default function OrdinanceForm({
             {scanningDocument ? 'Scanning...' : 'Scan and Fill Form'}
           </button>
         </div>
+
+        {userCanAssignPrimaryAuthor && (
+          <div className="form-group">
+            <label htmlFor="proposer_id">Primary Author / Proponent *</label>
+            <select
+              id="proposer_id"
+              name="proposer_id"
+              value={formData.proposer_id}
+              onChange={handleChange}
+              disabled={loading}
+            >
+              <option value="">Select a councilor author</option>
+              {councilorUsers.map((councilor) => (
+                <option key={councilor.id} value={String(councilor.id)}>
+                  {councilor.name}
+                </option>
+              ))}
+            </select>
+            <div className="form-hint">Use this when encoding/scanning on behalf of the actual councilor author.</div>
+            {formErrors.proposer_id && (
+              <span className="error-text">{formErrors.proposer_id}</span>
+            )}
+          </div>
+        )}
 
         <div className="form-group">
           <label>Co-authors / Sponsors (Optional)</label>
