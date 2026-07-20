@@ -13,7 +13,6 @@ export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [avatarErrored, setAvatarErrored] = useState(false);
   const [resolvedPhotoUrl, setResolvedPhotoUrl] = useState(null);
-  const [currentPhotoStatus, setCurrentPhotoStatus] = useState('checking');
 
   useEffect(() => {
     setAvatarErrored(false);
@@ -34,7 +33,6 @@ export default function DashboardLayout() {
     const loadPhoto = async () => {
       if (!user?.id || !accessToken) {
         clearPhoto();
-        setCurrentPhotoStatus('missing');
         return;
       }
 
@@ -51,11 +49,9 @@ export default function DashboardLayout() {
         const mimeType = response.headers?.['content-type'] || 'image/png';
         objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }));
         setResolvedPhotoUrl(objectUrl);
-        setCurrentPhotoStatus('available');
       } catch {
         if (!isCancelled) {
           clearPhoto();
-          setCurrentPhotoStatus('missing');
         }
       }
     };
@@ -253,7 +249,6 @@ export default function DashboardLayout() {
               <div className="user-info">
                 <p className="user-name">{user?.name || 'User'}</p>
                 <p className="user-role">{user?.role || 'Role'}</p>
-                <p className="user-role">ID: {user?.id || 'n/a'} | Photo: {currentPhotoStatus}</p>
               </div>
               <button
                 className="btn-logout"
