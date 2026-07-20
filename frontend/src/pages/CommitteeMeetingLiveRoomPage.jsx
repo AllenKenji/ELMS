@@ -43,6 +43,7 @@ export default function CommitteeMeetingLiveRoomPage() {
   const [committee, setCommittee] = useState(null);
   const [meeting, setMeeting] = useState(null);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
+  const [presenterCameraStream, setPresenterCameraStream] = useState(null);
   const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
   const [isBroadcastingLive, setIsBroadcastingLive] = useState(false);
 
@@ -200,6 +201,7 @@ export default function CommitteeMeetingLiveRoomPage() {
         hostName={user?.name || user?.email || 'Host'}
         hostRole={user?.role || ''}
         onBroadcastStateChange={setIsBroadcastingLive}
+        onPresenterCameraStreamChange={setPresenterCameraStream}
       />
 
       {!meeting.ended && canBroadcast && (
@@ -212,6 +214,7 @@ export default function CommitteeMeetingLiveRoomPage() {
             meetingTitle={meeting.title}
             committeeId={meeting.committee_id}
             meetingId={meeting.id}
+            overlayStream={presenterCameraStream}
             recordingUrl={meeting.recording_url}
             recordingUploadedAt={meeting.recording_uploaded_at}
             recordingUploadedByName={meeting.recording_uploaded_by_name}
