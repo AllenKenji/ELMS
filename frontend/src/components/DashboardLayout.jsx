@@ -20,34 +20,38 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     let isCancelled = false;
+    let objectUrl = null;
+
+    const clearPhoto = () => {
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      setResolvedPhotoUrl(null);
+    };
 
     const loadPhoto = async () => {
       if (!user?.id || !accessToken) {
-        setResolvedPhotoUrl(null);
+        clearPhoto();
         return;
       }
 
       try {
-        const response = await api.get('/users/me/photo', {
+        const response = await api.get('/users/me/photo/preview', {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
+          responseType: 'blob',
         });
 
         if (isCancelled) return;
 
-        const photoUrl = response.data?.photo_url || null;
-        if (photoUrl) {
-          const absoluteUrl = /^https?:\/\//i.test(photoUrl)
-            ? photoUrl
-            : `${API_BASE_URL}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`;
-          setResolvedPhotoUrl(absoluteUrl);
-        } else {
-          setResolvedPhotoUrl(null);
-        }
+        const mimeType = response.headers?.['content-type'] || 'image/png';
+        objectUrl = window.URL.createObjectURL(new Blob([response.data], { type: mimeType }));
+        setResolvedPhotoUrl(objectUrl);
       } catch {
         if (!isCancelled) {
-          setResolvedPhotoUrl(null);
+          clearPhoto();
         }
       }
     };
@@ -56,6 +60,9 @@ export default function DashboardLayout() {
 
     return () => {
       isCancelled = true;
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [accessToken, user?.id, user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url]);
 
