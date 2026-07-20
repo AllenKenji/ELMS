@@ -719,8 +719,8 @@ exports.submitToViceMayor = async (id, comment, userId) => {
 };
 
 /**
- * Stage 2A: Secretary assigns session for first reading.
- * Keeps reading_stage as SUBMITTED; first-reading recording happens in the next phase.
+ * Stage 2A: Secretary records/assigns session details before first reading.
+ * Transitions: SUBMITTED -> RECORD_SESSION
  */
 exports.assignSessionForFirstReading = async (id, sessionId, userId) => {
   const normalizedSessionId = Number(sessionId);
@@ -761,12 +761,14 @@ exports.assignSessionForFirstReading = async (id, sessionId, userId) => {
     await client.query(
       `UPDATE resolutions
        SET session_id_first_reading = $1,
+           reading_stage = 'RECORD_SESSION',
+           status = 'Under Review',
            updated_at = NOW()
        WHERE id = $2`,
       [normalizedSessionId, id]
     );
 
-    await Resolution.insertWorkflowAction(client, id, 'ASSIGN_SESSION', 'SUBMITTED', userId, `Assigned to session ${normalizedSessionId}`);
+    await Resolution.insertWorkflowAction(client, id, 'ASSIGN_SESSION', 'RECORD_SESSION', userId, `Assigned to session ${normalizedSessionId}`);
     await AuditLog.create(client, userId, 'ASSIGN_SESSION', `Session assigned for first reading of resolution "${resolution.title}"`);
     await createNotification(resolution.proposer_id, `Your resolution "${resolution.title}" was assigned to a session for first reading.`);
 
@@ -786,8 +788,8 @@ exports.assignSessionForFirstReading = async (id, sessionId, userId) => {
 };
 
 /**
- * Stage 2: Secretary marks First Reading during a session.
- * Transitions: SUBMITTED → FIRST_READING
+ * Stage 3: Secretary marks First Reading during a session.
+ * Transitions: RECORD_SESSION -> FIRST_READING
  */
 exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOfficer, userId) => {
   const client = await pool.connect();
@@ -797,9 +799,12 @@ exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOf
     const existing = await Resolution.findById(id);
     if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Resolution not found'); e.status = 404; throw e; }
     const resolution = existing.rows[0];
-    if (resolution.reading_stage !== 'SUBMITTED') {
+    const stage = String(resolution.reading_stage || '').toUpperCase();
+    const hasAssignedSession = Number.isInteger(Number(resolution.session_id_first_reading));
+    const canProceedFromLegacySubmitted = stage === 'SUBMITTED' && hasAssignedSession;
+    if (stage !== 'RECORD_SESSION' && !canProceedFromLegacySubmitted) {
       await client.query('ROLLBACK');
-      const e = new Error('First Reading requires resolution to be in SUBMITTED stage'); e.status = 400; throw e;
+      const e = new Error('First Reading requires resolution to be in RECORD_SESSION stage'); e.status = 400; throw e;
     }
 
     const normalizedSessionId = Number(sessionId || resolution.session_id_first_reading);

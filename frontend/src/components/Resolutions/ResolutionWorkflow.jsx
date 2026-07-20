@@ -18,16 +18,17 @@ function normalizeAttendeesInput(attendeesValue) {
 
 const STAGES = [
   { key: 'DRAFT', label: '0. Draft', icon: '✏️', desc: 'Councilor is preparing the proposed measure' },
-  { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Secretary assigns the session for first reading' },
-  { key: 'FIRST_READING', label: '2. First Reading', icon: '📖', desc: 'Secretary records first reading after session assignment' },
-  { key: 'COMMITTEE_REVIEW', label: '3. Committee Review', icon: '🔍', desc: 'Committee deliberates and studies the measure' },
-  { key: 'COMMITTEE_REPORT_SUBMITTED', label: '4. Committee Report', icon: '📋', desc: 'Committee submitted its recommendation' },
-  { key: 'SECOND_READING', label: '5. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
-  { key: 'THIRD_READING_VOTING', label: '6. Voting Open', icon: '🗳️', desc: 'Electronic voting is in progress' },
-  { key: 'THIRD_READING_VOTED', label: '7. Third Reading / Vote', icon: '✅', desc: 'Final vote taken by full council' },
-  { key: 'APPROVED', label: '8. Executive Approved', icon: '🏛️', desc: 'Mayor/Vice Mayor approved the measure' },
-  { key: 'POSTED', label: '9. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
-  { key: 'EFFECTIVE', label: '10. In Effect', icon: '⚖️', desc: 'Resolution is now in full effect' },
+  { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Councilor submitted to Secretary' },
+  { key: 'RECORD_SESSION', label: '2. Record Session', icon: '🎥', desc: 'Link to session meeting, upload recording after it ends, and prepare notes' },
+  { key: 'FIRST_READING', label: '3. First Reading', icon: '📖', desc: 'Secretary records first reading and discussion notes' },
+  { key: 'COMMITTEE_REVIEW', label: '4. Committee Review', icon: '🔍', desc: 'Committee deliberates and studies the measure' },
+  { key: 'COMMITTEE_REPORT_SUBMITTED', label: '5. Committee Report', icon: '📋', desc: 'Committee submitted its recommendation' },
+  { key: 'SECOND_READING', label: '6. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
+  { key: 'THIRD_READING_VOTING', label: '7. Voting Open', icon: '🗳️', desc: 'Electronic voting is in progress' },
+  { key: 'THIRD_READING_VOTED', label: '8. Third Reading / Vote', icon: '✅', desc: 'Final vote taken by full council' },
+  { key: 'APPROVED', label: '9. Executive Approved', icon: '🏛️', desc: 'Mayor/Vice Mayor approved the measure' },
+  { key: 'POSTED', label: '10. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
+  { key: 'EFFECTIVE', label: '11. In Effect', icon: '⚖️', desc: 'Resolution is now in full effect' },
 ];
 
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
@@ -58,6 +59,13 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
     case 'DRAFT':
       return canDo(userRole, 'submit-to-vice-mayor') ? ['submit-to-vice-mayor'] : [];
     case 'SUBMITTED': {
+      if (res?.session_id_first_reading) {
+        return canDo(userRole, 'first-reading') ? ['first-reading'] : [];
+      }
+
+      return canDo(userRole, 'assign-session') ? ['assign-session'] : [];
+    }
+    case 'RECORD_SESSION': {
       if (!res?.session_id_first_reading) {
         return canDo(userRole, 'assign-session') ? ['assign-session'] : [];
       }
@@ -97,7 +105,7 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
 
 const ACTION_LABELS = {
   'submit-to-vice-mayor': { emoji: '📤', label: 'Submit to Vice Mayor' },
-  'assign-session':      { emoji: '🗓️', label: 'Assign Session' },
+  'assign-session':      { emoji: '🗓️', label: 'Record Session' },
   'first-reading':       { emoji: '📖', label: 'Record First Reading' },
   'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
@@ -366,12 +374,14 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
   const normalizedStage = readingStage ? String(readingStage).trim().toUpperCase() : undefined;
   const displayStage = (
     normalizedStage === 'SUBMITTED' && resl?.session_id_first_reading
-      ? 'FIRST_READING'
+      ? 'RECORD_SESSION'
       : normalizedStage
   );
   const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === displayStage));
   const availableActions = isRejected ? [] : getAvailableActions(normalizedStage, user?.role, resl, user, workflowStatus);
   const currentStageDef = STAGES.find(s => s.key === displayStage);
+  const assignedSessionId = Number(resl?.session_id_first_reading || form.session_id);
+  const assignedSession = sessions.find((session) => Number(session.id) === assignedSessionId);
 
   return (
     <div className="resolution-workflow">
@@ -855,6 +865,16 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                       ))}
                     </select>
                   </div>
+                  {activeAction === "assign-session" && assignedSession && (
+                    <div className="form-group">
+                      <p style={{ margin: 0, color: '#555' }}>
+                        Session linked: <strong>{assignedSession.title}</strong>
+                      </p>
+                      <a href={`/dashboard/sessions?sessionId=${assignedSession.id}&tab=recording`}>
+                        Open Session Meeting and upload recording when ended
+                      </a>
+                    </div>
+                  )}
                   {activeAction !== "assign-session" && (
                     <div className="form-group">
                       <label>Discussion Notes</label>
