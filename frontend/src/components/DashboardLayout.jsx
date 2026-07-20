@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
+import api, { API_BASE_URL } from '../api/api';
 import NotificationBell from './NotificationBell';
-import { API_BASE_URL } from '../api/api';
 import '../styles/DashboardLayout.css'; 
 import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaLayerGroup, FaChartBar, FaCalendarAlt, FaEdit, FaInbox, FaRobot } from 'react-icons/fa';
 
@@ -12,7 +12,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [avatarErrored, setAvatarErrored] = useState(false);
-  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(null);
+  const [resolvedPhotoUrl, setResolvedPhotoUrl] = useState(null);
 
   useEffect(() => {
     setAvatarErrored(false);
@@ -20,51 +20,42 @@ export default function DashboardLayout() {
 
   useEffect(() => {
     let isCancelled = false;
-    let objectUrl = null;
 
-    const clearPreview = () => {
-      if (objectUrl) {
-        window.URL.revokeObjectURL(objectUrl);
-        objectUrl = null;
-      }
-      setAvatarPreviewUrl(null);
-    };
-
-    const loadPreview = async () => {
+    const loadPhoto = async () => {
       if (!user?.id || !accessToken) {
-        clearPreview();
+        setResolvedPhotoUrl(null);
         return;
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/users/me/photo/preview`, {
+        const response = await api.get('/users/me/photo', {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
         });
 
-        if (!response.ok) {
-          clearPreview();
-          return;
-        }
-
-        const blob = await response.blob();
         if (isCancelled) return;
 
-        objectUrl = window.URL.createObjectURL(blob);
-        setAvatarPreviewUrl(objectUrl);
+        const photoUrl = response.data?.photo_url || null;
+        if (photoUrl) {
+          const absoluteUrl = /^https?:\/\//i.test(photoUrl)
+            ? photoUrl
+            : `${API_BASE_URL}${photoUrl.startsWith('/') ? '' : '/'}${photoUrl}`;
+          setResolvedPhotoUrl(absoluteUrl);
+        } else {
+          setResolvedPhotoUrl(null);
+        }
       } catch {
-        clearPreview();
+        if (!isCancelled) {
+          setResolvedPhotoUrl(null);
+        }
       }
     };
 
-    loadPreview();
+    loadPhoto();
 
     return () => {
       isCancelled = true;
-      if (objectUrl) {
-        window.URL.revokeObjectURL(objectUrl);
-      }
     };
   }, [accessToken, user?.id, user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url]);
 
@@ -157,12 +148,12 @@ export default function DashboardLayout() {
   // console.log('Sidebar links for role', user?.role, links);
 
   const userPhotoUrl = useMemo(() => {
-    if (avatarPreviewUrl) return avatarPreviewUrl;
+    if (resolvedPhotoUrl) return resolvedPhotoUrl;
     const rawPhotoUrl = user?.photo_url || user?.e_profile_photo_url || user?.profile_photo_url || '';
     if (!rawPhotoUrl) return null;
     if (/^https?:\/\//i.test(rawPhotoUrl)) return rawPhotoUrl;
     return `${API_BASE_URL}${rawPhotoUrl.startsWith('/') ? '' : '/'}${rawPhotoUrl}`;
-  }, [avatarPreviewUrl, user]);
+  }, [resolvedPhotoUrl, user]);
 
   return (
     <div className="dashboard-container">
