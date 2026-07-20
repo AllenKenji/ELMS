@@ -8,6 +8,8 @@ const path = require('path');
 function signatureDataToBuffer(signatureData) {
   if (!signatureData) return null;
   if (Buffer.isBuffer(signatureData)) return signatureData;
+  if (signatureData instanceof Uint8Array) return Buffer.from(signatureData);
+  if (signatureData instanceof ArrayBuffer) return Buffer.from(new Uint8Array(signatureData));
   if (typeof signatureData !== 'string') return null;
 
   const trimmed = signatureData.trim();
