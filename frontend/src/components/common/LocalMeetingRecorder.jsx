@@ -116,6 +116,109 @@ function waitForNextTick() {
   });
 }
 
+function waitForVideoMetadata(videoElement) {
+  if (!videoElement || videoElement.readyState >= 1) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const handleLoaded = () => {
+      videoElement.removeEventListener('loadedmetadata', handleLoaded);
+      resolve();
+    };
+
+    videoElement.addEventListener('loadedmetadata', handleLoaded, { once: true });
+  });
+}
+
+async function createCompositeRecordingStream(baseStream, overlayStream) {
+  const baseVideoTrack = baseStream?.getVideoTracks?.()[0] || null;
+  const overlayVideoTrack = overlayStream?.getVideoTracks?.()[0] || null;
+
+  if (!baseVideoTrack || !overlayVideoTrack || typeof document === 'undefined') {
+    return { stream: baseStream, cleanup: () => {} };
+  }
+
+  const baseVideo = document.createElement('video');
+  baseVideo.autoplay = true;
+  baseVideo.muted = true;
+  baseVideo.playsInline = true;
+  baseVideo.srcObject = new MediaStream([baseVideoTrack.clone()]);
+
+  const overlayVideo = document.createElement('video');
+  overlayVideo.autoplay = true;
+  overlayVideo.muted = true;
+  overlayVideo.playsInline = true;
+  overlayVideo.srcObject = new MediaStream([overlayVideoTrack.clone()]);
+
+  await Promise.all([
+    waitForVideoMetadata(baseVideo),
+    waitForVideoMetadata(overlayVideo),
+    baseVideo.play?.().catch(() => {}),
+    overlayVideo.play?.().catch(() => {}),
+  ]);
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  const baseWidth = baseVideo.videoWidth || 1280;
+  const baseHeight = baseVideo.videoHeight || 720;
+  canvas.width = baseWidth;
+  canvas.height = baseHeight;
+
+  let frameHandle = null;
+  const drawFrame = () => {
+    if (!context) {
+      return;
+    }
+
+    const nextWidth = baseVideo.videoWidth || baseWidth;
+    const nextHeight = baseVideo.videoHeight || baseHeight;
+    if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(baseVideo, 0, 0, canvas.width, canvas.height);
+
+    const overlayWidth = Math.max(220, Math.round(canvas.width * 0.24));
+    const overlayHeight = Math.round(overlayWidth * 9 / 16);
+    const margin = Math.max(12, Math.round(canvas.width * 0.015));
+    const overlayX = canvas.width - overlayWidth - margin;
+    const overlayY = canvas.height - overlayHeight - margin;
+
+    context.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    context.fillRect(overlayX - 4, overlayY - 4, overlayWidth + 8, overlayHeight + 8);
+    context.drawImage(overlayVideo, overlayX, overlayY, overlayWidth, overlayHeight);
+
+    frameHandle = window.requestAnimationFrame(drawFrame);
+  };
+
+  drawFrame();
+
+  const compositeStream = canvas.captureStream(30);
+  baseStream.getAudioTracks().forEach((track) => {
+    compositeStream.addTrack(track.clone());
+  });
+
+  return {
+    stream: compositeStream,
+    cleanup: () => {
+      if (frameHandle) {
+        window.cancelAnimationFrame(frameHandle);
+      }
+
+      baseVideo.srcObject = null;
+      overlayVideo.srcObject = null;
+      compositeStream.getTracks().forEach((track) => {
+        if (track.readyState === 'live') {
+          track.stop();
+        }
+      });
+    },
+  };
+}
+
 async function buildBlobFromChunks(chunks, mimeType) {
   const buffers = await Promise.all(chunks.map((chunk) => chunk.arrayBuffer()));
   const totalBytes = buffers.reduce((sum, buffer) => sum + buffer.byteLength, 0);
@@ -144,6 +247,7 @@ export default function LocalMeetingRecorder({
   uploadUrl,
   uploadFields,
   preferredCaptureStream,
+  overlayStream,
   recordingUrl,
   recordingUploadedAt,
   recordingUploadedByName,
@@ -151,6 +255,7 @@ export default function LocalMeetingRecorder({
   onCaptureStarted,
   onCaptureStopped,
   onRecordingStateChange,
+  onUploadStateChange,
   subjectLabel = 'meeting',
 }) {
   const [isRecording, setIsRecording] = useState(false);
@@ -179,6 +284,7 @@ export default function LocalMeetingRecorder({
   const requestDataIntervalRef = useRef(null);
   const noDataWarningTimeoutRef = useRef(null);
   const onCaptureStoppedRef = useRef(onCaptureStopped);
+  const compositeCleanupRef = useRef(null);
 
   useEffect(() => {
     onCaptureStoppedRef.current = onCaptureStopped;
@@ -241,6 +347,8 @@ export default function LocalMeetingRecorder({
     fallbackRecordingStreamRef.current = null;
     usesExternalCaptureRef.current = false;
     saveHandleRef.current = null;
+    compositeCleanupRef.current?.();
+    compositeCleanupRef.current = null;
     chunksRef.current = [];
     setChunkStats({ count: 0, bytes: 0 });
   }, []);
@@ -371,12 +479,21 @@ export default function LocalMeetingRecorder({
         const screenAudioTrack = screenStream.getAudioTracks()?.[0] || null;
         const microphoneAudioTrack = microphoneStream?.getAudioTracks()?.[0] || null;
         recordingAudioTrack = microphoneAudioTrack || screenAudioTrack || null;
-        recordingStream = new MediaStream([videoTrack]);
+        recordingStream = new MediaStream([
+          videoTrack,
+          ...(recordingAudioTrack ? [recordingAudioTrack] : []),
+        ]);
         usesExternalCaptureRef.current = false;
       }
 
       if (!videoTrack) {
         throw new Error('No screen video track was captured.');
+      }
+
+      if (overlayStream?.getVideoTracks?.().length) {
+        const composite = await createCompositeRecordingStream(recordingStream, overlayStream);
+        recordingStream = composite.stream;
+        compositeCleanupRef.current = composite.cleanup;
       }
 
       const liveBroadcastStream = new MediaStream([
@@ -488,11 +605,15 @@ export default function LocalMeetingRecorder({
       cleanupMedia();
       setIsRecording(false);
     }
-  }, [canUploadToServer, cleanupMedia, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, preferredCaptureStream, prepareRecordingDownload, stopRecording, subjectLabel, uploadRecordingToServer]);
+  }, [canUploadToServer, cleanupMedia, isRecording, isSupported, localDownload?.href, meetingTitle, onCaptureStarted, onCaptureStopped, overlayStream, preferredCaptureStream, prepareRecordingDownload, stopRecording, subjectLabel, uploadRecordingToServer]);
 
   useEffect(() => {
     onRecordingStateChange?.(isRecording);
   }, [isRecording, onRecordingStateChange]);
+
+  useEffect(() => {
+    onUploadStateChange?.(isUploading);
+  }, [isUploading, onUploadStateChange]);
 
   useEffect(() => {
     return () => {

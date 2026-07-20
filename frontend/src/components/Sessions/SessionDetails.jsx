@@ -116,7 +116,9 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   const [joining, setJoining] = useState(false);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
   const [remoteLiveStream, setRemoteLiveStream] = useState(null);
+  const [presenterCameraStream, setPresenterCameraStream] = useState(null);
   const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
+  const [isSessionUploadActive, setIsSessionUploadActive] = useState(false);
 
   const handleCloseRequest = useCallback(() => {
     if (isLocalRecordingActive) {
@@ -124,8 +126,13 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
       return;
     }
 
+    if (isSessionUploadActive) {
+      setError('Wait for the session recording upload to finish before closing session details.');
+      return;
+    }
+
     onClose?.();
-  }, [isLocalRecordingActive, onClose]);
+  }, [isLocalRecordingActive, isSessionUploadActive, onClose]);
 
   const fetchSessionMinutesOnly = useCallback(async () => {
     if (!accessToken) {
@@ -554,6 +561,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                     hostName={user?.name || user?.username || user?.email || 'Unknown host'}
                     hostRole={user?.role || ''}
                     onRemoteStreamChange={setRemoteLiveStream}
+                    onPresenterCameraStreamChange={setPresenterCameraStream}
                   />
                 )}
 
@@ -591,12 +599,14 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                       uploadUrl={`/sessions/${sessionId}/recording`}
                       uploadFields={{ minutes_id: selectedMinutesId }}
                       preferredCaptureStream={remoteLiveStream}
+                      overlayStream={presenterCameraStream}
                       recordingUrl={latestRecording?.recording_url}
                       recordingUploadedAt={latestRecording?.recording_uploaded_at}
                       recordingUploadedByName={latestRecording?.recording_uploaded_by_name}
                       onCaptureStarted={setLiveBroadcastStream}
                       onCaptureStopped={() => setLiveBroadcastStream(null)}
                       onRecordingStateChange={setIsLocalRecordingActive}
+                      onUploadStateChange={setIsSessionUploadActive}
                       onUploadComplete={(uploadedMinutes) => {
                         setSessionMinutes((prev) => {
                           const rest = prev.filter((item) => item.id !== uploadedMinutes.id);

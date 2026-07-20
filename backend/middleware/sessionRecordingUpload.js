@@ -21,7 +21,10 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const mimeType = String(file.mimetype || '').toLowerCase();
-  if (mimeType.startsWith('video/')) {
+  const extension = path.extname(String(file.originalname || '')).toLowerCase();
+  const allowedExtensions = new Set(['.webm', '.mp4', '.mov', '.mkv']);
+
+  if (mimeType.startsWith('video/') || ((mimeType === '' || mimeType === 'application/octet-stream') && allowedExtensions.has(extension))) {
     cb(null, true);
     return;
   }

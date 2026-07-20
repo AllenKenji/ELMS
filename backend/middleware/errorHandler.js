@@ -104,6 +104,10 @@ function errorHandler(err, req, res, next) {
   if (err.code === '23505') {
     // PostgreSQL unique violation
     error = handleDuplicateKeyError(err);
+  } else if (err.name === 'MulterError') {
+    error = new AppError(err.message || 'File upload failed.', 400);
+  } else if (err.message === 'Only video uploads are allowed for session recordings.') {
+    error = new AppError(err.message, 400);
   } else if (err.name === 'JsonWebTokenError') {
     error = handleJWTError();
   } else if (err.name === 'TokenExpiredError') {
