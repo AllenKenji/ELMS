@@ -7,15 +7,66 @@ import '../styles/DashboardLayout.css';
 import { FaBell, FaUser, FaFileAlt, FaFileSignature, FaUsers, FaCog, FaClipboardList, FaEnvelope, FaBars, FaTimes, FaLayerGroup, FaChartBar, FaCalendarAlt, FaEdit, FaInbox, FaRobot } from 'react-icons/fa';
 
 export default function DashboardLayout() {
-  const { logout, user } = useAuth();
+  const { accessToken, logout, user } = useAuth();
   // console.log('DashboardLayout user:', user);
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [avatarErrored, setAvatarErrored] = useState(false);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(null);
 
   useEffect(() => {
     setAvatarErrored(false);
   }, [user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    let objectUrl = null;
+
+    const clearPreview = () => {
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+        objectUrl = null;
+      }
+      setAvatarPreviewUrl(null);
+    };
+
+    const loadPreview = async () => {
+      if (!user?.id || !accessToken) {
+        clearPreview();
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/users/me/photo/preview`, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          clearPreview();
+          return;
+        }
+
+        const blob = await response.blob();
+        if (isCancelled) return;
+
+        objectUrl = window.URL.createObjectURL(blob);
+        setAvatarPreviewUrl(objectUrl);
+      } catch {
+        clearPreview();
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      isCancelled = true;
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [accessToken, user?.id, user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url]);
 
   // Close sidebar when navigating
   const handleNavClick = () => {
@@ -106,11 +157,12 @@ export default function DashboardLayout() {
   // console.log('Sidebar links for role', user?.role, links);
 
   const userPhotoUrl = useMemo(() => {
+    if (avatarPreviewUrl) return avatarPreviewUrl;
     const rawPhotoUrl = user?.photo_url || user?.e_profile_photo_url || user?.profile_photo_url || '';
     if (!rawPhotoUrl) return null;
     if (/^https?:\/\//i.test(rawPhotoUrl)) return rawPhotoUrl;
     return `${API_BASE_URL}${rawPhotoUrl.startsWith('/') ? '' : '/'}${rawPhotoUrl}`;
-  }, [user]);
+  }, [avatarPreviewUrl, user]);
 
   return (
     <div className="dashboard-container">
