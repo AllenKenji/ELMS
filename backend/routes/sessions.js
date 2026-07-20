@@ -19,7 +19,7 @@ router.post('/', authenticateToken, authorizeRoles('Secretary', 'Admin'), sessio
 router.get('/', authenticateToken, sessionController.getAll);
 router.get('/:id', authenticateToken, sessionController.getById);
 router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Admin'), sessionController.update);
-router.delete('/:id', authenticateToken, authorizeRoles('Admin'), sessionController.remove);
+router.delete('/:id', authenticateToken, authorizeRoles('Admin', 'Secretary'), sessionController.remove);
 router.get('/:id/ordinances', authenticateToken, sessionController.getOrdinances);
 router.get('/:id/participants', authenticateToken, sessionController.getParticipants);
 router.post('/:id/join', authenticateToken, sessionController.joinSession);

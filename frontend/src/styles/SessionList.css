@@ -412,7 +412,8 @@
 }
 
 .btn-view,
-.btn-edit-card {
+.btn-edit-card,
+.btn-delete-card {
   flex: 1;
   min-width: 100px;
   padding: 0.6rem 1rem;
@@ -442,6 +443,20 @@
 
 .btn-edit-card:hover {
   background-color: #fef5e7;
+}
+
+.btn-delete-card {
+  border-color: #e74c3c;
+  color: #e74c3c;
+}
+
+.btn-delete-card:hover {
+  background-color: #fdeceb;
+}
+
+.btn-delete-card:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Responsive */
@@ -487,7 +502,8 @@
   }
 
   .btn-view,
-  .btn-edit-card {
+  .btn-edit-card,
+  .btn-delete-card {
     min-width: unset;
     font-size: 0.8rem;
     padding: 0.5rem 0.75rem;
@@ -516,7 +532,8 @@
   }
 
   .btn-view,
-  .btn-edit-card {
+  .btn-edit-card,
+  .btn-delete-card {
     width: 100%;
   }
 

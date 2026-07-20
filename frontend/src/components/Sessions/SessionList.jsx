@@ -139,7 +139,17 @@ function sortSessions(list, sortBy) {
   });
 }
 
-function SessionSection({ title, count, sessions, canCreateSession, onViewDetails, onEditSession }) {
+function SessionSection({
+  title,
+  count,
+  sessions,
+  canCreateSession,
+  canDeleteSession,
+  deletingSessionId,
+  onViewDetails,
+  onEditSession,
+  onDeleteSession,
+}) {
   if (sessions.length === 0) {
     return null;
   }
@@ -214,6 +224,15 @@ function SessionSection({ title, count, sessions, canCreateSession, onViewDetail
                     ✏️ Edit
                   </button>
                 )}
+                {canDeleteSession && (
+                  <button
+                    onClick={() => onDeleteSession(session)}
+                    className="btn-delete-card"
+                    disabled={deletingSessionId === session.id}
+                  >
+                    {deletingSessionId === session.id ? 'Deleting...' : '🗑️ Delete'}
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -238,6 +257,7 @@ export default function SessionList() {
   const [detailsInitialTab, setDetailsInitialTab] = useState('details');
   const [sortBy, setSortBy] = useState('date');
   const [sessionFilter, setSessionFilter] = useState('upcoming');
+  const [deletingSessionId, setDeletingSessionId] = useState(null);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -295,6 +315,32 @@ export default function SessionList() {
   const handleDeleteSession = () => {
     fetchSessions();
     setShowDetails(false);
+  };
+
+  const handleDeleteSessionFromList = async (session) => {
+    if (!session?.id) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Delete session \"${session.title}\"? This cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingSessionId(session.id);
+      setError('');
+      await api.delete(`/sessions/${session.id}`);
+      await fetchSessions();
+      if (Number(selectedSession?.id) === Number(session.id)) {
+        setShowDetails(false);
+        setSelectedSession(null);
+      }
+    } catch (err) {
+      setError(err?.response?.data?.error || 'Failed to delete session.');
+    } finally {
+      setDeletingSessionId(null);
+    }
   };
 
   const handleFormSuccess = () => {
@@ -357,6 +403,7 @@ export default function SessionList() {
   );
 
   const canCreateSession = ['Admin', 'Secretary'].includes(user?.role);
+  const canDeleteSession = ['Admin', 'Secretary'].includes(user?.role);
 
   if (showForm && editingSession) {
     return (
@@ -503,16 +550,22 @@ export default function SessionList() {
                 count={upcomingSessions.length}
                 sessions={upcomingSessions}
                 canCreateSession={canCreateSession}
+                canDeleteSession={canDeleteSession}
+                deletingSessionId={deletingSessionId}
                 onViewDetails={handleViewDetails}
                 onEditSession={handleEditSession}
+                onDeleteSession={handleDeleteSessionFromList}
               />
               <SessionSection
                 title="Completed Sessions"
                 count={completedSessions.length}
                 sessions={completedSessions}
                 canCreateSession={canCreateSession}
+                canDeleteSession={canDeleteSession}
+                deletingSessionId={deletingSessionId}
                 onViewDetails={handleViewDetails}
                 onEditSession={handleEditSession}
+                onDeleteSession={handleDeleteSessionFromList}
               />
             </div>
           ) : (
@@ -521,8 +574,11 @@ export default function SessionList() {
               count={sortedFilteredSessions.length}
               sessions={sortedFilteredSessions}
               canCreateSession={canCreateSession}
+              canDeleteSession={canDeleteSession}
+              deletingSessionId={deletingSessionId}
               onViewDetails={handleViewDetails}
               onEditSession={handleEditSession}
+              onDeleteSession={handleDeleteSessionFromList}
             />
           )}
         </>
