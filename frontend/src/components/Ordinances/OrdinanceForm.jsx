@@ -94,6 +94,9 @@ export default function OrdinanceForm({
 }) {
   const { user } = useAuth();
   const userCanAssignPrimaryAuthor = canAssignPrimaryAuthor(user);
+  const effectivePrimaryAuthorId = String(
+    userCanAssignPrimaryAuthor ? formData.proposer_id : user?.id || ''
+  );
 
   const [formData, setFormData] = useState(
     normalizeFormData(initialData)
@@ -384,10 +387,14 @@ export default function OrdinanceForm({
   };
 
   // Dual-list add/remove co-authors
+  const normalizedCoAuthorIds = formData.co_authors.filter((id) => id !== effectivePrimaryAuthorId);
+
   const availableCouncilors = councilorUsers.filter(
-    (u) => !formData.co_authors.includes(String(u.id))
+    (u) => !normalizedCoAuthorIds.includes(String(u.id)) && String(u.id) !== effectivePrimaryAuthorId
   );
-  const selectedAuthors = councilorUsers.filter((u) => formData.co_authors.includes(String(u.id)));
+  const selectedAuthors = councilorUsers.filter(
+    (u) => normalizedCoAuthorIds.includes(String(u.id)) && String(u.id) !== effectivePrimaryAuthorId
+  );
 
   const handleAddAuthor = (id) => {
     setFormData((prev) => ({
@@ -430,7 +437,7 @@ export default function OrdinanceForm({
       if (userCanAssignPrimaryAuthor && formData.proposer_id) {
         formPayload.append('proposer_id', formData.proposer_id);
       }
-      formData.co_authors.forEach((id) => formPayload.append('co_authors[]', id));
+      normalizedCoAuthorIds.forEach((id) => formPayload.append('co_authors[]', id));
       parseAttachments(formData.attachments_text).forEach((att) => formPayload.append('attachments[]', att));
       if (formData.attachments_files && formData.attachments_files.length > 0) {
         formData.attachments_files.forEach((file) => formPayload.append('attachments_files', file));
@@ -488,7 +495,7 @@ export default function OrdinanceForm({
     description: richTextToPlainText(formData.description || '').length,
     content: richTextToPlainText(formData.content || '').length,
   };
-  const selectedPrimaryAuthor = councilorUsers.find((u) => String(u.id) === String(formData.proposer_id));
+  const selectedPrimaryAuthor = councilorUsers.find((u) => String(u.id) === effectivePrimaryAuthorId);
 
   return (
     <div className="ordinance-form-wrapper">

@@ -158,7 +158,7 @@ async function generateNextResolutionNumber() {
   return `RES-${year}-${String(nextSeq).padStart(3, '0')}`;
 }
 
-async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true } = {}) {
+async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true, excludeIds = [] } = {}) {
   if (!Array.isArray(coAuthorIds) || coAuthorIds.length === 0) {
     if (allowEmpty) return null;
     const err = new Error('At least one co-author / sponsor is required');
@@ -166,11 +166,27 @@ async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true } = 
     throw err;
   }
 
-  const normalized = [...new Set(coAuthorIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
-  if (normalized.length !== coAuthorIds.length) {
-    const err = new Error('Co-authors must be valid user IDs');
-    err.status = 400;
-    throw err;
+  const excluded = new Set(
+    (Array.isArray(excludeIds) ? excludeIds : [excludeIds])
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  );
+
+  const normalized = [...new Set(coAuthorIds
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0 && !excluded.has(id)))];
+
+  const invalidOrExcluded = coAuthorIds.some((id) => {
+    const normalizedId = Number(id);
+    return !Number.isInteger(normalizedId) || normalizedId <= 0 || excluded.has(normalizedId);
+  });
+  if (invalidOrExcluded && normalized.length !== coAuthorIds.length) {
+    const hasOnlyExcludedPrimaryAuthor = normalized.length === 0 && excluded.size > 0;
+    if (!hasOnlyExcludedPrimaryAuthor) {
+      const err = new Error('Co-authors must be valid user IDs');
+      err.status = 400;
+      throw err;
+    }
   }
 
   const result = await pool.query(
@@ -219,7 +235,10 @@ exports.createResolution = async ({
   attachments,
 }, user) => {
   const proposer = await resolveResolutionProposer({ proposer_id }, user);
-  const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors);
+  const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors, {
+    allowEmpty: true,
+    excludeIds: proposer.id,
+  });
   let finalResolutionNumber = resolution_number;
   if (isCouncilorRole(user?.role) && isBlankInput(resolution_number)) {
     finalResolutionNumber = await generateNextResolutionNumber();
