@@ -10,6 +10,34 @@ function signatureDataToBuffer(signatureData) {
   if (Buffer.isBuffer(signatureData)) return signatureData;
   if (signatureData instanceof Uint8Array) return Buffer.from(signatureData);
   if (signatureData instanceof ArrayBuffer) return Buffer.from(new Uint8Array(signatureData));
+  if (Array.isArray(signatureData)) return Buffer.from(signatureData);
+
+  if (typeof signatureData === 'object') {
+    const nestedData = signatureData.data || signatureData.e_signature_data || signatureData.e_profile_photo_data;
+    if (Buffer.isBuffer(nestedData)) return nestedData;
+    if (nestedData instanceof Uint8Array) return Buffer.from(nestedData);
+    if (nestedData instanceof ArrayBuffer) return Buffer.from(new Uint8Array(nestedData));
+    if (Array.isArray(nestedData)) return Buffer.from(nestedData);
+    if (signatureData.type === 'Buffer' && Array.isArray(signatureData.data)) {
+      return Buffer.from(signatureData.data);
+    }
+    if (typeof nestedData === 'string' && nestedData.trim()) {
+      const nestedTrimmed = nestedData.trim();
+      if (nestedTrimmed.startsWith('\\x')) {
+        try {
+          return Buffer.from(nestedTrimmed.slice(2), 'hex');
+        } catch {
+          return null;
+        }
+      }
+      try {
+        return Buffer.from(nestedTrimmed, 'base64');
+      } catch {
+        return null;
+      }
+    }
+  }
+
   if (typeof signatureData !== 'string') return null;
 
   const trimmed = signatureData.trim();
