@@ -75,7 +75,7 @@ export default function AdminDashboard() {
           />
           <StatsWidget
             label="In Progress"
-            count={stats.draftOrdinances + stats.submittedOrdinances + stats.approvedOrdinances}
+            count={stats.submittedOrdinances + stats.approvedOrdinances + stats.submittedResolutions + stats.approvedResolutions}
             icon="⏳"
             color="#f39c12"
           />

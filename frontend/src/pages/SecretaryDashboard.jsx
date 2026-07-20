@@ -73,7 +73,7 @@ export default function SecretaryDashboard() {
           />
           <StatsWidget
             label="Pending Processing"
-            count={stats.draftOrdinances + stats.submittedOrdinances}
+            count={stats.submittedOrdinances + stats.submittedResolutions}
             icon="⏳"
             color="#f39c12"
           />

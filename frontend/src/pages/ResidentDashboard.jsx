@@ -52,7 +52,7 @@ export default function ResidentDashboard() {
           />
           <StatsWidget
             label="Total Resolutions"
-            count={stats.totalOrdinances}
+            count={stats.totalResolutions}
             icon="📝"
             color="#3498db"
           />

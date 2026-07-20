@@ -10,6 +10,12 @@ export const useStats = () => {
     submittedOrdinances: 0,
     approvedOrdinances: 0,
     publishedOrdinances: 0,
+    totalResolutions: 0,
+    draftResolutions: 0,
+    submittedResolutions: 0,
+    approvedResolutions: 0,
+    publishedResolutions: 0,
+    totalMeasures: 0,
     totalSessions: 0,
     upcomingSessions: 0,
   });
@@ -22,22 +28,33 @@ export const useStats = () => {
         setLoading(true);
         setError('');
 
-        const [ordinancesRes, sessionsRes] = await Promise.all([
+        const [ordinancesRes, resolutionsRes, sessionsRes] = await Promise.all([
           api.get('/ordinances'),
+          api.get('/resolutions'),
           api.get('/sessions'),
         ]);
 
         const ordinances = ordinancesRes.data || [];
+        const resolutions = resolutionsRes.data || [];
         const sessions = sessionsRes.data || [];
 
         const upcomingSessions = sessions.filter((s) => isSessionStrictUpcoming(s)).length;
 
+        const nonDraftOrdinances = ordinances.filter((o) => o.status !== 'Draft');
+        const nonDraftResolutions = resolutions.filter((r) => r.status !== 'Draft');
+
         const counts = {
-          totalOrdinances: ordinances.length,
+          totalOrdinances: nonDraftOrdinances.length,
           draftOrdinances: ordinances.filter(o => o.status === 'Draft').length,
           submittedOrdinances: ordinances.filter(o => o.status === 'Submitted').length,
           approvedOrdinances: ordinances.filter(o => ['Approved', 'Published'].includes(o.status)).length,
           publishedOrdinances: ordinances.filter(o => o.status === 'Published').length,
+          totalResolutions: nonDraftResolutions.length,
+          draftResolutions: resolutions.filter(r => r.status === 'Draft').length,
+          submittedResolutions: resolutions.filter(r => r.status === 'Submitted').length,
+          approvedResolutions: resolutions.filter(r => ['Approved', 'Published'].includes(r.status)).length,
+          publishedResolutions: resolutions.filter(r => r.status === 'Published').length,
+          totalMeasures: nonDraftOrdinances.length + nonDraftResolutions.length,
           totalSessions: sessions.length,
           upcomingSessions,
         };
