@@ -9,6 +9,12 @@ const MIME_TYPE_CANDIDATES = [
   'video/webm;codecs=vp9,opus',
 ];
 
+const RECORDER_VIDEO_BITS_PER_SECOND = 1_600_000;
+const RECORDER_AUDIO_BITS_PER_SECOND = 96_000;
+const RECORDER_MAX_WIDTH = 1280;
+const RECORDER_MAX_HEIGHT = 720;
+const RECORDER_MAX_FPS = 24;
+
 function getSupportedMimeType() {
   if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
     return '';
@@ -23,14 +29,37 @@ function createMediaRecorder(stream) {
   }
 
   try {
-    return new MediaRecorder(stream);
+    return new MediaRecorder(stream, {
+      videoBitsPerSecond: RECORDER_VIDEO_BITS_PER_SECOND,
+      audioBitsPerSecond: RECORDER_AUDIO_BITS_PER_SECOND,
+    });
   } catch {
     const mimeType = getSupportedMimeType();
     if (!mimeType) {
       throw new Error('This browser does not support a compatible recording format.');
     }
 
-    return new MediaRecorder(stream, { mimeType });
+    return new MediaRecorder(stream, {
+      mimeType,
+      videoBitsPerSecond: RECORDER_VIDEO_BITS_PER_SECOND,
+      audioBitsPerSecond: RECORDER_AUDIO_BITS_PER_SECOND,
+    });
+  }
+}
+
+async function applyRecordingTrackConstraints(videoTrack) {
+  if (!videoTrack || typeof videoTrack.applyConstraints !== 'function') {
+    return;
+  }
+
+  try {
+    await videoTrack.applyConstraints({
+      width: { ideal: RECORDER_MAX_WIDTH, max: RECORDER_MAX_WIDTH },
+      height: { ideal: RECORDER_MAX_HEIGHT, max: RECORDER_MAX_HEIGHT },
+      frameRate: { ideal: RECORDER_MAX_FPS, max: RECORDER_MAX_FPS },
+    });
+  } catch {
+    // Ignore unsupported constraints and continue recording.
   }
 }
 
@@ -57,6 +86,20 @@ function getFileExtensionForMimeType(mimeType) {
 function buildRecordingFilenameForMimeType(meetingTitle, mimeType) {
   const baseName = buildRecordingFilename(meetingTitle).replace(/\.[a-z0-9]+$/i, '');
   return `${baseName}.${getFileExtensionForMimeType(mimeType)}`;
+}
+
+function isLikelyVideoFile(file) {
+  if (!file) {
+    return false;
+  }
+
+  const mimeType = String(file.type || '').toLowerCase();
+  if (mimeType.startsWith('video/')) {
+    return true;
+  }
+
+  const extension = String(file.name || '').toLowerCase().split('.').pop() || '';
+  return ['webm', 'mp4', 'mov', 'mkv', 'm4v', 'ogg'].includes(extension);
 }
 
 function getRecorderErrorMessage(error) {
@@ -285,6 +328,7 @@ export default function LocalMeetingRecorder({
   const noDataWarningTimeoutRef = useRef(null);
   const onCaptureStoppedRef = useRef(onCaptureStopped);
   const compositeCleanupRef = useRef(null);
+  const localUploadInputRef = useRef(null);
 
   useEffect(() => {
     onCaptureStoppedRef.current = onCaptureStopped;
@@ -454,6 +498,7 @@ export default function LocalMeetingRecorder({
       let recordingStream = null;
 
       if (videoTrack) {
+        await applyRecordingTrackConstraints(videoTrack);
         recordingStream = preferredCaptureStream;
         usesExternalCaptureRef.current = true;
       } else {
@@ -476,6 +521,7 @@ export default function LocalMeetingRecorder({
         }
 
         videoTrack = screenStream.getVideoTracks()?.[0] || null;
+        await applyRecordingTrackConstraints(videoTrack);
         const screenAudioTrack = screenStream.getAudioTracks()?.[0] || null;
         const microphoneAudioTrack = microphoneStream?.getAudioTracks()?.[0] || null;
         recordingAudioTrack = microphoneAudioTrack || screenAudioTrack || null;
@@ -659,6 +705,34 @@ export default function LocalMeetingRecorder({
     stopRecording(true);
   }, [isRecording, stopRecording]);
 
+  const handleChooseLocalUpload = useCallback(() => {
+    if (!canUploadToServer || isUploading || isRecording) {
+      return;
+    }
+
+    localUploadInputRef.current?.click();
+  }, [canUploadToServer, isRecording, isUploading]);
+
+  const handleLocalFileSelected = useCallback(async (event) => {
+    const file = event.target.files?.[0] || null;
+    event.target.value = '';
+
+    if (!file) {
+      return;
+    }
+
+    if (!isLikelyVideoFile(file)) {
+      const message = 'Please choose a video file (for example .webm, .mp4, .mov, or .mkv).';
+      setError(message);
+      toast.error(message);
+      return;
+    }
+
+    setError('');
+    setStatus(`Uploading selected file "${file.name}" to the server...`);
+    await uploadRecordingToServer(file, file.name);
+  }, [uploadRecordingToServer]);
+
   const handleSaveRecordingLink = useCallback(async () => {
     if (!canManageCommitteeRecording || isSavingRecordingLink) {
       return;
@@ -774,6 +848,28 @@ export default function LocalMeetingRecorder({
             <span className="committee-recorder-upload-value">
               {isUploading ? `Uploading ${uploadProgress}%` : 'Enabled'}
             </span>
+          </div>
+        )}
+        {canUploadToServer && (
+          <div className="committee-recorder-upload-row">
+            <span className="committee-recorder-upload-label">Manual Upload</span>
+            <span className="committee-recorder-upload-value">
+              <button
+                type="button"
+                className="btn committee-recorder-button committee-recorder-save-link"
+                onClick={handleChooseLocalUpload}
+                disabled={isUploading || isRecording}
+              >
+                Upload local copy
+              </button>
+            </span>
+            <input
+              ref={localUploadInputRef}
+              type="file"
+              accept="video/*,.webm,.mp4,.mov,.mkv,.m4v,.ogg"
+              onChange={handleLocalFileSelected}
+              style={{ display: 'none' }}
+            />
           </div>
         )}
         {canManageCommitteeRecording && (
