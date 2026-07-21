@@ -78,14 +78,21 @@ init(server); // initialize socket.io here
 const PORT = process.env.PORT || 5000;
 
 async function startServer() {
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+
+  server.on('error', (err) => {
+    console.error('Server startup error:', err);
+    process.exit(1);
+  });
+
+  // Run schema bootstrap after port bind so hosting platforms can detect the service.
   try {
     await bootstrapSchema();
-    server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-    });
+    console.log('Database schema bootstrap completed.');
   } catch (err) {
     console.error('Failed to bootstrap database schema:', err);
-    process.exit(1);
   }
 }
 
