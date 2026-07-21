@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useBeforeUnload, useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useBeforeUnload, useLocation, useNavigate, useParams } from 'react-router-dom';
 import api from '../api/api';
 import { useAuth } from '../context/useAuth';
 import LiveSessionPanel from '../components/Sessions/LiveSessionPanel';
@@ -101,31 +101,6 @@ export default function CommitteeMeetingLiveRoomPage() {
   }, [committeeId, meetingId]);
 
   const shouldBlockNavigation = !watchMode && (isBroadcastingLive || isLocalRecordingActive);
-
-  const blocker = useBlocker(
-    shouldBlockNavigation
-      ? ({ currentLocation, nextLocation }) => (
-          currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search
-        )
-      : false
-  );
-
-  useEffect(() => {
-    if (blocker.state !== 'blocked') {
-      return;
-    }
-
-    const confirmed = window.confirm(
-      'Leaving this page will stop the active live session or recording. Continue?'
-    );
-
-    if (confirmed) {
-      blocker.proceed();
-      return;
-    }
-
-    blocker.reset();
-  }, [blocker]);
 
   useBeforeUnload(
     useCallback((event) => {
