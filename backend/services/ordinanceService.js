@@ -1271,8 +1271,77 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
 };
 
 /**
+ * Stage 5A: Secretary assigns session details before second reading.
+ * Transitions: COMMITTEE_REPORT_SUBMITTED -> RECORD_SECOND_SESSION
+ */
+exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
+  const normalizedSessionId = Number(sessionId);
+  if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+    const e = new Error('A valid session is required');
+    e.status = 400;
+    throw e;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await Ordinance.findById(id);
+    if (!existing.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('Ordinance not found');
+      e.status = 404;
+      throw e;
+    }
+
+    const ordinance = existing.rows[0];
+    const currentStage = String(ordinance.reading_stage || '').toUpperCase();
+    if (currentStage !== 'COMMITTEE_REPORT_SUBMITTED' && currentStage !== 'RECORD_SECOND_SESSION') {
+      await client.query('ROLLBACK');
+      const e = new Error('Second session assignment requires ordinance to be in COMMITTEE_REPORT_SUBMITTED stage');
+      e.status = 400;
+      throw e;
+    }
+
+    const sessionResult = await client.query('SELECT id FROM sessions WHERE id = $1', [normalizedSessionId]);
+    if (!sessionResult.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('Selected session was not found');
+      e.status = 400;
+      throw e;
+    }
+
+    await client.query(
+      `UPDATE ordinances
+       SET session_id_second_reading = $1,
+           reading_stage = 'RECORD_SECOND_SESSION',
+           status = 'Under Review',
+           updated_at = NOW()
+       WHERE id = $2`,
+      [normalizedSessionId, id]
+    );
+
+    await Ordinance.insertWorkflowAction(client, id, 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION', userId, `Assigned to session ${normalizedSessionId}`);
+    await AuditLog.create(client, userId, 'ASSIGN_SECOND_SESSION', `Session assigned for second reading of ordinance "${ordinance.title}"`);
+    await createNotification(ordinance.proposer_id, `Your ordinance "${ordinance.title}" was assigned to a session for second reading.`);
+
+    const updated = await client.query('SELECT * FROM ordinances WHERE id = $1', [id]);
+    const io = getIO();
+    io.emit('ordinanceSecondSessionAssigned', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
  * Stage 5: Secretary records Second Reading.
- * Transitions: COMMITTEE_REPORT_SUBMITTED → SECOND_READING
+ * Transitions: RECORD_SECOND_SESSION → SECOND_READING
  */
 exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingOfficer, userId) => {
   const client = await pool.connect();
@@ -1282,17 +1351,26 @@ exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingO
     const existing = await Ordinance.findById(id);
     if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
     const ordinance = existing.rows[0];
-    if (ordinance.reading_stage !== 'COMMITTEE_REPORT_SUBMITTED') {
+    const stage = String(ordinance.reading_stage || '').toUpperCase();
+    const hasAssignedSecondSession = Number.isInteger(Number(ordinance.session_id_second_reading));
+    const canProceedFromLegacyCommitteeReport = stage === 'COMMITTEE_REPORT_SUBMITTED' && hasAssignedSecondSession;
+    if (stage !== 'RECORD_SECOND_SESSION' && !canProceedFromLegacyCommitteeReport) {
       await client.query('ROLLBACK');
-      const e = new Error('Second Reading requires ordinance to be in COMMITTEE_REPORT_SUBMITTED stage'); e.status = 400; throw e;
+      const e = new Error('Second Reading requires ordinance to be in RECORD_SECOND_SESSION stage'); e.status = 400; throw e;
+    }
+
+    const normalizedSessionId = Number(sessionId || ordinance.session_id_second_reading);
+    if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+      await client.query('ROLLBACK');
+      const e = new Error('Assign a session first before recording second reading'); e.status = 400; throw e;
     }
 
     await client.query(
       `UPDATE ordinances SET session_id_second_reading=$1, reading_stage='SECOND_READING', updated_at=NOW() WHERE id=$2`,
-      [sessionId || null, id]
+      [normalizedSessionId, id]
     );
     const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
-    await Ordinance.insertReadingSession(client, id, sessionId, 2, discussionNotes, presidingOfficer);
+    await Ordinance.insertReadingSession(client, id, normalizedSessionId, 2, discussionNotes, presidingOfficer);
     await Ordinance.insertWorkflowAction(client, id, 'SECOND_READING', 'SECOND_READING', userId, discussionNotes || '');
     await AuditLog.create(client, userId, 'SECOND_READING', `Second reading conducted for "${ordinance.title}"`);
     await createNotification(ordinance.proposer_id, `Second reading conducted for your ordinance "${ordinance.title}".`);

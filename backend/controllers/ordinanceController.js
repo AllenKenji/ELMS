@@ -435,6 +435,24 @@ exports.secondReading = async (req, res) => {
   }
 };
 
+/** POST /ordinances/:id/record-second-session */
+exports.recordSecondSession = async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    const result = await ordinanceService.assignSessionForSecondReading(
+      req.params.id,
+      session_id,
+      req.user.id
+    );
+    res.json(result);
+  } catch (err) {
+    console.error('Assign second session error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error assigning second session' });
+  }
+};
+
 /** POST /ordinances/:id/open-voting */
 exports.openThirdReadingVote = async (req, res) => {
   try {

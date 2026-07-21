@@ -39,6 +39,7 @@ router.post('/:id/assign-session',       workflowLimiter, authenticateToken, aut
 router.post('/:id/first-reading',        workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.firstReading);
 router.post('/:id/assign-committee',     workflowLimiter, authenticateToken, authorizeRoles('Vice Mayor', 'Secretary', 'Admin'), resolutionController.assignCommittee);
 router.post('/:id/committee-report',     workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Committee Secretary', 'Admin'), resolutionController.committeeReport);
+router.post('/:id/record-second-session', workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.recordSecondSession);
 router.post('/:id/second-reading',       workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.secondReading);
 router.post('/:id/open-voting',          workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.openThirdReadingVote);
 router.post('/:id/cast-vote',            workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Secretary', 'Admin'), resolutionController.castThirdReadingVote);

@@ -107,19 +107,20 @@ const STAGES = [
   { key: 'FIRST_READING', label: '3. First Reading', icon: '📖', desc: 'Secretary records first reading and discussion notes' },
   { key: 'COMMITTEE_REVIEW', label: '4. Committee Review', icon: '🔍', desc: 'Committee deliberates and studies the measure' },
   { key: 'COMMITTEE_REPORT_SUBMITTED', label: '5. Committee Report', icon: '📋', desc: 'Committee submitted its recommendation' },
-  { key: 'SECOND_READING', label: '6. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
-  { key: 'THIRD_READING_VOTING', label: '7. Voting Open', icon: '🗳️', desc: 'Electronic voting is in progress' },
-  { key: 'THIRD_READING_VOTED', label: '8. Third Reading / Vote', icon: '✅', desc: 'Final vote taken by full council' },
-  { key: 'APPROVED', label: '9. Executive Approved', icon: '🏛️', desc: 'Mayor/Vice Mayor approved the measure' },
-  { key: 'POSTED', label: '10. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
-  { key: 'EFFECTIVE', label: '11. In Effect', icon: '⚖️', desc: 'Resolution is now in full effect' },
+  { key: 'RECORD_SECOND_SESSION', label: '6. Record Second Session', icon: '🗓️', desc: 'Secretary assigns the session for second reading' },
+  { key: 'SECOND_READING', label: '7. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
+  { key: 'THIRD_READING_VOTING', label: '8. Voting Open', icon: '🗳️', desc: 'Electronic voting is in progress' },
+  { key: 'THIRD_READING_VOTED', label: '9. Third Reading / Vote', icon: '✅', desc: 'Final vote taken by full council' },
+  { key: 'APPROVED', label: '10. Executive Approved', icon: '🏛️', desc: 'Mayor/Vice Mayor approved the measure' },
+  { key: 'POSTED', label: '11. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
+  { key: 'EFFECTIVE', label: '12. In Effect', icon: '⚖️', desc: 'Resolution is now in full effect' },
 ];
 
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
 
 const ROLE_ACTIONS = {
-  Secretary: ['assign-session', 'first-reading', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective'],
-  Admin:     ['assign-session', 'assign-committee', 'first-reading', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report'],
+  Secretary: ['assign-session', 'first-reading', 'record-second-session', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective'],
+  Admin:     ['assign-session', 'assign-committee', 'first-reading', 'record-second-session', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report'],
   'Vice Mayor':   ['assign-committee', 'executive-approval', 'executive-rejection'],
   Councilor: ['submit-to-vice-mayor', 'create-meeting', 'committee-report', 'cast-vote'],
   'Committee Secretary': ['create-meeting', 'committee-report'],
@@ -161,9 +162,11 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
     case 'COMMITTEE_REPORT_SUBMITTED': {
       const acts = [];
       if (canDo(userRole, 'committee-report')) acts.push('committee-report');
-      if (workflowStatus?.committeeReport && canDo(userRole, 'second-reading')) acts.push('second-reading');
+      if (workflowStatus?.committeeReport && canDo(userRole, 'record-second-session')) acts.push('record-second-session');
       return acts;
     }
+    case 'RECORD_SECOND_SESSION':
+      return canDo(userRole, 'second-reading') ? ['second-reading'] : [];
     case 'SECOND_READING':
       return canDo(userRole, 'open-voting') ? ['open-voting'] : [];
     case 'THIRD_READING_VOTING': {
@@ -193,6 +196,7 @@ const ACTION_LABELS = {
   'first-reading':       { emoji: '🎥', label: 'Record Session' },
   'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
+  'record-second-session': { emoji: '🗓️', label: 'Record Second Session' },
   'second-reading':      { emoji: '📖', label: 'Record Second Reading' },
   'open-voting':         { emoji: '🗳️', label: 'Open Voting' },
   'cast-vote':           { emoji: '✋', label: 'Cast Your Vote' },
@@ -351,15 +355,23 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
           return;
         }
         body = { session_id: form.session_id };
-      } else if (activeAction === 'first-reading' || activeAction === 'second-reading') {
+      } else if (activeAction === 'first-reading' || activeAction === 'record-second-session' || activeAction === 'second-reading') {
         if (activeAction === 'first-reading' && sessionRecordings.length > 0 && !form.selected_recording_url) {
           setError('Please select a recorded video first.');
           setSubmitting(false);
           return;
         }
 
+        if (activeAction === 'record-second-session' && !form.session_id) {
+          setError('Please select a session.');
+          setSubmitting(false);
+          return;
+        }
+
         body = {
-          session_id: resl?.session_id_first_reading || null,
+          session_id: activeAction === 'first-reading'
+            ? (resl?.session_id_first_reading || null)
+            : (form.session_id || resl?.session_id_second_reading || null),
           selected_recording_url: activeAction === 'first-reading' ? (form.selected_recording_url || null) : null,
           discussion_notes: form.discussion_notes,
           presiding_officer: form.presiding_officer || null,
@@ -522,6 +534,8 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
   const displayStage = (
     normalizedStage === 'SUBMITTED' && resl?.session_id_first_reading
       ? 'RECORD_SESSION'
+      : normalizedStage === 'COMMITTEE_REPORT_SUBMITTED' && resl?.session_id_second_reading
+        ? 'RECORD_SECOND_SESSION'
       : normalizedStage
   );
   const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === displayStage));
@@ -864,6 +878,11 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
               {ACTION_LABELS['second-reading']?.emoji} {ACTION_LABELS['second-reading']?.label}
             </button>
           )}
+          {availableActions.includes('record-second-session') && (
+            <button className="lw-action-btn lw-second-reading" onClick={() => handleActionClick('record-second-session')}>
+              {ACTION_LABELS['record-second-session']?.emoji} {ACTION_LABELS['record-second-session']?.label}
+            </button>
+          )}
           {availableActions.includes('open-voting') && (
             <button className="lw-action-btn lw-open-voting" onClick={() => handleActionClick('open-voting')}>
               {ACTION_LABELS['open-voting']?.emoji} {ACTION_LABELS['open-voting']?.label}
@@ -1016,11 +1035,11 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                 </div>
               )}
 
-              {(activeAction === "assign-session" || activeAction === "first-reading" || activeAction === "second-reading") && (
+              {(activeAction === "assign-session" || activeAction === "first-reading" || activeAction === "record-second-session" || activeAction === "second-reading") && (
                 <>
                   {activeAction !== "first-reading" && (
                     <div className="form-group">
-                      <label>Session {activeAction === "assign-session" ? <span className="required">*</span> : '(optional)'}</label>
+                      <label>Session {(activeAction === "assign-session" || activeAction === "record-second-session") ? <span className="required">*</span> : '(optional)'}</label>
                       <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
                         <option value="">— Select session —</option>
                         {sessions.map(s => (
