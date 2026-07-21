@@ -23,13 +23,13 @@ const generateLimiter = rateLimit({
   message: { status: 'fail', message: 'AI generation rate limit reached. Please wait before generating more minutes.' },
 });
 
-router.post('/', minutesLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.create);
-router.post('/:id/generate', generateLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.generate);
-router.post('/:id/recordings/:recordingId/transcribe', generateLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.transcribeRecording);
+router.post('/', minutesLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary', 'Committee Secretary'), minutesController.create);
+router.post('/:id/generate', generateLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary', 'Committee Secretary'), minutesController.generate);
+router.post('/:id/recordings/:recordingId/transcribe', generateLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary', 'Committee Secretary'), minutesController.transcribeRecording);
 router.get('/', minutesLimiter, authenticateToken, minutesController.getAll);
 router.get('/:id', minutesLimiter, authenticateToken, minutesController.getById);
 router.get('/:id/export/text', minutesLimiter, authenticateToken, minutesController.exportText);
-router.put('/:id', minutesLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.update);
-router.delete('/:id', minutesLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary'), minutesController.remove);
+router.put('/:id', minutesLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary', 'Committee Secretary'), minutesController.update);
+router.delete('/:id', minutesLimiter, authenticateToken, authorizeRoles('Admin', 'Secretary', 'Committee Secretary'), minutesController.remove);
 
 module.exports = router;
