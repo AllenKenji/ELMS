@@ -169,6 +169,20 @@ exports.getCommitteeMeetings = async (req, res) => {
   }
 };
 
+/**
+ * Get upcoming committee meetings visible to current user.
+ * GET /committees/meetings/upcoming
+ */
+exports.getUpcomingMeetings = async (req, res) => {
+  try {
+    const meetings = await committeeService.getUpcomingMeetingsForUser(req.user.id);
+    res.json(meetings);
+  } catch (err) {
+    console.error('Get upcoming committee meetings error:', err);
+    res.status(500).json({ error: 'Error fetching upcoming committee meetings' });
+  }
+};
+
 
 /**
  * Create a new committee.

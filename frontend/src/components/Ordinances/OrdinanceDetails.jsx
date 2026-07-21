@@ -435,15 +435,14 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
     return index === -1 ? 0 : index;
   };
 
-  // Show committee meetings tab to Admin, Vice Mayor, and assigned committee members.
+  // Show committee meetings tab only to assigned committee members/chair/committee secretary.
   const isCommitteeMemberOrSecretaryOrAdmin = useMemo(() => {
     if (!ordinance || !ordinance.committee || !user) return false;
-    if (user.role === 'Admin' || user.role === 'Vice Mayor' || user.role === 'Secretary') return true;
-    if (user.role === 'Councilor' && Boolean(ordinance.committee_id)) return true;
     if (String(ordinance.committee.chair_id) === String(user.id)) return true;
     if (!Array.isArray(ordinance.committee.members)) return false;
     return ordinance.committee.members.some(
-      m => String(m.user_id) === String(user.id)
+      (m) => String(m.user_id) === String(user.id)
+        && ['Chair', 'Member', 'Committee Secretary'].includes(String(m.role || '').trim())
     );
   }, [ordinance, user]);
 

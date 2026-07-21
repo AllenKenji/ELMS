@@ -390,11 +390,14 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
 
   const isCommitteeMemberOrSecretaryOrAdmin = useMemo(() => {
     if (!resolution || !resolution.committee || !user) return false;
-    if (user.role === 'Admin' || user.role === 'Vice Mayor' || user.role === 'Secretary') return true;
     if (user.role === 'Councilor' && Boolean(resolution.committee_id)) return true;
     if (String(resolution.committee.chair_id) === String(user.id)) return true;
     if (!Array.isArray(resolution.committee.members)) return false;
-    return resolution.committee.members.some(m => String(m.user_id) === String(user.id));
+    return Array.isArray(resolution.committee.members)
+      && resolution.committee.members.some(
+        (m) => String(m.user_id) === String(user.id)
+          && ['Chair', 'Member', 'Committee Secretary'].includes(String(m.role || '').trim())
+      );
   }, [resolution, user]);
 
   if (loading) {

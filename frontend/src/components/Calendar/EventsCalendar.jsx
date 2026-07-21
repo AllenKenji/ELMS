@@ -51,6 +51,7 @@ export default function EventsCalendar() {
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [sessions, setSessions] = useState([]);
+  const [committeeMeetings, setCommitteeMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedDay, setSelectedDay] = useState(null);
@@ -62,12 +63,17 @@ export default function EventsCalendar() {
     try {
       setLoading(true);
       setError('');
-      const res = await api.get('/sessions');
-      setSessions(res.data || []);
+      const [sessionRes, committeeMeetingRes] = await Promise.all([
+        api.get('/sessions'),
+        api.get('/committees/meetings/upcoming').catch(() => ({ data: [] })),
+      ]);
+      setSessions(sessionRes.data || []);
+      setCommitteeMeetings(committeeMeetingRes.data || []);
     } catch (err) {
       setError('Failed to load sessions. Please try again.');
       console.error('Error fetching sessions:', err);
       setSessions([]);
+      setCommitteeMeetings([]);
     } finally {
       setLoading(false);
     }
@@ -141,7 +147,7 @@ export default function EventsCalendar() {
     setSelectedDay(today.getDate());
   };
 
-  // Group sessions by date string (YYYY-MM-DD)
+  // Group sessions and committee meetings by date string (YYYY-MM-DD)
   const sessionsByDate = {};
   sessions.forEach((session) => {
     const key = getSessionDateKey(session);
@@ -150,7 +156,17 @@ export default function EventsCalendar() {
     }
 
     if (!sessionsByDate[key]) sessionsByDate[key] = [];
-    sessionsByDate[key].push(session);
+    sessionsByDate[key].push({ ...session, eventType: 'session' });
+  });
+
+  committeeMeetings.forEach((meeting) => {
+    const dateValue = String(meeting?.meeting_date || '').slice(0, 10);
+    if (!dateValue) {
+      return;
+    }
+
+    if (!sessionsByDate[dateValue]) sessionsByDate[dateValue] = [];
+    sessionsByDate[dateValue].push({ ...meeting, eventType: 'committee_meeting' });
   });
 
   const calendarDays = buildCalendarDays(currentYear, currentMonth);
@@ -167,7 +183,7 @@ export default function EventsCalendar() {
   const selectedDateKey = selectedDay ? getDateKey(selectedDay) : null;
   const selectedSessions = selectedDateKey
     ? (sessionsByDate[selectedDateKey] || []).filter(
-        (s) => !filterType || s.type === filterType
+        (s) => !filterType || s.eventType === 'committee_meeting' || s.type === filterType
       )
     : [];
 
@@ -181,8 +197,8 @@ export default function EventsCalendar() {
 
   const stats = {
     total: monthSessions.length,
-    upcoming: monthSessions.filter((s) => getSessionStatus(s) === 'Upcoming').length,
-    completed: monthSessions.filter((s) => getSessionStatus(s) === 'Completed').length,
+    upcoming: monthSessions.filter((s) => s.eventType === 'committee_meeting' || getSessionStatus(s) === 'Upcoming').length,
+    completed: monthSessions.filter((s) => s.eventType === 'session' && getSessionStatus(s) === 'Completed').length,
   };
 
   if (loading) {
@@ -272,6 +288,10 @@ export default function EventsCalendar() {
             {status}
           </span>
         ))}
+        <span className="legend-item">
+          <span className="legend-dot" style={{ backgroundColor: '#f39c12' }}></span>
+          Committee Meeting
+        </span>
       </div>
 
       {/* Calendar Grid */}
@@ -306,13 +326,13 @@ export default function EventsCalendar() {
               {hasEvents && (
                 <div className="day-events">
                   {daySessions.slice(0, 3).map((s) => {
-                    const status = getSessionStatus(s);
+                    const status = s.eventType === 'committee_meeting' ? 'Upcoming' : getSessionStatus(s);
                     return (
                       <span
-                        key={s.id}
+                        key={`${s.eventType || 'session'}-${s.id}`}
                         className="event-dot"
-                        style={{ backgroundColor: SESSION_STATUS_COLORS[status] }}
-                        title={s.title}
+                        style={{ backgroundColor: s.eventType === 'committee_meeting' ? '#f39c12' : SESSION_STATUS_COLORS[status] }}
+                        title={s.title || s.committee_name || 'Committee meeting'}
                       ></span>
                     );
                   })}
@@ -349,36 +369,50 @@ export default function EventsCalendar() {
           ) : (
             <div className="panel-sessions">
               {selectedSessions.map((session) => {
-                const status = getSessionStatus(session);
+                const isCommitteeMeeting = session.eventType === 'committee_meeting';
+                const status = isCommitteeMeeting ? 'Upcoming' : getSessionStatus(session);
                 const normalizedSessionId = Number(session.id);
-                const isJoining = Boolean(joinLoadingBySession[normalizedSessionId]);
-                const isJoined = joinedSessionIds.has(normalizedSessionId);
-                const canJoin = Boolean(user?.id) && status !== 'Completed';
+                const isJoining = isCommitteeMeeting ? false : Boolean(joinLoadingBySession[normalizedSessionId]);
+                const isJoined = isCommitteeMeeting ? false : joinedSessionIds.has(normalizedSessionId);
+                const canJoin = !isCommitteeMeeting && Boolean(user?.id) && status !== 'Completed';
                 return (
-                  <div key={session.id} className="panel-session-card">
+                  <div key={`${session.eventType || 'session'}-${session.id}`} className="panel-session-card">
                     <div
                       className="session-status-bar"
-                      style={{ backgroundColor: SESSION_STATUS_COLORS[status] }}
+                      style={{ backgroundColor: isCommitteeMeeting ? '#f39c12' : SESSION_STATUS_COLORS[status] }}
                     ></div>
                     <div className="session-card-content">
                       <div className="session-card-header">
                         <h5>{session.title}</h5>
                         <span
                           className="session-status-badge"
-                          style={{ backgroundColor: SESSION_STATUS_COLORS[status] }}
+                          style={{ backgroundColor: isCommitteeMeeting ? '#f39c12' : SESSION_STATUS_COLORS[status] }}
                         >
-                          {status}
+                          {isCommitteeMeeting ? 'Committee Meeting' : status}
                         </span>
                       </div>
                       <div className="session-meta-row">
-                        <span>🕐 {formatSessionClock(session.session_time)}</span>
-                        <span>📍 {session.location || 'Not specified'}</span>
+                        <span>🕐 {isCommitteeMeeting ? formatSessionClock(session.meeting_time) : formatSessionClock(session.session_time)}</span>
+                        <span>📍 {isCommitteeMeeting ? (session.meeting_location || 'Not specified') : (session.location || 'Not specified')}</span>
                       </div>
-                      {session.type && (
+                      {isCommitteeMeeting ? (
+                        <div className="session-type-tag">{session.committee_name || 'Committee'}</div>
+                      ) : session.type && (
                         <div className="session-type-tag">{session.type}</div>
                       )}
-                      {session.agenda && (
+                      {!isCommitteeMeeting && session.agenda && (
                         <p className="session-agenda-text">{session.agenda}</p>
+                      )}
+                      {isCommitteeMeeting && (
+                        <div className="session-card-actions">
+                          <button
+                            type="button"
+                            className="btn-calendar-watch"
+                            onClick={() => navigate(`/dashboard/committee-meetings/live/${session.committee_id}/${session.id}`)}
+                          >
+                            Open Meeting Room
+                          </button>
+                        </div>
                       )}
                       {canJoin && (
                         <div className="session-card-actions">

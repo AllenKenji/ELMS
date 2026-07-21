@@ -248,6 +248,22 @@ exports.getCommitteeMeetings = async (committeeId) => {
   return result.rows;
 };
 
+exports.getUpcomingMeetingsForUser = async (userId) => {
+  const result = await pool.query(
+    `SELECT DISTINCT cm.*, c.name AS committee_name
+     FROM committee_meetings cm
+     INNER JOIN committees c ON c.id = cm.committee_id
+     LEFT JOIN committee_members cmm ON cmm.committee_id = cm.committee_id AND cmm.user_id = $1
+     WHERE (c.chair_id = $1 OR (cmm.user_id = $1 AND cmm.role IN ('Chair', 'Member', 'Committee Secretary')))
+       AND COALESCE(cm.ended, FALSE) = FALSE
+       AND cm.meeting_date >= CURRENT_DATE
+     ORDER BY cm.meeting_date ASC, cm.meeting_time ASC NULLS LAST, cm.created_at ASC`,
+    [userId]
+  );
+
+  return result.rows;
+};
+
 exports.saveMeetingRecording = async (committeeId, meetingId, file, userId) => {
   const relativePath = file ? `${RECORDING_UPLOAD_PREFIX}${file.filename}` : null;
   const client = await pool.connect();

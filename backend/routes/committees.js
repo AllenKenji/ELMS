@@ -6,6 +6,7 @@ const Committee = require('../models/Committee');
 const meetingRecordingUpload = require('../middleware/meetingRecordingUpload');
 
 const COMMITTEE_MEETING_ROLES = new Set(['Chair', 'Secretary', 'Committee Secretary']);
+const COMMITTEE_MEETING_VIEW_ROLES = new Set(['Chair', 'Member', 'Committee Secretary']);
 
 async function loadCommitteeContext(committeeId) {
 	const committeeResult = await Committee.findById(committeeId);
@@ -26,10 +27,6 @@ async function authorizeCommitteeMeetingView(req, res, next) {
 			return res.status(401).json({ error: 'No user information found in token' });
 		}
 
-		if (req.user.role === 'Admin' || req.user.role === 1 || req.user.role === 'Vice Mayor' || req.user.role === 'Secretary') {
-			return next();
-		}
-
 		const context = await loadCommitteeContext(req.params.id);
 		if (!context) {
 			return res.status(404).json({ error: 'Committee not found' });
@@ -37,7 +34,7 @@ async function authorizeCommitteeMeetingView(req, res, next) {
 
 		const isChair = String(context.committee.chair_id) === String(req.user.id);
 		const isAllowedMember = context.members.some(
-			(member) => String(member.user_id) === String(req.user.id)
+			(member) => String(member.user_id) === String(req.user.id) && COMMITTEE_MEETING_VIEW_ROLES.has(member.role)
 		);
 
 		if (isChair || isAllowedMember) {
@@ -114,6 +111,7 @@ router.post('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCo
 router.post('/:id/meetings/:meetingId/recording-link', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.saveMeetingRecordingLink);
 router.get('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCommitteeMeetingView, committeeController.getMeetingRecording);
 router.delete('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.deleteMeetingRecording);
+router.get('/meetings/upcoming', authenticateToken, committeeController.getUpcomingMeetings);
 router.get('/:id/meetings', authenticateToken, authorizeCommitteeMeetingView, committeeController.getCommitteeMeetings);
 router.delete('/:id/meetings/:meetingId', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.deleteMeeting);
 router.patch('/:id/meetings/:meetingId/end', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.endMeeting);
