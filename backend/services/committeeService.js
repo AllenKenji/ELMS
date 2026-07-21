@@ -98,6 +98,19 @@ function buildInternalMeetingLink(committeeId, meetingId) {
   return `/dashboard/committee-meetings/live/${committeeId}/${meetingId}`;
 }
 
+function resolveFrontendBaseUrl(baseUrlCandidate) {
+  const candidates = [
+    baseUrlCandidate,
+    process.env.FRONTEND_URL,
+    process.env.PUBLIC_BASE_URL,
+    process.env.APP_BASE_URL,
+  ]
+    .map((value) => String(value || '').trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  return candidates[0] || '';
+}
+
 function resolveUploadAbsolutePath(relativePath) {
   if (!relativePath || !String(relativePath).startsWith(RECORDING_UPLOAD_PREFIX)) {
     return null;
@@ -131,7 +144,8 @@ exports.deleteMeeting = async (committeeId, meetingId, userId) => {
 exports.createMeeting = async (
   committeeId,
   { title, meeting_date, meeting_time, ordinance_id, resolution_id, meetingLink, meeting_mode, meeting_location },
-  userId
+  userId,
+  baseUrl = ''
 ) => {
   const client = await pool.connect();
   try {
@@ -180,7 +194,9 @@ exports.createMeeting = async (
     const meeting = result.rows[0];
 
     if (shouldAutoGenerateInternalLink) {
-      normalizedMeetingLink = buildInternalMeetingLink(committeeId, meeting.id);
+      const frontendBaseUrl = resolveFrontendBaseUrl(baseUrl);
+      const internalPath = buildInternalMeetingLink(committeeId, meeting.id);
+      normalizedMeetingLink = frontendBaseUrl ? `${frontendBaseUrl}${internalPath}` : internalPath;
       const updated = await client.query(
         `UPDATE committee_meetings
          SET meeting_link = $1, updated_at = NOW()

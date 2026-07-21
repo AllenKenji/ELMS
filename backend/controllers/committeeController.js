@@ -50,7 +50,8 @@ exports.createMeeting = async (req, res) => {
     const meeting = await require('../services/committeeService').createMeeting(
       req.params.id,
       { title, meeting_date, meeting_time, ordinance_id, resolution_id, meetingLink, meeting_mode, meeting_location },
-      req.user.id
+      req.user.id,
+      req.headers?.origin || ''
     );
     // Expose meeting_link and minutes_id in the response
     res.status(201).json({
