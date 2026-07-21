@@ -27,11 +27,19 @@ const fileFilter = (req, file, cb) => {
   const allowedExtensions = new Set(['.webm', '.mp4', '.mov', '.mkv']);
   const acceptedExplicitMimeTypes = new Set(['application/webm', 'application/x-matroska', 'audio/webm']);
   const acceptedGenericMimeTypes = new Set(['', 'application/octet-stream', 'binary/octet-stream']);
+  const acceptedVideoMimeFragments = ['webm', 'mp4', 'quicktime', 'matroska', 'mpeg', 'ogg', 'm4v'];
 
   const hasAllowedExtension = allowedExtensions.has(extension);
   const looksLikeRecorderBlob = baseName === 'blob' || baseName.includes('record') || baseName.includes('session') || baseName.includes('meeting') || baseName.includes('screen') || baseName.includes('video');
+  const hasVideoLikeMime = acceptedVideoMimeFragments.some((fragment) => mimeType.includes(fragment));
 
-  if (mimeType.startsWith('video/') || acceptedExplicitMimeTypes.has(mimeType)) {
+  if (mimeType.startsWith('video/') || acceptedExplicitMimeTypes.has(mimeType) || hasVideoLikeMime) {
+    cb(null, true);
+    return;
+  }
+
+  // Accept files with known video extensions even if browsers mislabel MIME type.
+  if (hasAllowedExtension) {
     cb(null, true);
     return;
   }

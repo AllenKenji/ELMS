@@ -4,6 +4,7 @@
 const pool = require('../db');
 const Ordinance = require('../models/Ordinance');
 const Resolution = require('../models/Resolution');
+const SessionRecording = require('../models/SessionRecording');
 const Vote = require('../models/Vote');
 const AuditLog = require('../models/AuditLog');
 const { createNotification } = require('../utils/notifications');
@@ -1708,6 +1709,7 @@ exports.getWorkflowStatus = async (id) => {
   const ord = ordinance.rows[0];
   let committeeReport = null;
   let postingRecords = [];
+  let linkedSessionRecordings = [];
 
   // Fetch and attach full committee object if committee_id is present
   let committee = undefined;
@@ -1725,11 +1727,21 @@ exports.getWorkflowStatus = async (id) => {
 
   postingRecords = await safeQuery(() => Ordinance.findPostingRecords(id), []);
 
+  const linkedSessionId = Number(ord?.session_id_first_reading);
+  if (Number.isInteger(linkedSessionId) && linkedSessionId > 0) {
+    const linkedRecordingRows = await safeQuery(
+      () => SessionRecording.findBySessionId(linkedSessionId),
+      []
+    );
+    linkedSessionRecordings = linkedRecordingRows;
+  }
+
   return {
     ordinance: ord,
     readings: readingsRows,
     committeeReport,
     postingRecords,
+    linkedSessionRecordings,
     history: historyRows,
   };
 };

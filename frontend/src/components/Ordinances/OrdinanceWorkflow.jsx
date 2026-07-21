@@ -294,10 +294,13 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
       }
 
       setActiveAction(action);
+      const preloadedWorkflowRecordings = normalizeDirectSessionRecordings(workflowStatus?.linkedSessionRecordings);
       setForm({
         selected_recording_url: '',
         discussion_notes: '',
       });
+
+      setSessionRecordings(preloadedWorkflowRecordings);
 
       setLoadingRecordings(true);
       const cacheBust = Date.now();
@@ -313,7 +316,11 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
             ? normalizeDirectSessionRecordings(directRecordingsResult.value?.data)
             : [];
 
-          const mergedRecordings = mergeSessionRecordings(minutesRecordings, directRecordings);
+          const mergedRecordings = mergeSessionRecordings(
+            preloadedWorkflowRecordings,
+            minutesRecordings,
+            directRecordings
+          );
           setSessionRecordings(mergedRecordings);
 
           if (

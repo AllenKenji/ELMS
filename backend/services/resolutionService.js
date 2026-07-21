@@ -3,6 +3,7 @@
  */
 const pool = require('../db');
 const Resolution = require('../models/Resolution');
+const SessionRecording = require('../models/SessionRecording');
 const AuditLog = require('../models/AuditLog');
 const { createNotification } = require('../utils/notifications');
 const { getIO } = require('../socket');
@@ -1387,6 +1388,7 @@ exports.getWorkflowStatus = async (id) => {
   const res = resolutionRes.rows[0];
   let committeeReport = null;
   let postingRecords = [];
+  let linkedSessionRecordings = [];
 
   // Fetch committee with members
   let committee = undefined;
@@ -1403,11 +1405,21 @@ exports.getWorkflowStatus = async (id) => {
 
   postingRecords = await safeQuery(() => Resolution.findPostingRecords(id), []);
 
+  const linkedSessionId = Number(res?.session_id_first_reading);
+  if (Number.isInteger(linkedSessionId) && linkedSessionId > 0) {
+    const linkedRecordingRows = await safeQuery(
+      () => SessionRecording.findBySessionId(linkedSessionId),
+      []
+    );
+    linkedSessionRecordings = linkedRecordingRows;
+  }
+
   return {
     resolution: res,
     readings: readingsRows,
     committeeReport,
     postingRecords,
+    linkedSessionRecordings,
     history: historyRows,
   };
 };
