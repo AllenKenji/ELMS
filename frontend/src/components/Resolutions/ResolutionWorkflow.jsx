@@ -160,7 +160,7 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
 
 const ACTION_LABELS = {
   'submit-to-vice-mayor': { emoji: '📤', label: 'Submit to Vice Mayor' },
-  'assign-session':      { emoji: '🗓️', label: 'Record Session' },
+  'assign-session':      { emoji: '🗓️', label: 'Assign Session' },
   'first-reading':       { emoji: '🎥', label: 'Record Session' },
   'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
