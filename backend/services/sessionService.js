@@ -270,6 +270,18 @@ exports.getSessionMinutes = async (sessionId) => {
   return result.rows;
 };
 
+exports.getSessionRecordings = async (sessionId) => {
+  const normalizedSessionId = Number(sessionId);
+  if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+    const err = new Error('A valid session id is required');
+    err.status = 400;
+    throw err;
+  }
+
+  const result = await SessionRecording.findBySessionId(normalizedSessionId);
+  return result.rows || [];
+};
+
 exports.saveSessionRecording = async (sessionId, file, userId, minutesId = null) => {
   const relativePath = file ? `${SESSION_RECORDING_UPLOAD_PREFIX}${file.filename}` : null;
   const client = await pool.connect();

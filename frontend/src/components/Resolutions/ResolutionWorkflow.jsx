@@ -59,6 +59,35 @@ function normalizeSessionMinutesRecordings(minutesEntries) {
   });
 }
 
+function normalizeDirectSessionRecordings(recordings) {
+  const entries = Array.isArray(recordings) ? recordings : [];
+  return entries
+    .filter((recording) => String(recording?.recording_url || '').trim())
+    .map((recording) => ({
+      ...recording,
+      id: recording?.id || `session-${recording?.recording_url}`,
+      minutesId: recording?.minutes_id || null,
+      minutesTitle: recording?.minutes_id ? `Minutes #${recording.minutes_id}` : 'Session Recording',
+    }));
+}
+
+function mergeSessionRecordings(...sources) {
+  const merged = [];
+  const seen = new Set();
+
+  sources.flat().forEach((recording) => {
+    const recordingUrl = String(recording?.recording_url || '').trim();
+    if (!recordingUrl || seen.has(recordingUrl)) {
+      return;
+    }
+
+    seen.add(recordingUrl);
+    merged.push(recording);
+  });
+
+  return merged;
+}
+
 function extractLinkedRecordingUrl(notesValue) {
   const notes = String(notesValue || '');
   const match = notes.match(/session\s+recording\s*:\s*(\S+)/i);
@@ -266,13 +295,27 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
       });
 
       setLoadingRecordings(true);
-      api.get(`/sessions/${linkedSessionId}/minutes`)
-        .then((res) => {
-          const recordings = normalizeSessionMinutesRecordings(res.data);
-          setSessionRecordings(recordings);
-        })
-        .catch(() => {
-          setSessionRecordings([]);
+      Promise.allSettled([
+        api.get(`/sessions/${linkedSessionId}/minutes`),
+        api.get(`/sessions/${linkedSessionId}/recordings`),
+      ])
+        .then(([minutesResult, directRecordingsResult]) => {
+          const minutesRecordings = minutesResult.status === 'fulfilled'
+            ? normalizeSessionMinutesRecordings(minutesResult.value?.data)
+            : [];
+          const directRecordings = directRecordingsResult.status === 'fulfilled'
+            ? normalizeDirectSessionRecordings(directRecordingsResult.value?.data)
+            : [];
+
+          const mergedRecordings = mergeSessionRecordings(minutesRecordings, directRecordings);
+          setSessionRecordings(mergedRecordings);
+
+          if (
+            minutesResult.status === 'rejected' &&
+            directRecordingsResult.status === 'rejected'
+          ) {
+            setError('Failed to load linked session recordings.');
+          }
         })
         .finally(() => {
           setLoadingRecordings(false);

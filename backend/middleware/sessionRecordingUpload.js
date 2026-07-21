@@ -21,10 +21,23 @@ const storage = multer.diskStorage({
 
 const fileFilter = (req, file, cb) => {
   const mimeType = String(file.mimetype || '').toLowerCase();
-  const extension = path.extname(String(file.originalname || '')).toLowerCase();
+  const originalName = String(file.originalname || '').trim();
+  const extension = path.extname(originalName).toLowerCase();
+  const baseName = path.basename(originalName, extension).toLowerCase();
   const allowedExtensions = new Set(['.webm', '.mp4', '.mov', '.mkv']);
+  const acceptedExplicitMimeTypes = new Set(['application/webm', 'application/x-matroska', 'audio/webm']);
+  const acceptedGenericMimeTypes = new Set(['', 'application/octet-stream', 'binary/octet-stream']);
 
-  if (mimeType.startsWith('video/') || ((mimeType === '' || mimeType === 'application/octet-stream') && allowedExtensions.has(extension))) {
+  const hasAllowedExtension = allowedExtensions.has(extension);
+  const looksLikeRecorderBlob = baseName === 'blob' || baseName.includes('record') || baseName.includes('session') || baseName.includes('meeting') || baseName.includes('screen') || baseName.includes('video');
+
+  if (mimeType.startsWith('video/') || acceptedExplicitMimeTypes.has(mimeType)) {
+    cb(null, true);
+    return;
+  }
+
+  // Some browsers upload valid recordings as generic blobs (e.g. "blob" + octet-stream).
+  if (acceptedGenericMimeTypes.has(mimeType) && (hasAllowedExtension || looksLikeRecorderBlob)) {
     cb(null, true);
     return;
   }

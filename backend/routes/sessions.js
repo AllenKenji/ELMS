@@ -27,6 +27,7 @@ router.post('/:id/participants', authenticateToken, authorizeRoles('Secretary', 
 router.post('/:id/participants/from-oob', authenticateToken, authorizeRoles('Secretary', 'Admin'), sessionController.addParticipantsFromOob);
 router.put('/:id/participants/:userId', authenticateToken, sessionController.updateParticipant);
 router.get('/:id/minutes', sessionLimiter, authenticateToken, sessionController.getMinutes);
+router.get('/:id/recordings', sessionLimiter, authenticateToken, sessionController.getRecordings);
 router.post('/:id/recording', authenticateToken, authorizeRoles('Secretary', 'Admin', 'Vice Mayor', 'Councilor'), sessionRecordingUpload.single('recording_file'), sessionController.uploadRecording);
 router.get('/:id/committee-reports', authenticateToken, sessionController.getCommitteeReports);
 

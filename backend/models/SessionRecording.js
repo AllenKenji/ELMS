@@ -31,6 +31,17 @@ exports.findByMinutesId = async (minutesId, client = pool) => {
   );
 };
 
+exports.findBySessionId = async (sessionId, client = pool) => {
+  return client.query(
+    `SELECT sr.*, uploader.name AS recording_uploaded_by_name
+     FROM session_recordings sr
+     LEFT JOIN users uploader ON uploader.id = sr.recording_uploaded_by
+     WHERE sr.session_id = $1
+     ORDER BY sr.recording_uploaded_at DESC, sr.created_at DESC`,
+    [sessionId]
+  );
+};
+
 exports.updateTranscript = async (id, transcript, transcriptStatus, transcriptError = null, client = pool) => {
   return client.query(
     `UPDATE session_recordings

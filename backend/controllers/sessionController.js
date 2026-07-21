@@ -205,6 +205,21 @@ exports.getMinutes = async (req, res) => {
 };
 
 /**
+ * Get uploaded recordings for a session.
+ * GET /sessions/:id/recordings
+ */
+exports.getRecordings = async (req, res) => {
+  try {
+    const recordings = await sessionService.getSessionRecordings(req.params.id);
+    res.json(recordings);
+  } catch (err) {
+    console.error('Get session recordings error:', err);
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error fetching session recordings' });
+  }
+};
+
+/**
  * Upload a session recording and attach it to a session minutes record.
  * POST /sessions/:id/recording
  */
