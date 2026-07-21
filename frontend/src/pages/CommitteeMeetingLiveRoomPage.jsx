@@ -52,6 +52,16 @@ export default function CommitteeMeetingLiveRoomPage() {
     return params.get('watch') === '1';
   }, [location.search]);
 
+  const liveSignalSessionId = useMemo(() => {
+    const rawMeetingId = Number(meetingId);
+    if (!Number.isInteger(rawMeetingId) || rawMeetingId <= 0) {
+      return 0;
+    }
+
+    // Namespace committee live rooms away from regular session live rooms.
+    return 1_000_000_000 + rawMeetingId;
+  }, [meetingId]);
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -170,7 +180,7 @@ export default function CommitteeMeetingLiveRoomPage() {
       )}
 
       <LiveSessionPanel
-        sessionId={Number(meetingId)}
+        sessionId={liveSignalSessionId}
         canBroadcast={!meeting.ended && canBroadcast}
         broadcastStream={liveBroadcastStream}
         hostName={user?.name || user?.email || 'Host'}

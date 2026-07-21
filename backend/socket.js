@@ -21,20 +21,60 @@ function getOrCreateLiveState(sessionId) {
     liveSessions.set(sessionId, {
       broadcasterSocketId: null,
       broadcasterName: null,
-      viewers: new Set(),
+      viewers: new Map(),
     });
   }
 
   return liveSessions.get(sessionId);
 }
 
+function buildLiveParticipantsPayload(state) {
+  const participants = [];
+
+  if (state?.broadcasterSocketId) {
+    participants.push({
+      socketId: state.broadcasterSocketId,
+      name: state.broadcasterName || 'Host',
+      type: 'host',
+    });
+  }
+
+  for (const [viewerSocketId, viewerData] of state?.viewers?.entries?.() || []) {
+    participants.push({
+      socketId: viewerSocketId,
+      name: viewerData?.name || 'Participant',
+      type: 'viewer',
+    });
+  }
+
+  return {
+    participants,
+    participantCount: participants.length,
+    viewerCount: state?.viewers?.size || 0,
+  };
+}
+
+function emitLiveParticipants(sessionId) {
+  const state = liveSessions.get(sessionId);
+  const payload = buildLiveParticipantsPayload(state);
+  io.to(getLiveRoom(sessionId)).emit('live:participants', {
+    sessionId,
+    participants: payload.participants,
+    participantCount: payload.participantCount,
+    viewerCount: payload.viewerCount,
+  });
+}
+
 function emitLiveStatus(sessionId) {
   const state = liveSessions.get(sessionId);
+  const { participantCount, viewerCount } = buildLiveParticipantsPayload(state);
   io.to(getLiveRoom(sessionId)).emit('live:status', {
     sessionId,
     active: Boolean(state?.broadcasterSocketId),
     broadcasterSocketId: state?.broadcasterSocketId || null,
     broadcasterName: state?.broadcasterName || null,
+    participantCount,
+    viewerCount,
   });
 }
 
@@ -138,6 +178,7 @@ function init(server) {
       getOrCreateLiveState(sessionId);
       getOrCreateCameraState(sessionId);
       emitLiveStatus(sessionId);
+      emitLiveParticipants(sessionId);
       socket.emit('camera:list', {
         sessionId,
         publishers: getCameraPublishersPayload(sessionId, socket.id),
@@ -296,10 +337,11 @@ function init(server) {
       socket.join(getLiveRoom(sessionId));
       socket.data.liveSessionIds.add(sessionId);
       emitLiveStatus(sessionId);
+      emitLiveParticipants(sessionId);
 
       // If viewers were already waiting in this live room before publish,
       // explicitly attach each one so offer/answer starts immediately.
-      for (const viewerSocketId of state.viewers) {
+      for (const viewerSocketId of state.viewers.keys()) {
         if (viewerSocketId === socket.id) {
           continue;
         }
@@ -324,19 +366,24 @@ function init(server) {
       state.broadcasterSocketId = null;
       state.broadcasterName = null;
       emitLiveStatus(sessionId);
+      emitLiveParticipants(sessionId);
       cleanupLiveStateIfEmpty(sessionId);
     });
 
-    socket.on('live:viewer-ready', ({ sessionId: sessionIdValue } = {}) => {
+    socket.on('live:viewer-ready', ({ sessionId: sessionIdValue, viewerName } = {}) => {
       const sessionId = normalizeSessionId(sessionIdValue);
       if (!sessionId) {
         return;
       }
 
       const state = getOrCreateLiveState(sessionId);
-      state.viewers.add(socket.id);
+      state.viewers.set(socket.id, {
+        name: String(viewerName || '').trim().slice(0, 120) || 'Participant',
+      });
       socket.join(getLiveRoom(sessionId));
       socket.data.liveSessionIds.add(sessionId);
+      emitLiveStatus(sessionId);
+      emitLiveParticipants(sessionId);
 
       if (state.broadcasterSocketId) {
         io.to(state.broadcasterSocketId).emit('live:viewer-joined', {
@@ -399,6 +446,8 @@ function init(server) {
           state.broadcasterName = null;
           emitLiveStatus(sessionId);
         }
+
+        emitLiveParticipants(sessionId);
 
         cleanupLiveStateIfEmpty(sessionId);
 

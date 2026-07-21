@@ -73,6 +73,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const [status, setStatus] = useState('No live stream in progress.');
   const [error, setError] = useState('');
   const [cameraError, setCameraError] = useState('');
+  const [participantName, setParticipantName] = useState('');
+  const [liveParticipants, setLiveParticipants] = useState([]);
+  const [participantCount, setParticipantCount] = useState(0);
+  const [viewerCount, setViewerCount] = useState(0);
+  const [participantActivity, setParticipantActivity] = useState([]);
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -95,9 +100,75 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const isBroadcastingRef = useRef(false);
   const isWatchingRef = useRef(false);
   const sourceBroadcastStreamRef = useRef(null);
+  const previousParticipantsRef = useRef(new Map());
 
   const normalizedSessionId = useMemo(() => Number(sessionId), [sessionId]);
   const hasExternalBroadcast = Boolean(broadcastStream);
+
+  const resolvedParticipantName = useMemo(() => {
+    const customName = String(participantName || '').trim();
+    if (customName) {
+      return customName;
+    }
+
+    const fallback = String(hostName || '').trim();
+    return fallback || 'Participant';
+  }, [hostName, participantName]);
+
+  useEffect(() => {
+    setParticipantName(String(hostName || '').trim());
+  }, [hostName]);
+
+  useEffect(() => {
+    const previousParticipants = previousParticipantsRef.current;
+    const currentParticipants = new Map(
+      liveParticipants
+        .filter((participant) => participant?.socketId)
+        .map((participant) => [
+          String(participant.socketId),
+          {
+            name: String(participant.name || '').trim() || 'Participant',
+            type: participant.type === 'host' ? 'host' : 'viewer',
+          },
+        ])
+    );
+
+    const timestamp = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+
+    const newEvents = [];
+
+    for (const [socketId, participant] of currentParticipants.entries()) {
+      if (!previousParticipants.has(socketId)) {
+        newEvents.push({
+          id: `${timestamp}-join-${socketId}`,
+          kind: 'join',
+          message: `${participant.name}${participant.type === 'host' ? ' (Host)' : ''} joined`,
+          timestamp,
+        });
+      }
+    }
+
+    for (const [socketId, participant] of previousParticipants.entries()) {
+      if (!currentParticipants.has(socketId)) {
+        newEvents.push({
+          id: `${timestamp}-left-${socketId}`,
+          kind: 'left',
+          message: `${participant.name}${participant.type === 'host' ? ' (Host)' : ''} left`,
+          timestamp,
+        });
+      }
+    }
+
+    if (newEvents.length > 0) {
+      setParticipantActivity((previous) => [...newEvents, ...previous].slice(0, 12));
+    }
+
+    previousParticipantsRef.current = currentParticipants;
+  }, [liveParticipants]);
 
   const isCurrentHost = useMemo(() => {
     const currentSocketId = socketRef.current?.id || null;
@@ -378,8 +449,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     setError('');
     setIsWatching(true);
     setStatus('Connecting to live stream...');
-    socketRef.current.emit('live:viewer-ready', { sessionId: normalizedSessionId });
-  }, [isWatching, normalizedSessionId]);
+    socketRef.current.emit('live:viewer-ready', {
+      sessionId: normalizedSessionId,
+      viewerName: resolvedParticipantName,
+    });
+  }, [isWatching, normalizedSessionId, resolvedParticipantName]);
 
   const stopWatching = useCallback(() => {
     setIsWatching(false);
@@ -487,14 +561,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (socketRef.current) {
         socketRef.current.emit('camera:publish', {
           sessionId: normalizedSessionId,
-          name: hostName,
+          name: resolvedParticipantName,
         });
       }
     } catch (err) {
       setCameraError(err?.message || 'Unable to access camera.');
       stopCameraPreview();
     }
-  }, [stopCameraPreview]);
+  }, [resolvedParticipantName, stopCameraPreview]);
 
   const toggleCameraPreview = useCallback(() => {
     if (isCameraOn) {
@@ -582,11 +656,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setIsBroadcasting(true);
       setLiveHostName(String(hostName || '').trim() || 'You');
       setStatus('Live via local recording. Participants can now watch.');
-      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId, hostName });
+      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId, hostName: resolvedParticipantName });
     }
 
     return undefined;
-  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, isLive, liveHostName, normalizedSessionId, stopBroadcast]);
+  }, [broadcastStream, canBroadcast, isBroadcasting, isLive, liveHostName, normalizedSessionId, resolvedParticipantName, stopBroadcast]);
 
   useEffect(() => {
     if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
@@ -602,16 +676,16 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       socket.emit('live:status-request', { sessionId: normalizedSessionId });
 
       if (isCameraOnRef.current) {
-        socket.emit('camera:publish', { sessionId: normalizedSessionId, name: hostName });
+        socket.emit('camera:publish', { sessionId: normalizedSessionId, name: resolvedParticipantName });
       }
 
       // Recover session state on reconnect.
       if (isBroadcastingRef.current) {
-        socket.emit('live:publish', { sessionId: normalizedSessionId, hostName });
+        socket.emit('live:publish', { sessionId: normalizedSessionId, hostName: resolvedParticipantName });
       }
 
       if (isWatchingRef.current) {
-        socket.emit('live:viewer-ready', { sessionId: normalizedSessionId });
+        socket.emit('live:viewer-ready', { sessionId: normalizedSessionId, viewerName: resolvedParticipantName });
       }
     });
 
@@ -626,6 +700,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setIsLive(active);
       setLiveHostName(String(payload?.broadcasterName || '').trim());
       setLiveHostSocketId(payload?.broadcasterSocketId || null);
+      setParticipantCount(Number(payload?.participantCount || 0));
+      setViewerCount(Number(payload?.viewerCount || 0));
 
       if (!active) {
         if (isWatchingRef.current) {
@@ -648,6 +724,21 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     socket.on('live:error', (payload) => {
       setError(payload?.message || 'Live streaming error.');
+    });
+
+    socket.on('live:participants', (payload) => {
+      if (Number(payload?.sessionId) !== normalizedSessionId) return;
+
+      const participants = Array.isArray(payload?.participants) ? payload.participants : [];
+      setLiveParticipants(
+        participants.map((item) => ({
+          socketId: item?.socketId,
+          name: String(item?.name || '').trim() || 'Participant',
+          type: item?.type === 'host' ? 'host' : 'viewer',
+        }))
+      );
+      setParticipantCount(Number(payload?.participantCount || participants.length || 0));
+      setViewerCount(Number(payload?.viewerCount || 0));
     });
 
     socket.on('live:viewer-joined', async (payload) => {
@@ -948,6 +1039,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       }
       remoteCameraStreamsRef.current.clear();
       setCameraPublishers([]);
+      setLiveParticipants([]);
+      setParticipantCount(0);
+      setViewerCount(0);
+      setParticipantActivity([]);
     };
   }, [
     canBroadcast,
@@ -957,6 +1052,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     createViewerPeer,
     hostName,
     normalizedSessionId,
+    resolvedParticipantName,
     removeCameraPublisher,
     sendModerationCommand,
     stopCameraPreview,
@@ -1023,6 +1119,40 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       {isLive && liveHostLabel && (
         <p className="live-session-host">Live started by: {liveHostLabel}</p>
       )}
+      <div className="live-video-block" style={{ marginTop: '0.5rem' }}>
+        <label htmlFor="live-participant-name">Display Name</label>
+        <input
+          id="live-participant-name"
+          type="text"
+          value={participantName}
+          onChange={(event) => setParticipantName(event.target.value)}
+          placeholder="Enter your name for live participants"
+          maxLength={120}
+          style={{ width: '100%', maxWidth: 460, padding: '0.55rem 0.65rem', borderRadius: 8, border: '1px solid #d5d7db' }}
+        />
+        <p className="live-session-status" style={{ marginTop: '0.4rem' }}>
+          Participants joined: {participantCount} total ({viewerCount} viewer{viewerCount === 1 ? '' : 's'})
+        </p>
+        {liveParticipants.length > 0 && (
+          <p className="live-session-host" style={{ marginTop: 0.25 }}>
+            {liveParticipants.map((item) => item.type === 'host' ? `${item.name} (Host)` : item.name).join(', ')}
+          </p>
+        )}
+        {participantActivity.length > 0 && (
+          <div style={{ marginTop: '0.4rem' }}>
+            <p className="live-session-host" style={{ margin: '0 0 0.25rem 0', fontWeight: 600 }}>
+              Activity
+            </p>
+            <div style={{ maxHeight: 120, overflowY: 'auto', border: '1px solid #eceef2', borderRadius: 8, padding: '0.35rem 0.5rem', background: '#fafbfc' }}>
+              {participantActivity.map((entry) => (
+                <p key={entry.id} className="live-session-host" style={{ margin: '0.15rem 0', color: entry.kind === 'left' ? '#8e4b10' : '#1e5631' }}>
+                  [{entry.timestamp}] {entry.message}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
       {error && <p className="live-session-error">{error}</p>}
       {cameraError && <p className="live-session-error">{cameraError}</p>}
       <p className="live-session-diagnostics">
