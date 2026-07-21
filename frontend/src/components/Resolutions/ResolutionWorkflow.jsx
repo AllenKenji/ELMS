@@ -295,9 +295,10 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
       });
 
       setLoadingRecordings(true);
+      const cacheBust = Date.now();
       Promise.allSettled([
-        api.get(`/sessions/${linkedSessionId}/minutes`),
-        api.get(`/sessions/${linkedSessionId}/recordings`),
+        api.get(`/sessions/${linkedSessionId}/minutes`, { params: { _ts: cacheBust } }),
+        api.get(`/sessions/${linkedSessionId}/recordings`, { params: { _ts: cacheBust } }),
       ])
         .then(([minutesResult, directRecordingsResult]) => {
           const minutesRecordings = minutesResult.status === 'fulfilled'
