@@ -64,11 +64,24 @@ const SECRETARY_STATUS_OPTIONS = {
 function normalizeMeetingJoinUrl(link) {
   const value = String(link || '').trim();
   if (!value) return '';
+  if (/^(dashboard|committee-meetings)\//i.test(value)) {
+    return `${window.location.origin}/${value.replace(/^\/+/, '')}`;
+  }
   if (value.startsWith('/')) {
     return `${window.location.origin}${value}`;
   }
   if (/^https?:\/\//i.test(value)) return value;
   return `https://${value}`;
+}
+
+function buildCommitteeLiveFallbackJoinUrl(meeting) {
+  const committeeId = meeting?.committee_id;
+  const meetingId = meeting?.id;
+  if (!committeeId || !meetingId) {
+    return '';
+  }
+
+  return `${window.location.origin}/dashboard/committee-meetings/live/${committeeId}/${meetingId}`;
 }
 
 function isInternalJoinUrl(url) {
@@ -963,6 +976,12 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
                           ))
                       );
                     }
+
+                    const normalizedJoinUrl = normalizeMeetingJoinUrl(meeting.meeting_link);
+                    const fallbackJoinUrl = buildCommitteeLiveFallbackJoinUrl(meeting);
+                    const joinUrl = normalizedJoinUrl || fallbackJoinUrl;
+                    const useInternalJoin = isInternalJoinUrl(joinUrl);
+
                     return (
                       <li key={meeting.id} className="committee-meeting-item">
                         <div className="committee-meeting-main">
@@ -1033,12 +1052,12 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
                         </div>
                         <div className="committee-meeting-actions">
                           {!meeting.ended && (
-                            normalizeMeetingJoinUrl(meeting.meeting_link) ? (
+                            joinUrl ? (
                               <a
                                 className="btn btn-success btn-join-meeting"
-                                href={normalizeMeetingJoinUrl(meeting.meeting_link)}
-                                target={isInternalJoinUrl(normalizeMeetingJoinUrl(meeting.meeting_link)) ? '_self' : '_blank'}
-                                rel={isInternalJoinUrl(normalizeMeetingJoinUrl(meeting.meeting_link)) ? undefined : 'noopener noreferrer'}
+                                href={joinUrl}
+                                target={useInternalJoin ? '_self' : '_blank'}
+                                rel={useInternalJoin ? undefined : 'noopener noreferrer'}
                               >
                                 Join Meeting
                               </a>
