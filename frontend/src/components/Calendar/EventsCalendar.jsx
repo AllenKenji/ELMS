@@ -105,8 +105,20 @@ export default function EventsCalendar() {
       });
       await fetchSessions();
     } catch (err) {
-      const message = err?.message || err?.response?.data?.error || 'Failed to join session from calendar.';
-      setError(message);
+      const message = String(err?.message || err?.response?.data?.error || 'Failed to join session from calendar.');
+      const alreadyJoined = /already\s+(a\s+)?participant/i.test(message);
+
+      if (alreadyJoined) {
+        setJoinedSessionIds((prev) => {
+          const next = new Set(prev);
+          next.add(normalizedSessionId);
+          return next;
+        });
+        setError('');
+        await fetchSessions();
+      } else {
+        setError(message);
+      }
     } finally {
       setJoinLoadingBySession((prev) => ({ ...prev, [normalizedSessionId]: false }));
     }
