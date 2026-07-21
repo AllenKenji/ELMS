@@ -142,6 +142,35 @@ function appendMeetingRecordingLine(reportContent, recordingUrl) {
   return normalizedContent ? `${normalizedContent}\n\n${recordingLine}` : recordingLine;
 }
 
+function normalizeLinkedRecordingUrl(recordingUrl) {
+  const value = String(recordingUrl || '').trim();
+  if (!value) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(value) || value.startsWith('/uploads/')) {
+    return value;
+  }
+
+  return '';
+}
+
+function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
+  const normalizedNotes = String(discussionNotes || '').trim();
+  const normalizedRecordingUrl = normalizeLinkedRecordingUrl(recordingUrl);
+
+  if (!normalizedRecordingUrl) {
+    return normalizedNotes;
+  }
+
+  if (normalizedNotes.includes(normalizedRecordingUrl)) {
+    return normalizedNotes;
+  }
+
+  const recordingLine = `Session recording: ${normalizedRecordingUrl}`;
+  return normalizedNotes ? `${recordingLine}\n\n${normalizedNotes}` : recordingLine;
+}
+
 async function generateNextOrdinanceNumber() {
   const year = new Date().getFullYear();
   const extractPattern = `^ORD-${year}-(\\d+)$`;
@@ -1035,7 +1064,7 @@ exports.assignSessionForFirstReading = async (id, sessionId, userId) => {
  * Stage 3: Secretary marks First Reading during a session.
  * Transitions: RECORD_SESSION -> FIRST_READING
  */
-exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOfficer, userId) => {
+exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOfficer, userId, selectedRecordingUrl = null) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1057,13 +1086,15 @@ exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOf
       const e = new Error('Assign a session first before recording first reading'); e.status = 400; throw e;
     }
 
+    const resolvedDiscussionNotes = buildReadingNotesWithRecording(discussionNotes, selectedRecordingUrl);
+
     await client.query(
       `UPDATE ordinances SET session_id_first_reading=$1, reading_stage='FIRST_READING', status='Under Review', updated_at=NOW() WHERE id=$2`,
       [normalizedSessionId, id]
     );
     const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
-    await Ordinance.insertReadingSession(client, id, normalizedSessionId, 1, discussionNotes, presidingOfficer);
-    await Ordinance.insertWorkflowAction(client, id, 'FIRST_READING', 'FIRST_READING', userId, discussionNotes || '');
+    await Ordinance.insertReadingSession(client, id, normalizedSessionId, 1, resolvedDiscussionNotes, presidingOfficer);
+    await Ordinance.insertWorkflowAction(client, id, 'FIRST_READING', 'FIRST_READING', userId, resolvedDiscussionNotes || '');
     await AuditLog.create(client, userId, 'FIRST_READING', `First reading conducted for "${ordinance.title}"`);
     await createNotification(ordinance.proposer_id, `First reading conducted for your ordinance "${ordinance.title}".`);
     const io = getIO();

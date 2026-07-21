@@ -59,6 +59,18 @@ function normalizeSessionMinutesRecordings(minutesEntries) {
   });
 }
 
+function extractLinkedRecordingUrl(notesValue) {
+  const notes = String(notesValue || '');
+  const match = notes.match(/session\s+recording\s*:\s*(\S+)/i);
+  return match?.[1] || '';
+}
+
+function stripLinkedRecordingLine(notesValue) {
+  return String(notesValue || '')
+    .replace(/session\s+recording\s*:\s*\S+\s*/i, '')
+    .trim();
+}
+
 const STAGES = [
   { key: 'DRAFT', label: '0. Draft', icon: '✏️', desc: 'Councilor is preparing the proposed measure' },
   { key: 'SUBMITTED', label: '1. Submitted', icon: '📤', desc: 'Councilor submitted to Secretary' },
@@ -302,6 +314,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
 
         body = {
           session_id: ord?.session_id_first_reading || null,
+          selected_recording_url: activeAction === 'first-reading' ? (form.selected_recording_url || null) : null,
           discussion_notes: form.discussion_notes,
           presiding_officer: form.presiding_officer || null,
         };
@@ -584,6 +597,12 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           <div className="lw-readings-list">
             {workflowStatus.readings.map((r, i) => (
               <div key={i} className="lw-reading-item">
+                {(() => {
+                  const linkedRecordingUrl = extractLinkedRecordingUrl(r.discussion_notes);
+                  const cleanedDiscussionNotes = stripLinkedRecordingLine(r.discussion_notes);
+
+                  return (
+                    <>
                 <span className="lw-reading-num">Reading {r.reading_number}</span>
                 <span className="lw-reading-session">{r.session_title || "No linked session"}</span>
                 {r.session_date && (
@@ -591,7 +610,15 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
                     {new Date(r.session_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
                   </span>
                 )}
-                {r.discussion_notes && <p className="lw-reading-notes">{r.discussion_notes}</p>}
+                {linkedRecordingUrl && (
+                  <a href={buildRecordingHref(linkedRecordingUrl)} target="_blank" rel="noopener noreferrer" className="lw-reading-notes" style={{ fontWeight: 600 }}>
+                    Open linked session recording
+                  </a>
+                )}
+                {cleanedDiscussionNotes && <p className="lw-reading-notes">{cleanedDiscussionNotes}</p>}
+                    </>
+                  );
+                })()}
               </div>
             ))}
           </div>
