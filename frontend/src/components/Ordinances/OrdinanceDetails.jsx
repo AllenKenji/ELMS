@@ -442,7 +442,7 @@ export default function OrdinanceDetails({ ordinanceId, onClose, onStatusChange,
     if (!Array.isArray(ordinance.committee.members)) return false;
     return ordinance.committee.members.some(
       (m) => String(m.user_id) === String(user.id)
-        && ['Chair', 'Member', 'Committee Secretary'].includes(String(m.role || '').trim())
+        && ['Chair', 'Vice Chair', 'Member', 'Committee Secretary'].includes(String(m.role || '').trim())
     );
   }, [ordinance, user]);
 

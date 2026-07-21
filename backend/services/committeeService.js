@@ -254,7 +254,7 @@ exports.getUpcomingMeetingsForUser = async (userId) => {
      FROM committee_meetings cm
      INNER JOIN committees c ON c.id = cm.committee_id
      LEFT JOIN committee_members cmm ON cmm.committee_id = cm.committee_id AND cmm.user_id = $1
-     WHERE (c.chair_id = $1 OR (cmm.user_id = $1 AND cmm.role IN ('Chair', 'Member', 'Committee Secretary')))
+     WHERE (c.chair_id = $1 OR (cmm.user_id = $1 AND cmm.role IN ('Chair', 'Vice Chair', 'Member', 'Committee Secretary')))
        AND COALESCE(cm.ended, FALSE) = FALSE
        AND cm.meeting_date >= CURRENT_DATE
      ORDER BY cm.meeting_date ASC, cm.meeting_time ASC NULLS LAST, cm.created_at ASC`,

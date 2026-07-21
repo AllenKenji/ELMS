@@ -77,6 +77,7 @@ export default function DashboardLayout() {
       { path: '/dashboard/proposed-measures', label: 'Proposed Measures', icon: <FaInbox /> },
       { path: '/dashboard/committee-secretary', label: 'Committee Secretary Panel', icon: <FaClipboardList /> },
       { path: '/dashboard/committee-meetings', label: 'Committee Meetings', icon: <FaCalendarAlt /> },
+      { path: '/dashboard/calendar', label: 'Events Calendar', icon: <FaCalendarAlt /> },
       { path: '/dashboard/minutes', label: 'AI Meeting Minutes', icon: <FaRobot /> },
       { path: '/dashboard/messages', label: 'Messages', icon: <FaEnvelope /> },
       { path: '/dashboard/notifications', label: 'Notifications', icon: <FaBell /> },

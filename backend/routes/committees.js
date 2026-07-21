@@ -6,7 +6,7 @@ const Committee = require('../models/Committee');
 const meetingRecordingUpload = require('../middleware/meetingRecordingUpload');
 
 const COMMITTEE_MEETING_ROLES = new Set(['Chair', 'Secretary', 'Committee Secretary']);
-const COMMITTEE_MEETING_VIEW_ROLES = new Set(['Chair', 'Member', 'Committee Secretary']);
+const COMMITTEE_MEETING_VIEW_ROLES = new Set(['Chair', 'Vice Chair', 'Member', 'Committee Secretary']);
 
 async function loadCommitteeContext(committeeId) {
 	const committeeResult = await Committee.findById(committeeId);
