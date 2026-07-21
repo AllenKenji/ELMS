@@ -396,7 +396,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
     return Array.isArray(resolution.committee.members)
       && resolution.committee.members.some(
         (m) => String(m.user_id) === String(user.id)
-          && ['Chair', 'Vice Chair', 'Member', 'Committee Secretary'].includes(String(m.role || '').trim())
+          && ['Chair', 'Vice Chair', 'Member', 'Secretary', 'Committee Secretary'].includes(String(m.role || '').trim())
       );
   }, [resolution, user]);
 

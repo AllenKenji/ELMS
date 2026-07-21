@@ -18,7 +18,8 @@ function canCreateCommitteeMeeting(user, committee) {
   if (['Admin', 'Vice Mayor'].includes(user.role)) return true;
   if (String(committee.chair_id) === String(user.id)) return true;
   return Array.isArray(committee.members) && committee.members.some(
-    (member) => String(member.user_id) === String(user.id) && member.role === 'Committee Secretary'
+    (member) => String(member.user_id) === String(user.id)
+      && ['Secretary', 'Committee Secretary'].includes(String(member.role || '').trim())
   );
 }
 

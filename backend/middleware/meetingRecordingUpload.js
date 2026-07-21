@@ -20,8 +20,34 @@ const storage = multer.diskStorage({
 });
 
 const fileFilter = (req, file, cb) => {
-  const mimeType = String(file.mimetype || '').toLowerCase();
-  if (mimeType.startsWith('video/')) {
+  const rawMimeType = String(file.mimetype || '').toLowerCase();
+  const mimeType = rawMimeType.split(';')[0].trim();
+  const originalName = String(file.originalname || '').trim();
+  const extension = path.extname(originalName).toLowerCase();
+  const baseName = path.basename(originalName, extension).toLowerCase();
+  const allowedExtensions = new Set(['.webm', '.mp4', '.mov', '.mkv']);
+  const acceptedExplicitMimeTypes = new Set(['application/webm', 'application/x-matroska', 'audio/webm']);
+  const acceptedGenericMimeTypes = new Set(['', 'application/octet-stream', 'binary/octet-stream', 'application/x-octet-stream']);
+  const acceptedVideoMimeFragments = ['webm', 'mp4', 'quicktime', 'matroska', 'mpeg', 'ogg', 'm4v'];
+
+  const hasAllowedExtension = allowedExtensions.has(extension);
+  const looksLikeRecorderBlob = !baseName || baseName === 'blob' || baseName.includes('record') || baseName.includes('session') || baseName.includes('meeting') || baseName.includes('screen') || baseName.includes('video');
+  const hasVideoLikeMime = acceptedVideoMimeFragments.some((fragment) => rawMimeType.includes(fragment));
+  const hasOctetStreamLikeMime = rawMimeType.includes('octet-stream');
+
+  if (mimeType.startsWith('video/') || acceptedExplicitMimeTypes.has(mimeType) || hasVideoLikeMime) {
+    cb(null, true);
+    return;
+  }
+
+  // Accept files with known video extensions even if browsers mislabel MIME type.
+  if (hasAllowedExtension) {
+    cb(null, true);
+    return;
+  }
+
+  // Some browsers upload valid recordings as generic blobs (e.g. "blob" + octet-stream).
+  if ((acceptedGenericMimeTypes.has(mimeType) || hasOctetStreamLikeMime) && (hasAllowedExtension || looksLikeRecorderBlob)) {
     cb(null, true);
     return;
   }
