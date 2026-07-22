@@ -376,6 +376,40 @@ exports.assignSession = async (req, res) => {
   }
 };
 
+/** POST /ordinances/:id/admin/override-session */
+exports.adminOverrideSession = async (req, res) => {
+  try {
+    const result = await ordinanceService.adminOverrideSessionAssignment(
+      req.params.id,
+      req.body,
+      req.user.id
+    );
+    res.json(result);
+  } catch (err) {
+    console.error('Admin override session error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error overriding assigned session' });
+  }
+};
+
+/** POST /ordinances/:id/admin/override-stage */
+exports.adminOverrideStage = async (req, res) => {
+  try {
+    const result = await ordinanceService.adminOverrideWorkflowStage(
+      req.params.id,
+      req.body,
+      req.user.id
+    );
+    res.json(result);
+  } catch (err) {
+    console.error('Admin override stage error:', err);
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error overriding workflow stage' });
+  }
+};
+
 /** POST /ordinances/:id/assign-committee */
 exports.assignCommittee = async (req, res) => {
   try {

@@ -172,6 +172,32 @@ function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   return normalizedNotes ? `${recordingLine}\n\n${normalizedNotes}` : recordingLine;
 }
 
+const ADMIN_STAGE_SEQUENCE = [
+  'DRAFT',
+  'SUBMITTED',
+  'RECORD_SESSION',
+  'FIRST_READING',
+  'COMMITTEE_REVIEW',
+  'COMMITTEE_REPORT_SUBMITTED',
+  'RECORD_SECOND_SESSION',
+  'SECOND_READING',
+  'THIRD_READING_VOTING',
+  'THIRD_READING_VOTED',
+  'APPROVED',
+  'POSTED',
+  'EFFECTIVE',
+];
+
+function normalizeReadingStage(stage) {
+  return String(stage || 'DRAFT').trim().toUpperCase();
+}
+
+function resolveStatusForStage(stage) {
+  if (stage === 'DRAFT') return 'Draft';
+  if (stage === 'SUBMITTED') return 'Submitted';
+  return 'Under Review';
+}
+
 async function generateNextResolutionNumber() {
   const year = new Date().getFullYear();
   const extractPattern = `^RES-${year}-(\\d+)$`;
@@ -1020,6 +1046,235 @@ exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
     const updated = await client.query('SELECT * FROM resolutions WHERE id = $1', [id]);
     const io = getIO();
     io.emit('resolutionSecondSessionAssigned', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Admin-only correction path to override assigned session without forcing stage progression.
+ */
+exports.adminOverrideSessionAssignment = async (id, payload, adminUserId) => {
+  const normalizedSessionId = Number(payload?.session_id);
+  const readingPhase = String(payload?.reading_phase || '').trim().toLowerCase();
+  const reason = String(payload?.reason || '').trim();
+
+  if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
+    const e = new Error('A valid session_id is required');
+    e.status = 400;
+    throw e;
+  }
+
+  if (!['first', 'second'].includes(readingPhase)) {
+    const e = new Error('reading_phase must be either "first" or "second"');
+    e.status = 400;
+    throw e;
+  }
+
+  if (!reason) {
+    const e = new Error('A correction reason is required');
+    e.status = 400;
+    throw e;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await client.query('SELECT * FROM resolutions WHERE id = $1 FOR UPDATE', [id]);
+    if (!existing.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('Resolution not found');
+      e.status = 404;
+      throw e;
+    }
+
+    const resolution = existing.rows[0];
+    const currentStage = normalizeReadingStage(resolution.reading_stage);
+
+    const stageRules = readingPhase === 'first'
+      ? {
+        allowedStages: ['SUBMITTED', 'RECORD_SESSION'],
+        fieldName: 'session_id_first_reading',
+        targetStage: currentStage === 'SUBMITTED' ? 'RECORD_SESSION' : currentStage,
+      }
+      : {
+        allowedStages: ['COMMITTEE_REPORT_SUBMITTED', 'RECORD_SECOND_SESSION'],
+        fieldName: 'session_id_second_reading',
+        targetStage: currentStage === 'COMMITTEE_REPORT_SUBMITTED' ? 'RECORD_SECOND_SESSION' : currentStage,
+      };
+
+    if (!stageRules.allowedStages.includes(currentStage)) {
+      await client.query('ROLLBACK');
+      const e = new Error(`Cannot override ${readingPhase} reading session while resolution is in ${currentStage} stage`);
+      e.status = 400;
+      throw e;
+    }
+
+    const sessionResult = await client.query('SELECT id, title FROM sessions WHERE id = $1', [normalizedSessionId]);
+    if (!sessionResult.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('Selected session was not found');
+      e.status = 400;
+      throw e;
+    }
+
+    const previousSessionId = resolution[stageRules.fieldName] || null;
+    await client.query(
+      `UPDATE resolutions
+       SET ${stageRules.fieldName} = $1,
+           reading_stage = $2,
+           status = $3,
+           updated_at = NOW()
+       WHERE id = $4`,
+      [normalizedSessionId, stageRules.targetStage, resolveStatusForStage(stageRules.targetStage), id]
+    );
+
+    const workflowComment = [
+      `Admin override (${readingPhase} reading session)`,
+      `from ${previousSessionId || 'none'} to ${normalizedSessionId}`,
+      `Reason: ${reason}`,
+    ].join(' | ');
+
+    await Resolution.insertWorkflowAction(
+      client,
+      id,
+      'ADMIN_OVERRIDE_SESSION',
+      stageRules.targetStage,
+      adminUserId,
+      workflowComment
+    );
+    await AuditLog.create(
+      client,
+      adminUserId,
+      'ADMIN_OVERRIDE_SESSION',
+      `Admin corrected ${readingPhase} reading session for resolution "${resolution.title}" from ${previousSessionId || 'none'} to ${normalizedSessionId}. Reason: ${reason}`
+    );
+    await createNotification(
+      resolution.proposer_id,
+      `An administrator corrected the ${readingPhase} reading session assignment for your resolution "${resolution.title}".`
+    );
+
+    const updated = await client.query('SELECT * FROM resolutions WHERE id = $1', [id]);
+    const io = getIO();
+    io.emit('resolutionWorkflowCorrected', updated.rows[0]);
+
+    await client.query('COMMIT');
+    return updated.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Admin-only stage override for pre-voting corrections.
+ */
+exports.adminOverrideWorkflowStage = async (id, payload, adminUserId) => {
+  const targetStage = normalizeReadingStage(payload?.target_stage);
+  const reason = String(payload?.reason || '').trim();
+
+  if (!reason) {
+    const e = new Error('A correction reason is required');
+    e.status = 400;
+    throw e;
+  }
+
+  if (!ADMIN_STAGE_SEQUENCE.includes(targetStage)) {
+    const e = new Error('target_stage is not recognized');
+    e.status = 400;
+    throw e;
+  }
+
+  const disallowedTargets = new Set(['THIRD_READING_VOTING', 'THIRD_READING_VOTED', 'APPROVED', 'POSTED', 'EFFECTIVE']);
+  if (disallowedTargets.has(targetStage)) {
+    const e = new Error('Admin override only allows correction to pre-voting stages');
+    e.status = 400;
+    throw e;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const existing = await client.query('SELECT * FROM resolutions WHERE id = $1 FOR UPDATE', [id]);
+    if (!existing.rows.length) {
+      await client.query('ROLLBACK');
+      const e = new Error('Resolution not found');
+      e.status = 404;
+      throw e;
+    }
+
+    const resolution = existing.rows[0];
+    const currentStage = normalizeReadingStage(resolution.reading_stage);
+
+    if (!ADMIN_STAGE_SEQUENCE.includes(currentStage)) {
+      await client.query('ROLLBACK');
+      const e = new Error(`Current stage ${currentStage} is not recognized`);
+      e.status = 400;
+      throw e;
+    }
+
+    if (disallowedTargets.has(currentStage)) {
+      await client.query('ROLLBACK');
+      const e = new Error(`Cannot override workflow after ${currentStage}`);
+      e.status = 400;
+      throw e;
+    }
+
+    const currentIndex = ADMIN_STAGE_SEQUENCE.indexOf(currentStage);
+    const targetIndex = ADMIN_STAGE_SEQUENCE.indexOf(targetStage);
+    if (targetIndex > currentIndex) {
+      await client.query('ROLLBACK');
+      const e = new Error('Admin override can only move to the same or an earlier stage');
+      e.status = 400;
+      throw e;
+    }
+
+    const clearFirstSession = targetIndex < ADMIN_STAGE_SEQUENCE.indexOf('RECORD_SESSION');
+    const clearSecondSession = targetIndex < ADMIN_STAGE_SEQUENCE.indexOf('RECORD_SECOND_SESSION');
+
+    await client.query(
+      `UPDATE resolutions
+       SET reading_stage = $1,
+           status = $2,
+           session_id_first_reading = CASE WHEN $3 THEN NULL ELSE session_id_first_reading END,
+           session_id_second_reading = CASE WHEN $4 THEN NULL ELSE session_id_second_reading END,
+           updated_at = NOW()
+       WHERE id = $5`,
+      [targetStage, resolveStatusForStage(targetStage), clearFirstSession, clearSecondSession, id]
+    );
+
+    await Resolution.insertWorkflowAction(
+      client,
+      id,
+      'ADMIN_OVERRIDE_STAGE',
+      targetStage,
+      adminUserId,
+      `Admin stage correction from ${currentStage} to ${targetStage}. Reason: ${reason}`
+    );
+    await AuditLog.create(
+      client,
+      adminUserId,
+      'ADMIN_OVERRIDE_STAGE',
+      `Admin corrected workflow stage for resolution "${resolution.title}" from ${currentStage} to ${targetStage}. Reason: ${reason}`
+    );
+    await createNotification(
+      resolution.proposer_id,
+      `An administrator corrected the workflow stage for your resolution "${resolution.title}".`
+    );
+
+    const updated = await client.query('SELECT * FROM resolutions WHERE id = $1', [id]);
+    const io = getIO();
+    io.emit('resolutionWorkflowCorrected', updated.rows[0]);
 
     await client.query('COMMIT');
     return updated.rows[0];

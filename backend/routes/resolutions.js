@@ -36,6 +36,8 @@ router.get('/:id/sessions', workflowLimiter, authenticateToken, resolutionContro
 router.get('/:id/committee-report', workflowLimiter, authenticateToken, resolutionController.getCommitteeReport);
 router.post('/:id/submit-to-vice-mayor',  workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Admin'), resolutionController.submitToViceMayor);
 router.post('/:id/assign-session',       workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.assignSession);
+router.post('/:id/admin/override-session', workflowLimiter, authenticateToken, authorizeRoles('Admin'), resolutionController.adminOverrideSession);
+router.post('/:id/admin/override-stage',   workflowLimiter, authenticateToken, authorizeRoles('Admin'), resolutionController.adminOverrideStage);
 router.post('/:id/first-reading',        workflowLimiter, authenticateToken, authorizeRoles('Secretary', 'Admin'), resolutionController.firstReading);
 router.post('/:id/assign-committee',     workflowLimiter, authenticateToken, authorizeRoles('Vice Mayor', 'Secretary', 'Admin'), resolutionController.assignCommittee);
 router.post('/:id/committee-report',     workflowLimiter, authenticateToken, authorizeRoles('Councilor', 'Committee Secretary', 'Admin'), resolutionController.committeeReport);
