@@ -5,6 +5,7 @@ const OrderOfBusiness = require('../models/OrderOfBusiness');
 const OobDocument = require('../models/OrderOfBusinessDocument');
 const AuditLog = require('../models/AuditLog');
 const { getIO } = require('../socket');
+const { createNotification } = require('../utils/notifications');
 const pool = require('../db');
 
 const ROLES = ['Secretary', 'Admin', 'Councilor', 'Vice Mayor'];
@@ -27,6 +28,81 @@ const ensureFound = (rows, message = 'Item not found') => {
     throw err;
   }
 };
+
+function normalizeNumericIds(values) {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value > 0))];
+}
+
+async function syncMeasureParticipantsToSession(sessionId, itemIds) {
+  const normalizedSessionId = Number(sessionId);
+  const normalizedItemIds = normalizeNumericIds(itemIds);
+  if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0 || normalizedItemIds.length === 0) {
+    return [];
+  }
+
+  const insertedResult = await pool.query(
+    `WITH candidate_users AS (
+      SELECT DISTINCT user_id
+      FROM (
+        SELECT o.proposer_id AS user_id
+        FROM order_of_business oob
+        JOIN ordinances o
+          ON oob.related_document_type = 'ordinance'
+         AND oob.related_document_id = o.id
+        WHERE oob.id = ANY($2::int[])
+
+        UNION
+
+        SELECT BTRIM(token)::INT AS user_id
+        FROM order_of_business oob
+        JOIN ordinances o
+          ON oob.related_document_type = 'ordinance'
+         AND oob.related_document_id = o.id
+        CROSS JOIN LATERAL regexp_split_to_table(COALESCE(o.co_authors, ''), ',') AS token
+        WHERE oob.id = ANY($2::int[])
+          AND BTRIM(token) ~ '^[0-9]+$'
+
+        UNION
+
+        SELECT r.proposer_id AS user_id
+        FROM order_of_business oob
+        JOIN resolutions r
+          ON oob.related_document_type = 'resolution'
+         AND oob.related_document_id = r.id
+        WHERE oob.id = ANY($2::int[])
+
+        UNION
+
+        SELECT BTRIM(token)::INT AS user_id
+        FROM order_of_business oob
+        JOIN resolutions r
+          ON oob.related_document_type = 'resolution'
+         AND oob.related_document_id = r.id
+        CROSS JOIN LATERAL regexp_split_to_table(COALESCE(r.co_authors, ''), ',') AS token
+        WHERE oob.id = ANY($2::int[])
+          AND BTRIM(token) ~ '^[0-9]+$'
+      ) raw_users
+      WHERE user_id IS NOT NULL
+    )
+    INSERT INTO session_participants (session_id, user_id, attendance_status, added_at)
+    SELECT $1, cu.user_id, 'Pending', NOW()
+    FROM candidate_users cu
+    WHERE EXISTS (SELECT 1 FROM users u WHERE u.id = cu.user_id)
+      AND NOT EXISTS (
+        SELECT 1
+        FROM session_participants sp
+        WHERE sp.session_id = $1
+          AND sp.user_id = cu.user_id
+      )
+    RETURNING user_id`,
+    [normalizedSessionId, normalizedItemIds]
+  );
+
+  return normalizeNumericIds((insertedResult.rows || []).map((row) => row.user_id));
+}
 
 /**
  * Retrieve all order-of-business items for a session.
@@ -78,12 +154,20 @@ exports.getUnassigned = async () => {
 exports.assignToSession = async (sessionId, itemIds, userId) => {
   const sessionCheck = await pool.query('SELECT id, title FROM sessions WHERE id = $1', [sessionId]);
   ensureFound(sessionCheck.rows, 'Session not found');
+  const sessionTitle = sessionCheck.rows[0].title;
+
+  const normalizedItemIds = normalizeNumericIds(itemIds);
+  if (normalizedItemIds.length === 0) {
+    const err = new Error('At least one valid item id is required');
+    err.status = 400;
+    throw err;
+  }
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     let nextNum = await OrderOfBusiness.nextItemNumber(sessionId);
-    for (const id of itemIds) {
+    for (const id of normalizedItemIds) {
       await client.query(
         `UPDATE order_of_business SET session_id = $1, item_number = $2, updated_at = NOW() WHERE id = $3 AND session_id IS NULL`,
         [sessionId, nextNum++, id]
@@ -97,10 +181,24 @@ exports.assignToSession = async (sessionId, itemIds, userId) => {
     client.release();
   }
 
-  await AuditLog.create(null, userId, 'ORDER_OF_BUSINESS_ASSIGN',
-    `${itemIds.length} order of business item(s) assigned to session ${sessionId}`);
+  const addedParticipantIds = await syncMeasureParticipantsToSession(sessionId, normalizedItemIds);
+  for (const participantId of addedParticipantIds) {
+    await createNotification(
+      participantId,
+      `You have been added to session: "${sessionTitle}" because a measure you authored/co-authored is on the agenda.`,
+      {
+        type: 'session',
+        title: 'Scheduled In Session',
+        relatedId: Number(sessionId),
+        relatedType: 'session',
+      }
+    );
+  }
 
-  broadcastUpdate(sessionId, { assigned: itemIds });
+  await AuditLog.create(null, userId, 'ORDER_OF_BUSINESS_ASSIGN',
+    `${normalizedItemIds.length} order of business item(s) assigned to session ${sessionId}. Auto-added ${addedParticipantIds.length} participant(s) from linked measures.`);
+
+  broadcastUpdate(sessionId, { assigned: normalizedItemIds, autoParticipants: addedParticipantIds });
 };
 
 /**
