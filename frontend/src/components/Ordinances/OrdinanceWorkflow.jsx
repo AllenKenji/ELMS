@@ -120,7 +120,7 @@ const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
 
 const ROLE_ACTIONS = {
   Secretary: ['assign-session', 'first-reading', 'record-second-session', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective'],
-  Admin:     ['assign-session', 'assign-committee', 'first-reading', 'record-second-session', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report'],
+  Admin:     ['assign-session', 'assign-committee', 'first-reading', 'record-second-session', 'second-reading', 'open-voting', 'close-voting', 'post-publicly', 'mark-effective', 'executive-approval', 'executive-rejection', 'committee-report', 'admin-override-session'],
   'Vice Mayor':   ['assign-committee', 'executive-approval', 'executive-rejection'],
   Councilor: ['submit-to-vice-mayor', 'create-meeting', 'committee-report', 'cast-vote'],
   'Committee Secretary': ['create-meeting', 'committee-report'],
@@ -153,11 +153,18 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) 
       return canDo(userRole, 'assign-session') ? ['assign-session'] : [];
     }
     case 'RECORD_SESSION': {
+      const actions = [];
       if (!ord?.session_id_first_reading) {
-        return canDo(userRole, 'assign-session') ? ['assign-session'] : [];
+        if (canDo(userRole, 'assign-session')) actions.push('assign-session');
+      } else {
+        if (canDo(userRole, 'first-reading')) actions.push('first-reading');
       }
 
-      return canDo(userRole, 'first-reading') ? ['first-reading'] : [];
+      if (canDo(userRole, 'admin-override-session')) {
+        actions.push('admin-override-session');
+      }
+
+      return actions;
     }
     case 'FIRST_READING':
       return canDo(userRole, 'assign-committee') ? ['assign-committee'] : [];
@@ -195,6 +202,7 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) 
 const ACTION_LABELS = {
   'submit-to-vice-mayor': { emoji: '📤', label: 'Submit to Vice Mayor' },
   'assign-session':      { emoji: '🗓️', label: 'Assign Session' },
+  'admin-override-session': { emoji: '🛠️', label: 'Admin Override Session' },
   'first-reading':       { emoji: '🎥', label: 'Record Session' },
   'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
@@ -360,6 +368,30 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           return;
         }
         body = { session_id: form.session_id };
+      } else if (activeAction === 'admin-override-session') {
+        if (!form.session_id) {
+          setError('Please select the corrected session.');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!form.reason || !String(form.reason).trim()) {
+          setError('Reason is required for admin override.');
+          setSubmitting(false);
+          return;
+        }
+
+        const stageNow = String(workflowStatus?.ordinance?.reading_stage || ord?.reading_stage || '').trim().toUpperCase();
+        const readingPhase = stageNow === 'RECORD_SECOND_SESSION' || stageNow === 'COMMITTEE_REPORT_SUBMITTED'
+          ? 'second'
+          : 'first';
+
+        await api.post(`/ordinances/${ordinanceId}/admin/override-session`, {
+          reading_phase: readingPhase,
+          session_id: Number(form.session_id),
+          reason: String(form.reason).trim(),
+        });
+        selfHandled = true;
       } else if (activeAction === 'first-reading' || activeAction === 'record-second-session' || activeAction === 'second-reading') {
         if (activeAction === 'first-reading' && sessionRecordings.length > 0 && !form.selected_recording_url) {
           setError('Please select a recorded video first.');
@@ -909,6 +941,14 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
               {ACTION_LABELS['assign-session']?.emoji} {ACTION_LABELS['assign-session']?.label}
             </button>
           )}
+          {availableActions.includes('admin-override-session') && (
+            <button
+              className="lw-action-btn lw-executive-rejection"
+              onClick={() => handleActionClick('admin-override-session')}
+            >
+              {ACTION_LABELS['admin-override-session']?.emoji} {ACTION_LABELS['admin-override-session']?.label}
+            </button>
+          )}
           {availableActions.includes('first-reading') && (
             <button
               className="lw-action-btn lw-first-reading"
@@ -1111,17 +1151,31 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
                 </div>
               )}
 
-              {(activeAction === "assign-session" || activeAction === "first-reading" || activeAction === "record-second-session" || activeAction === "second-reading") && (
+              {(activeAction === "assign-session" || activeAction === "admin-override-session" || activeAction === "first-reading" || activeAction === "record-second-session" || activeAction === "second-reading") && (
                 <>
                   {activeAction !== "first-reading" && (
                     <div className="form-group">
-                      <label>Session {(activeAction === "assign-session" || activeAction === "record-second-session") ? <span className="required">*</span> : '(optional)'}</label>
+                      <label>Session {(activeAction === "assign-session" || activeAction === "admin-override-session" || activeAction === "record-second-session") ? <span className="required">*</span> : '(optional)'}</label>
                       <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
                         <option value="">— Select session —</option>
                         {sessions.map(s => (
                           <option key={s.id} value={s.id}>{s.title} — {new Date(s.date).toLocaleDateString()}</option>
                         ))}
                       </select>
+                    </div>
+                  )}
+                  {activeAction === "admin-override-session" && (
+                    <div className="form-group">
+                      <label>Reason <span className="required">*</span></label>
+                      <textarea
+                        rows={3}
+                        value={form.reason || ""}
+                        onChange={e => setField("reason", e.target.value)}
+                        placeholder="Explain why this session correction is needed..."
+                      />
+                      <p style={{ marginTop: '0.5rem', color: '#666', fontSize: '0.9em' }}>
+                        This action is logged in workflow history and audit logs.
+                      </p>
                     </div>
                   )}
                   {activeAction === "assign-session" && assignedSession && (
