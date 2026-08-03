@@ -54,6 +54,11 @@ function parseAttachments(textValue) {
     .filter(Boolean);
 }
 
+function hasSameFileIdentity(a, b) {
+  if (!a || !b) return false;
+  return a.name === b.name && a.size === b.size && a.lastModified === b.lastModified;
+}
+
 function isCouncilorUser(user) {
   const roleName = String(user?.role_name || user?.role || '').toLowerCase();
   if (roleName) return roleName === 'councilor';
@@ -299,16 +304,24 @@ export default function ResolutionForm({
         return;
       }
 
-      setFormData((prev) => ({
-        ...prev,
-        title: suggestion.title || fallbackTitle || prev.title,
-        resolution_number: '',
-        description: suggestion.description || fallbackDescription || prev.description,
-        content: nextContent || prev.content,
-        remarks: suggestion.remarks || prev.remarks,
-      }));
+      setFormData((prev) => {
+        const hasScanAlreadyAttached = Array.isArray(prev.attachments_files)
+          && prev.attachments_files.some((file) => hasSameFileIdentity(file, scanFile));
+
+        return {
+          ...prev,
+          title: suggestion.title || fallbackTitle || prev.title,
+          resolution_number: '',
+          description: suggestion.description || fallbackDescription || prev.description,
+          content: nextContent || prev.content,
+          remarks: suggestion.remarks || prev.remarks,
+          attachments_files: hasScanAlreadyAttached
+            ? prev.attachments_files
+            : [...prev.attachments_files, scanFile],
+        };
+      });
       setFormErrors({});
-      setSuccess('Document scanned. Review and edit the extracted text before submitting.');
+      setSuccess('Document scanned and attached as reference. Review and edit the extracted text before submitting.');
     } catch (err) {
       const msg = err?.message || err?.response?.data?.error || 'Failed to scan document.';
       setError(msg);
