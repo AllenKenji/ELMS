@@ -293,6 +293,10 @@ exports.updateDocument = async (req, res) => {
     res.json(doc);
   } catch (err) {
     console.error('Update OOB document error:', err);
+    if (err.code === '23514' || err.code === '22P02') {
+      return res.status(400).json({ error: err.detail || 'Invalid order of business data.' });
+    }
+    if (err.status === 400) return res.status(400).json({ error: err.message });
     if (err.status === 404) return res.status(404).json({ error: err.message });
     res.status(500).json({ error: 'Error updating order of business document' });
   }

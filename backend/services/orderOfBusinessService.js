@@ -480,17 +480,18 @@ exports.updateDocument = async (id, data, userId) => {
           `INSERT INTO order_of_business
              (session_id, document_id, title, item_type, item_number,
               duration_minutes, notes, related_document_type, related_document_id, status, created_at, updated_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',NOW(),NOW())`,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW(),NOW())`,
           [
             doc.session_id || null,
             id,
             item.title,
-            item.item_type || 'Other Matters',
+            item.item_type || 'Other',
             nextNum++,
             item.duration_minutes || null,
             item.notes || null,
             item.related_document_type || null,
             item.related_document_id || null,
+            item.status || 'Scheduled',
           ]
         );
       }
