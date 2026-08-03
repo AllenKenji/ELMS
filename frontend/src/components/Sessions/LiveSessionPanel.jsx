@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../../api/api';
 
@@ -59,6 +59,14 @@ function attachVideoStream(videoNode, stream, { muted = false } = {}) {
   videoNode.play?.().catch(() => {});
 }
 
+function formatParticipantLabel(name, role, { isHost = false } = {}) {
+  const resolvedName = String(name || '').trim() || 'Participant';
+  const resolvedRole = String(role || '').trim();
+  const roleSuffix = resolvedRole ? ` (${resolvedRole})` : '';
+  const hostSuffix = isHost ? ' (Host)' : '';
+  return `${resolvedName}${roleSuffix}${hostSuffix}`;
+}
+
 export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null, onBroadcastStateChange = null, onPresenterCameraStreamChange = null }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
@@ -115,9 +123,69 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     return fallback || 'Participant';
   }, [hostName, participantName]);
 
+  const resolvedParticipantRole = useMemo(() => {
+    return String(hostRole || '').trim() || '';
+  }, [hostRole]);
+
   useEffect(() => {
     setParticipantName(String(hostName || '').trim());
   }, [hostName]);
+
+  const participantNamesBySocketId = useMemo(() => {
+    const map = new Map();
+    liveParticipants.forEach((participant) => {
+      const socketId = String(participant?.socketId || '').trim();
+      if (!socketId) {
+        return;
+      }
+
+      const name = String(participant?.name || '').trim() || 'Participant';
+      map.set(socketId, name);
+    });
+    return map;
+  }, [liveParticipants]);
+
+  const participantRolesBySocketId = useMemo(() => {
+    const map = new Map();
+    liveParticipants.forEach((participant) => {
+      const socketId = String(participant?.socketId || '').trim();
+      if (!socketId) {
+        return;
+      }
+
+      const role = String(participant?.role || '').trim();
+      map.set(socketId, role || '');
+    });
+    return map;
+  }, [liveParticipants]);
+
+  const resolveParticipantName = useCallback((socketId, providedName) => {
+    const normalizedSocketId = String(socketId || '').trim();
+    const explicitName = String(providedName || '').trim();
+    if (explicitName) {
+      return explicitName;
+    }
+
+    if (!normalizedSocketId) {
+      return 'Participant';
+    }
+
+    return participantNamesBySocketId.get(normalizedSocketId) || 'Participant';
+  }, [participantNamesBySocketId]);
+
+  const resolveParticipantRole = useCallback((socketId, providedRole) => {
+    const normalizedSocketId = String(socketId || '').trim();
+    const explicitRole = String(providedRole || '').trim();
+    if (explicitRole) {
+      return explicitRole;
+    }
+
+    if (!normalizedSocketId) {
+      return '';
+    }
+
+    return participantRolesBySocketId.get(normalizedSocketId) || '';
+  }, [participantRolesBySocketId]);
 
   useEffect(() => {
     const previousParticipants = previousParticipantsRef.current;
@@ -342,11 +410,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setIsBroadcasting(true);
       setLiveHostName(String(hostName || '').trim() || 'You');
       setStatus(stream.getAudioTracks().length > 0 ? 'You are live with audio. Waiting for participants to connect...' : 'You are live, but no audio track was captured. Waiting for participants to connect...');
-      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId, hostName });
+      socketRef.current.emit('live:publish', {
+        sessionId: normalizedSessionId,
+        hostName: resolvedParticipantName,
+        hostRole: resolvedParticipantRole,
+      });
     } catch (err) {
       setError(err?.message || 'Unable to start live stream.');
     }
-  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, stopBroadcast]);
+  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, stopBroadcast]);
 
   const createBroadcasterPeer = useCallback(async (viewerSocketId) => {
     if (!localStreamRef.current || !socketRef.current) return;
@@ -452,8 +524,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     socketRef.current.emit('live:viewer-ready', {
       sessionId: normalizedSessionId,
       viewerName: resolvedParticipantName,
+      viewerRole: resolvedParticipantRole,
     });
-  }, [isWatching, normalizedSessionId, resolvedParticipantName]);
+  }, [isWatching, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole]);
 
   const stopWatching = useCallback(() => {
     setIsWatching(false);
@@ -461,13 +534,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     setStatus(isLive ? 'Live stream available. Click Watch Live.' : 'No live stream in progress.');
   }, [closeViewerPeer, isLive]);
 
-  const upsertCameraPublisher = useCallback((socketId, name) => {
+  const upsertCameraPublisher = useCallback((socketId, name, role) => {
     if (!socketId) return;
     setCameraPublishers((prev) => {
       const existingIndex = prev.findIndex((item) => item.socketId === socketId);
       const nextItem = {
         socketId,
-        name: String(name || '').trim() || 'Participant',
+        name: resolveParticipantName(socketId, name),
+        role: resolveParticipantRole(socketId, role),
       };
 
       if (existingIndex === -1) {
@@ -478,7 +552,25 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       next[existingIndex] = { ...next[existingIndex], ...nextItem };
       return next;
     });
-  }, []);
+  }, [resolveParticipantName, resolveParticipantRole]);
+
+  useEffect(() => {
+    setCameraPublishers((prev) => {
+      let hasChanges = false;
+      const next = prev.map((item) => {
+        const nextName = resolveParticipantName(item.socketId, item.name);
+        const nextRole = resolveParticipantRole(item.socketId, item.role);
+        if (nextName === item.name && nextRole === (item.role || '')) {
+          return item;
+        }
+
+        hasChanges = true;
+        return { ...item, name: nextName, role: nextRole };
+      });
+
+      return hasChanges ? next : prev;
+    });
+  }, [resolveParticipantName, resolveParticipantRole]);
 
   const removeCameraPublisher = useCallback((socketId) => {
     if (!socketId) return;
@@ -562,13 +654,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         socketRef.current.emit('camera:publish', {
           sessionId: normalizedSessionId,
           name: resolvedParticipantName,
+          role: resolvedParticipantRole,
         });
       }
     } catch (err) {
       setCameraError(err?.message || 'Unable to access camera.');
       stopCameraPreview();
     }
-  }, [resolvedParticipantName, stopCameraPreview]);
+  }, [normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, stopCameraPreview]);
 
   const toggleCameraPreview = useCallback(() => {
     if (isCameraOn) {
@@ -609,6 +702,18 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     startWatching();
   }, [isLive, socketConnected, startWatching]);
+
+  useEffect(() => {
+    if (!socketRef.current || !socketConnected || !isCameraOn) {
+      return;
+    }
+
+    socketRef.current.emit('camera:publish', {
+      sessionId: normalizedSessionId,
+      name: resolvedParticipantName,
+      role: resolvedParticipantRole,
+    });
+  }, [isCameraOn, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, socketConnected]);
 
   useEffect(() => {
     if (!canBroadcast || !socketRef.current) {
@@ -656,11 +761,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setIsBroadcasting(true);
       setLiveHostName(String(hostName || '').trim() || 'You');
       setStatus('Live via local recording. Participants can now watch.');
-      socketRef.current.emit('live:publish', { sessionId: normalizedSessionId, hostName: resolvedParticipantName });
+      socketRef.current.emit('live:publish', {
+        sessionId: normalizedSessionId,
+        hostName: resolvedParticipantName,
+        hostRole: resolvedParticipantRole,
+      });
     }
 
     return undefined;
-  }, [broadcastStream, canBroadcast, isBroadcasting, isLive, liveHostName, normalizedSessionId, resolvedParticipantName, stopBroadcast]);
+  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, isLive, liveHostName, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, stopBroadcast]);
 
   useEffect(() => {
     if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
@@ -676,16 +785,28 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       socket.emit('live:status-request', { sessionId: normalizedSessionId });
 
       if (isCameraOnRef.current) {
-        socket.emit('camera:publish', { sessionId: normalizedSessionId, name: resolvedParticipantName });
+        socket.emit('camera:publish', {
+          sessionId: normalizedSessionId,
+          name: resolvedParticipantName,
+          role: resolvedParticipantRole,
+        });
       }
 
       // Recover session state on reconnect.
       if (isBroadcastingRef.current) {
-        socket.emit('live:publish', { sessionId: normalizedSessionId, hostName: resolvedParticipantName });
+        socket.emit('live:publish', {
+          sessionId: normalizedSessionId,
+          hostName: resolvedParticipantName,
+          hostRole: resolvedParticipantRole,
+        });
       }
 
       if (isWatchingRef.current) {
-        socket.emit('live:viewer-ready', { sessionId: normalizedSessionId, viewerName: resolvedParticipantName });
+        socket.emit('live:viewer-ready', {
+          sessionId: normalizedSessionId,
+          viewerName: resolvedParticipantName,
+          viewerRole: resolvedParticipantRole,
+        });
       }
     });
 
@@ -734,6 +855,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         participants.map((item) => ({
           socketId: item?.socketId,
           name: String(item?.name || '').trim() || 'Participant',
+          role: String(item?.role || '').trim() || '',
           type: item?.type === 'host' ? 'host' : 'viewer',
         }))
       );
@@ -825,7 +947,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           .filter((item) => item?.publisherSocketId && item.publisherSocketId !== socket.id)
           .map((item) => ({
             socketId: item.publisherSocketId,
-            name: String(item.name || '').trim() || 'Participant',
+            name: resolveParticipantName(item.publisherSocketId, item.name),
+            role: resolveParticipantRole(item.publisherSocketId, item.role),
           }))
       );
 
@@ -841,7 +964,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       const publisherSocketId = payload?.publisherSocketId;
       if (!publisherSocketId || publisherSocketId === socket.id) return;
 
-      upsertCameraPublisher(publisherSocketId, payload?.name);
+      upsertCameraPublisher(publisherSocketId, payload?.name, payload?.role);
       subscribeToCameraPublisher(publisherSocketId);
     });
 
@@ -920,7 +1043,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             if (!stream) return;
 
             remoteCameraStreamsRef.current.set(publisherSocketId, stream);
-            upsertCameraPublisher(publisherSocketId);
+            upsertCameraPublisher(publisherSocketId, null, resolveParticipantRole(publisherSocketId));
 
             const node = cameraTileVideoRefs.current.get(publisherSocketId);
             if (node) {
@@ -969,7 +1092,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
       if (!payload?.candidate || !payload?.fromSocketId) return;
 
-      const fromSocketId = payload.fromSocketId;
+      const { fromSocketId } = payload;
 
       try {
         const publisherPc = cameraPublisherPeersRef.current.get(fromSocketId);
@@ -1053,6 +1176,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     hostName,
     normalizedSessionId,
     resolvedParticipantName,
+    resolvedParticipantRole,
+    resolveParticipantName,
+    resolveParticipantRole,
     removeCameraPublisher,
     sendModerationCommand,
     stopCameraPreview,
@@ -1135,7 +1261,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         </p>
         {liveParticipants.length > 0 && (
           <p className="live-session-host" style={{ marginTop: 0.25 }}>
-            {liveParticipants.map((item) => item.type === 'host' ? `${item.name} (Host)` : item.name).join(', ')}
+            {liveParticipants.map((item) => formatParticipantLabel(item.name, item.role, { isHost: item.type === 'host' })).join(', ')}
           </p>
         )}
         {participantActivity.length > 0 && (
@@ -1156,7 +1282,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       {error && <p className="live-session-error">{error}</p>}
       {cameraError && <p className="live-session-error">{cameraError}</p>}
       <p className="live-session-diagnostics">
-        Socket: {socketConnected ? 'connected' : 'disconnected'} · Publish: {liveDiagnostics.publishVideo ? 'video' : 'no video'} / {liveDiagnostics.publishAudio ? 'audio' : 'no audio'} · Receive: {liveDiagnostics.recvVideo ? 'video' : 'no video'} / {liveDiagnostics.recvAudio ? 'audio' : 'no audio'}
+        Socket: {socketConnected ? 'connected' : 'disconnected'} ┬╖ Publish: {liveDiagnostics.publishVideo ? 'video' : 'no video'} / {liveDiagnostics.publishAudio ? 'audio' : 'no audio'} ┬╖ Receive: {liveDiagnostics.recvVideo ? 'video' : 'no video'} / {liveDiagnostics.recvAudio ? 'audio' : 'no audio'}
       </p>
 
       {hasExternalBroadcast && canBroadcast && (
@@ -1202,7 +1328,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
                     }
                   }}
                 />
-                <p className="live-camera-name">{item.name || 'Participant'}</p>
+                <p className="live-camera-name">{formatParticipantLabel(item.name, item.role)}</p>
                 {isCurrentHost && (
                   <div className="live-participant-controls">
                     <button type="button" className="btn-live-stop" onClick={() => sendModerationCommand(item.socketId, 'disable-camera')}>

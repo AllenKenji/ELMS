@@ -21,6 +21,7 @@ function getOrCreateLiveState(sessionId) {
     liveSessions.set(sessionId, {
       broadcasterSocketId: null,
       broadcasterName: null,
+      broadcasterRole: null,
       viewers: new Map(),
     });
   }
@@ -35,6 +36,7 @@ function buildLiveParticipantsPayload(state) {
     participants.push({
       socketId: state.broadcasterSocketId,
       name: state.broadcasterName || 'Host',
+      role: state.broadcasterRole || null,
       type: 'host',
     });
   }
@@ -43,6 +45,7 @@ function buildLiveParticipantsPayload(state) {
     participants.push({
       socketId: viewerSocketId,
       name: viewerData?.name || 'Participant',
+      role: viewerData?.role || null,
       type: 'viewer',
     });
   }
@@ -73,6 +76,7 @@ function emitLiveStatus(sessionId) {
     active: Boolean(state?.broadcasterSocketId),
     broadcasterSocketId: state?.broadcasterSocketId || null,
     broadcasterName: state?.broadcasterName || null,
+    broadcasterRole: state?.broadcasterRole || null,
     participantCount,
     viewerCount,
   });
@@ -114,6 +118,7 @@ function getCameraPublishersPayload(sessionId, excludeSocketId = null) {
     publishers.push({
       publisherSocketId,
       name: value?.name || 'Participant',
+      role: value?.role || null,
     });
   }
 
@@ -185,7 +190,7 @@ function init(server) {
       });
     });
 
-    socket.on('camera:publish', ({ sessionId: sessionIdValue, name } = {}) => {
+    socket.on('camera:publish', ({ sessionId: sessionIdValue, name, role } = {}) => {
       const sessionId = normalizeSessionId(sessionIdValue);
       if (!sessionId) {
         return;
@@ -194,6 +199,7 @@ function init(server) {
       const state = getOrCreateCameraState(sessionId);
       state.publishers.set(socket.id, {
         name: String(name || '').trim().slice(0, 120) || 'Participant',
+        role: String(role || '').trim().slice(0, 120) || null,
       });
 
       socket.join(getLiveRoom(sessionId));
@@ -203,6 +209,7 @@ function init(server) {
         sessionId,
         publisherSocketId: socket.id,
         name: state.publishers.get(socket.id).name,
+        role: state.publishers.get(socket.id).role,
       });
     });
 
@@ -320,7 +327,7 @@ function init(server) {
       emitLiveStatus(sessionId);
     });
 
-    socket.on('live:publish', ({ sessionId: sessionIdValue, hostName } = {}) => {
+    socket.on('live:publish', ({ sessionId: sessionIdValue, hostName, hostRole } = {}) => {
       const sessionId = normalizeSessionId(sessionIdValue);
       if (!sessionId) {
         return;
@@ -334,6 +341,7 @@ function init(server) {
 
       state.broadcasterSocketId = socket.id;
       state.broadcasterName = String(hostName || '').trim().slice(0, 120) || 'Unknown host';
+      state.broadcasterRole = String(hostRole || '').trim().slice(0, 120) || null;
       socket.join(getLiveRoom(sessionId));
       socket.data.liveSessionIds.add(sessionId);
       emitLiveStatus(sessionId);
@@ -365,12 +373,13 @@ function init(server) {
 
       state.broadcasterSocketId = null;
       state.broadcasterName = null;
+      state.broadcasterRole = null;
       emitLiveStatus(sessionId);
       emitLiveParticipants(sessionId);
       cleanupLiveStateIfEmpty(sessionId);
     });
 
-    socket.on('live:viewer-ready', ({ sessionId: sessionIdValue, viewerName } = {}) => {
+    socket.on('live:viewer-ready', ({ sessionId: sessionIdValue, viewerName, viewerRole } = {}) => {
       const sessionId = normalizeSessionId(sessionIdValue);
       if (!sessionId) {
         return;
@@ -379,6 +388,7 @@ function init(server) {
       const state = getOrCreateLiveState(sessionId);
       state.viewers.set(socket.id, {
         name: String(viewerName || '').trim().slice(0, 120) || 'Participant',
+        role: String(viewerRole || '').trim().slice(0, 120) || null,
       });
       socket.join(getLiveRoom(sessionId));
       socket.data.liveSessionIds.add(sessionId);
@@ -444,6 +454,7 @@ function init(server) {
         if (state.broadcasterSocketId === socket.id) {
           state.broadcasterSocketId = null;
           state.broadcasterName = null;
+          state.broadcasterRole = null;
           emitLiveStatus(sessionId);
         }
 

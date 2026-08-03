@@ -569,7 +569,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                     canBroadcast={canStartLiveStream()}
                     broadcastStream={liveBroadcastStream}
                     hostName={user?.name || user?.username || user?.email || 'Unknown host'}
-                    hostRole={user?.role || ''}
+                    hostRole={user?.role_name || user?.role || ''}
                     onRemoteStreamChange={setRemoteLiveStream}
                     onPresenterCameraStreamChange={setPresenterCameraStream}
                   />
