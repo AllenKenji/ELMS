@@ -165,6 +165,106 @@ function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   }
 
   if (normalizedNotes.includes(normalizedRecordingUrl)) {
+
+  function parseBooleanInput(value) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      return normalized === 'true' || normalized === '1' || normalized === 'yes';
+    }
+
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+
+    return false;
+  }
+
+  async function autoPostLegacyResolutionIfNeeded(resolution, payload, actorUser) {
+    const isLegacyImport = parseBooleanInput(payload?.is_legacy_import);
+    const autoPostPublicly = parseBooleanInput(payload?.auto_post_publicly);
+
+    if (!isLegacyImport || !autoPostPublicly) {
+      return resolution;
+    }
+
+    const postingDaysRaw = Number(payload?.posting_duration_days);
+    const postingDurationDays = Number.isInteger(postingDaysRaw) && postingDaysRaw > 0
+      ? postingDaysRaw
+      : 3;
+    const postingLocation = String(payload?.posting_location || '').trim();
+    const approvalRemarks = String(payload?.approval_remarks || payload?.remarks || '').trim();
+    const approvedByCandidate = Number(payload?.approved_by);
+    const approvedBy = Number.isInteger(approvedByCandidate) && approvedByCandidate > 0
+      ? approvedByCandidate
+      : actorUser.id;
+
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + postingDurationDays);
+    const postingEndDate = endDate.toISOString().split('T')[0];
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      await Resolution.recordApproval(
+        client,
+        resolution.id,
+        approvedBy,
+        approvalRemarks || 'Legacy resolution import approved during electronic encoding.'
+      );
+
+      const postedResult = await Resolution.recordPosting(client, resolution.id, postingEndDate);
+
+      await Resolution.insertPostingRecord(client, {
+        resolutionId: resolution.id,
+        postedBy: actorUser.id,
+        postingDurationDays,
+        postingLocation,
+        effectiveDate: postingEndDate,
+        notes: String(payload?.posting_notes || payload?.notes || '').trim() || 'Auto-posted from legacy resolution import.',
+      });
+
+      await Resolution.insertWorkflowAction(
+        client,
+        resolution.id,
+        'LEGACY_IMPORT_APPROVAL',
+        'APPROVED',
+        actorUser.id,
+        'Legacy resolution import auto-approved for public posting.'
+      );
+      await Resolution.insertWorkflowAction(
+        client,
+        resolution.id,
+        'POST_PUBLICLY',
+        'POSTED',
+        actorUser.id,
+        `Legacy resolution import auto-posted publicly for ${postingDurationDays} day(s) at: ${postingLocation || 'N/A'}`
+      );
+
+      await AuditLog.create(
+        client,
+        actorUser.id,
+        'RESOLUTION_LEGACY_AUTO_POSTED',
+        `Legacy resolution "${resolution.title}" was auto-posted publicly after import.`
+      );
+      await createNotification(
+        resolution.proposer_id,
+        `Your legacy resolution "${resolution.title}" was auto-posted publicly after electronic import.`
+      );
+
+      await client.query('COMMIT');
+      return postedResult.rows[0];
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
     return normalizedNotes;
   }
 
@@ -277,19 +377,20 @@ async function normalizeCouncilorCoAuthors(coAuthorIds, { allowEmpty = true, exc
  * @param {object} user
  * @returns {Promise<object>}
  */
-exports.createResolution = async ({
-  title,
-  resolution_number,
-  description,
-  content,
-  remarks,
-  proposer_id,
-  status,
-  co_authors,
-  whereas_clauses,
-  effectivity_clause,
-  attachments,
-}, user) => {
+exports.createResolution = async (data, user) => {
+  const {
+    title,
+    resolution_number,
+    description,
+    content,
+    remarks,
+    proposer_id,
+    status,
+    co_authors,
+    whereas_clauses,
+    effectivity_clause,
+    attachments,
+  } = data;
   const proposer = await resolveResolutionProposer({ proposer_id }, user);
   const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors, {
     allowEmpty: true,
@@ -324,7 +425,9 @@ exports.createResolution = async ({
     attachments,
     initialReadingStage
   );
-  const resolution = result.rows[0];
+  let resolution = result.rows[0];
+
+  resolution = await autoPostLegacyResolutionIfNeeded(resolution, data, user);
 
   await AuditLog.create(null, user.id, 'RESOLUTION_CREATE', `Resolution "${title}" created`);
   await createNotification(user.id, `Your resolution "${title}" has been created.`);
