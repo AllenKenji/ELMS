@@ -401,6 +401,15 @@ exports.createResolution = async (data, user) => {
 
   const legacyImportRequested = parseBooleanInput(data?.is_legacy_import);
   const autoPostRequested = parseBooleanInput(data?.auto_post_publicly);
+  const creatorRole = normalizeRoleName(user?.role);
+  const isSecretaryUploader = creatorRole === 'secretary' || creatorRole === 'committee secretary';
+
+  if (isSecretaryUploader && !legacyImportRequested) {
+    const err = new Error('Secretary accounts can only submit legacy resolution scans/uploads. Enable legacy import before submitting.');
+    err.status = 403;
+    throw err;
+  }
+
   if ((legacyImportRequested || autoPostRequested) && !canBypassWorkflowForLegacy(user?.role)) {
     const err = new Error('Only Admin/Secretary/Committee Secretary can use legacy resolution publish bypass options.');
     err.status = 403;

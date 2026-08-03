@@ -103,6 +103,8 @@ export default function ResolutionForm({
   initialStatusOnCreate = 'Draft',
 }) {
   const { user } = useAuth();
+  const normalizedRole = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  const isSecretaryUploader = normalizedRole === 'secretary' || normalizedRole === 'committee secretary';
   const userCanAssignPrimaryAuthor = canAssignPrimaryAuthor(user);
   const canBypassLegacyWorkflow = canBypassWorkflowForLegacy(user);
   const effectivePrimaryAuthorId = String(
@@ -146,6 +148,15 @@ export default function ResolutionForm({
   useEffect(() => {
     setFormData(normalizeFormData(initialData));
   }, [initialData]);
+
+  useEffect(() => {
+    if (!resolutionId && isSecretaryUploader) {
+      setFormData((prev) => ({
+        ...prev,
+        is_legacy_import: true,
+      }));
+    }
+  }, [resolutionId, isSecretaryUploader]);
 
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -455,6 +466,12 @@ export default function ResolutionForm({
       formPayload.append('remarks', formData.remarks.trim() || '');
       if (userCanAssignPrimaryAuthor && formData.proposer_id) {
         formPayload.append('proposer_id', formData.proposer_id);
+      }
+
+      if (!resolutionId && isSecretaryUploader && !formData.is_legacy_import) {
+        setError('Secretary accounts can only submit legacy resolution scans/uploads.');
+        setLoading(false);
+        return;
       }
 
       if (!resolutionId && canBypassLegacyWorkflow && formData.is_legacy_import) {
@@ -883,17 +900,19 @@ export default function ResolutionForm({
                 <input
                   type="checkbox"
                   checked={Boolean(formData.is_legacy_import)}
-                  disabled={loading}
+                  disabled={loading || isSecretaryUploader}
                   onChange={(e) => {
                     const { checked } = e.target;
                     setFormData((prev) => ({
                       ...prev,
-                      is_legacy_import: checked,
+                      is_legacy_import: isSecretaryUploader ? true : checked,
                       auto_post_publicly: checked ? prev.auto_post_publicly : false,
                     }));
                   }}
                 />
-                This is a legacy resolution already implemented (digitization upload)
+                {isSecretaryUploader
+                  ? 'Legacy mode required for Secretary uploads (old implemented resolution scan/upload)'
+                  : 'This is a legacy resolution already implemented (digitization upload)'}
               </label>
 
               {formData.is_legacy_import && (

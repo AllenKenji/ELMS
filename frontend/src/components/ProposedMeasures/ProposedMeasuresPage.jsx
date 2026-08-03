@@ -50,7 +50,8 @@ export default function ProposedMeasuresPage() {
   const [deletingMeasureKey, setDeletingMeasureKey] = useState('');
   const [draftFormInitialData, setDraftFormInitialData] = useState(null);
 
-  const canCreate = ['Admin', 'Councilor', 'Vice Mayor', 'Secretary', 'Committee Secretary'].includes(user?.role ?? '');
+  const normalizedRole = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  const canCreate = ['admin', 'councilor', 'vice mayor', 'secretary', 'committee secretary'].includes(normalizedRole);
   const canDelete = user?.role === 'Admin';
 
   const showActionMessage = (message) => {
