@@ -401,7 +401,7 @@ exports.createResolution = async (data, user) => {
 
   const legacyImportRequested = parseBooleanInput(data?.is_legacy_import);
   const autoPostRequested = parseBooleanInput(data?.auto_post_publicly);
-  const creatorRole = normalizeRoleName(user?.role);
+  const creatorRole = normalizeRoleName(user?.role || user?.role_name);
   const isSecretaryUploader = creatorRole === 'secretary' || creatorRole === 'committee secretary';
 
   if (isSecretaryUploader && !legacyImportRequested) {
@@ -410,7 +410,7 @@ exports.createResolution = async (data, user) => {
     throw err;
   }
 
-  if ((legacyImportRequested || autoPostRequested) && !canBypassWorkflowForLegacy(user?.role)) {
+  if ((legacyImportRequested || autoPostRequested) && !canBypassWorkflowForLegacy(user?.role || user?.role_name)) {
     const err = new Error('Only Admin/Secretary/Committee Secretary can use legacy resolution publish bypass options.');
     err.status = 403;
     throw err;
