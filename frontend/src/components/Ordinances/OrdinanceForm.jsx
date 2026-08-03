@@ -160,6 +160,7 @@ export default function OrdinanceForm({
       setFormData((prev) => ({
         ...prev,
         is_legacy_import: true,
+        auto_post_publicly: true,
       }));
     }
   }, [ordinanceId, isSecretaryUploader]);
@@ -932,7 +933,7 @@ export default function OrdinanceForm({
                   setFormData((prev) => ({
                     ...prev,
                     is_legacy_import: isSecretaryUploader ? true : checked,
-                    auto_post_publicly: checked ? prev.auto_post_publicly : false,
+                      auto_post_publicly: isSecretaryUploader ? true : (checked ? prev.auto_post_publicly : false),
                   }));
                 }}
               />
@@ -947,16 +948,16 @@ export default function OrdinanceForm({
                   <input
                     type="checkbox"
                     checked={Boolean(formData.auto_post_publicly)}
-                    disabled={loading}
+                    disabled={loading || isSecretaryUploader}
                     onChange={(e) => {
                       const { checked } = e.target;
                       setFormData((prev) => ({
                         ...prev,
-                        auto_post_publicly: checked,
+                        auto_post_publicly: isSecretaryUploader ? true : checked,
                       }));
                     }}
                   />
-                  Auto post publicly after submit
+                  {isSecretaryUploader ? 'Auto post publicly after submit (required for Secretary)' : 'Auto post publicly after submit'}
                 </label>
 
                 {formData.auto_post_publicly && (
