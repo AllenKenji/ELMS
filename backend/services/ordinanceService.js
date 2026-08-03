@@ -163,6 +163,23 @@ function normalizeLinkedRecordingUrl(recordingUrl) {
   return '';
 }
 
+function parseBooleanInput(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+  }
+
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+
+  return false;
+}
+
 function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   const normalizedNotes = String(discussionNotes || '').trim();
   const normalizedRecordingUrl = normalizeLinkedRecordingUrl(recordingUrl);
@@ -172,113 +189,96 @@ function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   }
 
   if (normalizedNotes.includes(normalizedRecordingUrl)) {
-
-  function parseBooleanInput(value) {
-    if (typeof value === 'boolean') {
-      return value;
-    }
-
-    if (typeof value === 'string') {
-      const normalized = value.trim().toLowerCase();
-      return normalized === 'true' || normalized === '1' || normalized === 'yes';
-    }
-
-    if (typeof value === 'number') {
-      return value === 1;
-    }
-
-    return false;
-  }
-
-  async function autoPostLegacyOrdinanceIfNeeded(ordinance, payload, actorUser) {
-    const isLegacyImport = parseBooleanInput(payload?.is_legacy_import);
-    const autoPostPublicly = parseBooleanInput(payload?.auto_post_publicly);
-
-    if (!isLegacyImport || !autoPostPublicly) {
-      return ordinance;
-    }
-
-    const postingDaysRaw = Number(payload?.posting_duration_days);
-    const postingDurationDays = Number.isInteger(postingDaysRaw) && postingDaysRaw > 0
-      ? postingDaysRaw
-      : 3;
-    const postingLocation = String(payload?.posting_location || '').trim();
-    const approvalRemarks = String(payload?.approval_remarks || payload?.remarks || '').trim();
-    const approvedByCandidate = Number(payload?.approved_by);
-    const approvedBy = Number.isInteger(approvedByCandidate) && approvedByCandidate > 0
-      ? approvedByCandidate
-      : actorUser.id;
-
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + postingDurationDays);
-    const postingEndDate = endDate.toISOString().split('T')[0];
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      await Ordinance.recordApproval(
-        client,
-        ordinance.id,
-        approvedBy,
-        approvalRemarks || 'Legacy ordinance import approved during electronic encoding.'
-      );
-      await Ordinance.setApprovedDate(client, ordinance.id);
-
-      const postedResult = await Ordinance.recordPosting(client, ordinance.id, postingEndDate);
-      await Ordinance.setPublishedDate(client, ordinance.id);
-
-      await Ordinance.insertPostingRecord(client, {
-        ordinanceId: ordinance.id,
-        postedBy: actorUser.id,
-        postingDurationDays,
-        postingLocation,
-        effectiveDate: postingEndDate,
-        notes: String(payload?.posting_notes || payload?.notes || '').trim() || 'Auto-posted from legacy ordinance import.',
-      });
-
-      await Ordinance.insertWorkflowAction(
-        client,
-        ordinance.id,
-        'LEGACY_IMPORT_APPROVAL',
-        'APPROVED',
-        actorUser.id,
-        'Legacy ordinance import auto-approved for public posting.'
-      );
-      await Ordinance.insertWorkflowAction(
-        client,
-        ordinance.id,
-        'POST_PUBLICLY',
-        'POSTED',
-        actorUser.id,
-        `Legacy ordinance import auto-posted publicly for ${postingDurationDays} day(s) at: ${postingLocation || 'N/A'}`
-      );
-
-      await AuditLog.create(
-        client,
-        actorUser.id,
-        'ORDINANCE_LEGACY_AUTO_POSTED',
-        `Legacy ordinance "${ordinance.title}" was auto-posted publicly after import.`
-      );
-      await createNotification(
-        ordinance.proposer_id,
-        `Your legacy ordinance "${ordinance.title}" was auto-posted publicly after electronic import.`
-      );
-
-      await client.query('COMMIT');
-      return postedResult.rows[0];
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
     return normalizedNotes;
   }
 
   const recordingLine = `Session recording: ${normalizedRecordingUrl}`;
   return normalizedNotes ? `${recordingLine}\n\n${normalizedNotes}` : recordingLine;
+}
+
+async function autoPostLegacyOrdinanceIfNeeded(ordinance, payload, actorUser) {
+  const isLegacyImport = parseBooleanInput(payload?.is_legacy_import);
+  const autoPostPublicly = parseBooleanInput(payload?.auto_post_publicly);
+
+  if (!isLegacyImport || !autoPostPublicly) {
+    return ordinance;
+  }
+
+  const postingDaysRaw = Number(payload?.posting_duration_days);
+  const postingDurationDays = Number.isInteger(postingDaysRaw) && postingDaysRaw > 0
+    ? postingDaysRaw
+    : 3;
+  const postingLocation = String(payload?.posting_location || '').trim();
+  const approvalRemarks = String(payload?.approval_remarks || payload?.remarks || '').trim();
+  const approvedByCandidate = Number(payload?.approved_by);
+  const approvedBy = Number.isInteger(approvedByCandidate) && approvedByCandidate > 0
+    ? approvedByCandidate
+    : actorUser.id;
+
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + postingDurationDays);
+  const postingEndDate = endDate.toISOString().split('T')[0];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await Ordinance.recordApproval(
+      client,
+      ordinance.id,
+      approvedBy,
+      approvalRemarks || 'Legacy ordinance import approved during electronic encoding.'
+    );
+    await Ordinance.setApprovedDate(client, ordinance.id);
+
+    const postedResult = await Ordinance.recordPosting(client, ordinance.id, postingEndDate);
+    await Ordinance.setPublishedDate(client, ordinance.id);
+
+    await Ordinance.insertPostingRecord(client, {
+      ordinanceId: ordinance.id,
+      postedBy: actorUser.id,
+      postingDurationDays,
+      postingLocation,
+      effectiveDate: postingEndDate,
+      notes: String(payload?.posting_notes || payload?.notes || '').trim() || 'Auto-posted from legacy ordinance import.',
+    });
+
+    await Ordinance.insertWorkflowAction(
+      client,
+      ordinance.id,
+      'LEGACY_IMPORT_APPROVAL',
+      'APPROVED',
+      actorUser.id,
+      'Legacy ordinance import auto-approved for public posting.'
+    );
+    await Ordinance.insertWorkflowAction(
+      client,
+      ordinance.id,
+      'POST_PUBLICLY',
+      'POSTED',
+      actorUser.id,
+      `Legacy ordinance import auto-posted publicly for ${postingDurationDays} day(s) at: ${postingLocation || 'N/A'}`
+    );
+
+    await AuditLog.create(
+      client,
+      actorUser.id,
+      'ORDINANCE_LEGACY_AUTO_POSTED',
+      `Legacy ordinance "${ordinance.title}" was auto-posted publicly after import.`
+    );
+    await createNotification(
+      ordinance.proposer_id,
+      `Your legacy ordinance "${ordinance.title}" was auto-posted publicly after electronic import.`
+    );
+
+    await client.query('COMMIT');
+    return postedResult.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 const ADMIN_STAGE_SEQUENCE = [

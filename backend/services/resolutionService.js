@@ -163,6 +163,23 @@ function normalizeLinkedRecordingUrl(recordingUrl) {
   return '';
 }
 
+function parseBooleanInput(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return normalized === 'true' || normalized === '1' || normalized === 'yes';
+  }
+
+  if (typeof value === 'number') {
+    return value === 1;
+  }
+
+  return false;
+}
+
 function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   const normalizedNotes = String(discussionNotes || '').trim();
   const normalizedRecordingUrl = normalizeLinkedRecordingUrl(recordingUrl);
@@ -172,111 +189,94 @@ function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   }
 
   if (normalizedNotes.includes(normalizedRecordingUrl)) {
-
-  function parseBooleanInput(value) {
-    if (typeof value === 'boolean') {
-      return value;
-    }
-
-    if (typeof value === 'string') {
-      const normalized = value.trim().toLowerCase();
-      return normalized === 'true' || normalized === '1' || normalized === 'yes';
-    }
-
-    if (typeof value === 'number') {
-      return value === 1;
-    }
-
-    return false;
-  }
-
-  async function autoPostLegacyResolutionIfNeeded(resolution, payload, actorUser) {
-    const isLegacyImport = parseBooleanInput(payload?.is_legacy_import);
-    const autoPostPublicly = parseBooleanInput(payload?.auto_post_publicly);
-
-    if (!isLegacyImport || !autoPostPublicly) {
-      return resolution;
-    }
-
-    const postingDaysRaw = Number(payload?.posting_duration_days);
-    const postingDurationDays = Number.isInteger(postingDaysRaw) && postingDaysRaw > 0
-      ? postingDaysRaw
-      : 3;
-    const postingLocation = String(payload?.posting_location || '').trim();
-    const approvalRemarks = String(payload?.approval_remarks || payload?.remarks || '').trim();
-    const approvedByCandidate = Number(payload?.approved_by);
-    const approvedBy = Number.isInteger(approvedByCandidate) && approvedByCandidate > 0
-      ? approvedByCandidate
-      : actorUser.id;
-
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + postingDurationDays);
-    const postingEndDate = endDate.toISOString().split('T')[0];
-
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-
-      await Resolution.recordApproval(
-        client,
-        resolution.id,
-        approvedBy,
-        approvalRemarks || 'Legacy resolution import approved during electronic encoding.'
-      );
-
-      const postedResult = await Resolution.recordPosting(client, resolution.id, postingEndDate);
-
-      await Resolution.insertPostingRecord(client, {
-        resolutionId: resolution.id,
-        postedBy: actorUser.id,
-        postingDurationDays,
-        postingLocation,
-        effectiveDate: postingEndDate,
-        notes: String(payload?.posting_notes || payload?.notes || '').trim() || 'Auto-posted from legacy resolution import.',
-      });
-
-      await Resolution.insertWorkflowAction(
-        client,
-        resolution.id,
-        'LEGACY_IMPORT_APPROVAL',
-        'APPROVED',
-        actorUser.id,
-        'Legacy resolution import auto-approved for public posting.'
-      );
-      await Resolution.insertWorkflowAction(
-        client,
-        resolution.id,
-        'POST_PUBLICLY',
-        'POSTED',
-        actorUser.id,
-        `Legacy resolution import auto-posted publicly for ${postingDurationDays} day(s) at: ${postingLocation || 'N/A'}`
-      );
-
-      await AuditLog.create(
-        client,
-        actorUser.id,
-        'RESOLUTION_LEGACY_AUTO_POSTED',
-        `Legacy resolution "${resolution.title}" was auto-posted publicly after import.`
-      );
-      await createNotification(
-        resolution.proposer_id,
-        `Your legacy resolution "${resolution.title}" was auto-posted publicly after electronic import.`
-      );
-
-      await client.query('COMMIT');
-      return postedResult.rows[0];
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
     return normalizedNotes;
   }
 
   const recordingLine = `Session recording: ${normalizedRecordingUrl}`;
   return normalizedNotes ? `${recordingLine}\n\n${normalizedNotes}` : recordingLine;
+}
+
+async function autoPostLegacyResolutionIfNeeded(resolution, payload, actorUser) {
+  const isLegacyImport = parseBooleanInput(payload?.is_legacy_import);
+  const autoPostPublicly = parseBooleanInput(payload?.auto_post_publicly);
+
+  if (!isLegacyImport || !autoPostPublicly) {
+    return resolution;
+  }
+
+  const postingDaysRaw = Number(payload?.posting_duration_days);
+  const postingDurationDays = Number.isInteger(postingDaysRaw) && postingDaysRaw > 0
+    ? postingDaysRaw
+    : 3;
+  const postingLocation = String(payload?.posting_location || '').trim();
+  const approvalRemarks = String(payload?.approval_remarks || payload?.remarks || '').trim();
+  const approvedByCandidate = Number(payload?.approved_by);
+  const approvedBy = Number.isInteger(approvedByCandidate) && approvedByCandidate > 0
+    ? approvedByCandidate
+    : actorUser.id;
+
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() + postingDurationDays);
+  const postingEndDate = endDate.toISOString().split('T')[0];
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    await Resolution.recordApproval(
+      client,
+      resolution.id,
+      approvedBy,
+      approvalRemarks || 'Legacy resolution import approved during electronic encoding.'
+    );
+
+    const postedResult = await Resolution.recordPosting(client, resolution.id, postingEndDate);
+
+    await Resolution.insertPostingRecord(client, {
+      resolutionId: resolution.id,
+      postedBy: actorUser.id,
+      postingDurationDays,
+      postingLocation,
+      effectiveDate: postingEndDate,
+      notes: String(payload?.posting_notes || payload?.notes || '').trim() || 'Auto-posted from legacy resolution import.',
+    });
+
+    await Resolution.insertWorkflowAction(
+      client,
+      resolution.id,
+      'LEGACY_IMPORT_APPROVAL',
+      'APPROVED',
+      actorUser.id,
+      'Legacy resolution import auto-approved for public posting.'
+    );
+    await Resolution.insertWorkflowAction(
+      client,
+      resolution.id,
+      'POST_PUBLICLY',
+      'POSTED',
+      actorUser.id,
+      `Legacy resolution import auto-posted publicly for ${postingDurationDays} day(s) at: ${postingLocation || 'N/A'}`
+    );
+
+    await AuditLog.create(
+      client,
+      actorUser.id,
+      'RESOLUTION_LEGACY_AUTO_POSTED',
+      `Legacy resolution "${resolution.title}" was auto-posted publicly after import.`
+    );
+    await createNotification(
+      resolution.proposer_id,
+      `Your legacy resolution "${resolution.title}" was auto-posted publicly after electronic import.`
+    );
+
+    await client.query('COMMIT');
+    return postedResult.rows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 const ADMIN_STAGE_SEQUENCE = [
