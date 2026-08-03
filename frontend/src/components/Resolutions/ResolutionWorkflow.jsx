@@ -273,6 +273,50 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
 
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
+  const loadLinkedSessionRecordings = useCallback(async () => {
+    const currentResolution = workflowStatus?.resolution || resolution;
+    const linkedSessionId = Number(currentResolution?.session_id_first_reading);
+
+    if (!Number.isInteger(linkedSessionId) || linkedSessionId <= 0) {
+      setSessionRecordings([]);
+      setError('No linked session found. Use Record Session first.');
+      return false;
+    }
+
+    const preloadedWorkflowRecordings = normalizeDirectSessionRecordings(workflowStatus?.linkedSessionRecordings);
+    setSessionRecordings(preloadedWorkflowRecordings);
+    setLoadingRecordings(true);
+
+    const cacheBust = Date.now();
+    const [minutesResult, directRecordingsResult] = await Promise.allSettled([
+      api.get(`/sessions/${linkedSessionId}/minutes`, { params: { _ts: cacheBust } }),
+      api.get(`/sessions/${linkedSessionId}/recordings`, { params: { _ts: cacheBust } }),
+    ]);
+
+    const minutesRecordings = minutesResult.status === 'fulfilled'
+      ? normalizeSessionMinutesRecordings(minutesResult.value?.data)
+      : [];
+    const directRecordings = directRecordingsResult.status === 'fulfilled'
+      ? normalizeDirectSessionRecordings(directRecordingsResult.value?.data)
+      : [];
+
+    const mergedRecordings = mergeSessionRecordings(
+      preloadedWorkflowRecordings,
+      minutesRecordings,
+      directRecordings
+    );
+    setSessionRecordings(mergedRecordings);
+
+    if (minutesResult.status === 'rejected' && directRecordingsResult.status === 'rejected') {
+      setError('Failed to load linked session recordings.');
+      setLoadingRecordings(false);
+      return false;
+    }
+
+    setLoadingRecordings(false);
+    return true;
+  }, [resolution, workflowStatus]);
+
   const handleActionClick = (action) => {
     setError('');
 
@@ -294,52 +338,13 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
     }
 
     if (action === 'first-reading') {
-      const linkedSessionId = Number(resl?.session_id_first_reading);
-      if (!Number.isInteger(linkedSessionId) || linkedSessionId <= 0) {
-        setError('No linked session found. Use Record Session first.');
-        return;
-      }
-
       setActiveAction(action);
-      const preloadedWorkflowRecordings = normalizeDirectSessionRecordings(workflowStatus?.linkedSessionRecordings);
       setForm({
         selected_recording_url: '',
         discussion_notes: '',
       });
 
-      setSessionRecordings(preloadedWorkflowRecordings);
-
-      setLoadingRecordings(true);
-      const cacheBust = Date.now();
-      Promise.allSettled([
-        api.get(`/sessions/${linkedSessionId}/minutes`, { params: { _ts: cacheBust } }),
-        api.get(`/sessions/${linkedSessionId}/recordings`, { params: { _ts: cacheBust } }),
-      ])
-        .then(([minutesResult, directRecordingsResult]) => {
-          const minutesRecordings = minutesResult.status === 'fulfilled'
-            ? normalizeSessionMinutesRecordings(minutesResult.value?.data)
-            : [];
-          const directRecordings = directRecordingsResult.status === 'fulfilled'
-            ? normalizeDirectSessionRecordings(directRecordingsResult.value?.data)
-            : [];
-
-          const mergedRecordings = mergeSessionRecordings(
-            preloadedWorkflowRecordings,
-            minutesRecordings,
-            directRecordings
-          );
-          setSessionRecordings(mergedRecordings);
-
-          if (
-            minutesResult.status === 'rejected' &&
-            directRecordingsResult.status === 'rejected'
-          ) {
-            setError('Failed to load linked session recordings.');
-          }
-        })
-        .finally(() => {
-          setLoadingRecordings(false);
-        });
+      loadLinkedSessionRecordings();
       return;
     }
 
@@ -1130,6 +1135,16 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                   {activeAction === "first-reading" && (
                     <div className="form-group">
                       <label>Recorded Video {sessionRecordings.length > 0 ? <span className="required">*</span> : ''}</label>
+                      <div style={{ marginBottom: 8 }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => { setError(''); loadLinkedSessionRecordings(); }}
+                          disabled={loadingRecordings}
+                        >
+                          {loadingRecordings ? 'Refreshing...' : 'Refresh Recording List'}
+                        </button>
+                      </div>
                       {loadingRecordings ? (
                         <p style={{ margin: 0, color: '#666' }}>Loading session recordings...</p>
                       ) : sessionRecordings.length === 0 ? (

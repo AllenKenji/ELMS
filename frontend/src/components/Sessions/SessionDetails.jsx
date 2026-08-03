@@ -127,10 +127,17 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
     }
 
     if (isSessionUploadActive) {
-      setError('Wait for the session recording upload to finish before closing session details.');
-      return;
+      const shouldClose = window.confirm(
+        'Upload is still in progress. Your local copy is already saved. Close session details anyway?'
+      );
+
+      if (!shouldClose) {
+        setError('Keep this window open until upload finishes, or close anyway if you only need the local copy.');
+        return;
+      }
     }
 
+    setError('');
     onClose?.();
   }, [isLocalRecordingActive, isSessionUploadActive, onClose]);
 
@@ -267,20 +274,23 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
     return 'Upcoming';
   };
 
+  const normalizedUserRole = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  const hasRole = (...roles) => roles.some((role) => normalizedUserRole === String(role).trim().toLowerCase());
+
   const canEdit = () => {
-    return ['Admin', 'Secretary'].includes(user?.role);
+    return hasRole('Admin', 'Secretary');
   };
 
   const canDelete = () => {
-    return ['Admin', 'Secretary'].includes(user?.role);
+    return hasRole('Admin', 'Secretary');
   };
 
   const canRecordSession = () => {
-    return ['Admin', 'Secretary', 'Vice Mayor', 'Councilor'].includes(user?.role);
+    return hasRole('Admin', 'Secretary', 'Vice Mayor', 'Councilor');
   };
 
   const canStartLiveStream = () => {
-    return ['Admin', 'Secretary', 'Vice Mayor'].includes(user?.role) || isParticipant;
+    return hasRole('Admin', 'Secretary', 'Vice Mayor') || isParticipant;
   };
 
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;

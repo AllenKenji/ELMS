@@ -263,22 +263,14 @@ async function createCompositeRecordingStream(baseStream, overlayStream) {
 }
 
 async function buildBlobFromChunks(chunks, mimeType) {
-  const buffers = await Promise.all(chunks.map((chunk) => chunk.arrayBuffer()));
-  const totalBytes = buffers.reduce((sum, buffer) => sum + buffer.byteLength, 0);
+  const totalBytes = (chunks || []).reduce((sum, chunk) => sum + (chunk?.size || 0), 0);
 
   if (!totalBytes) {
     return { blob: new Blob([], { type: mimeType || 'video/webm' }), totalBytes: 0 };
   }
 
-  const merged = new Uint8Array(totalBytes);
-  let offset = 0;
-  for (const buffer of buffers) {
-    merged.set(new Uint8Array(buffer), offset);
-    offset += buffer.byteLength;
-  }
-
   return {
-    blob: new Blob([merged.buffer], { type: mimeType || 'video/webm' }),
+    blob: new Blob(chunks, { type: mimeType || 'video/webm' }),
     totalBytes,
   };
 }
