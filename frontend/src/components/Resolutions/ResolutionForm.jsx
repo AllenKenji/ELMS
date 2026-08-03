@@ -107,12 +107,13 @@ export default function ResolutionForm({
   const isSecretaryUploader = normalizedRole === 'secretary' || normalizedRole === 'committee secretary';
   const userCanAssignPrimaryAuthor = canAssignPrimaryAuthor(user);
   const canBypassLegacyWorkflow = canBypassWorkflowForLegacy(user);
-  const effectivePrimaryAuthorId = String(
-    userCanAssignPrimaryAuthor ? formData.proposer_id : user?.id || ''
-  );
 
   const [formData, setFormData] = useState(
     normalizeFormData(initialData)
+  );
+
+  const effectivePrimaryAuthorId = String(
+    userCanAssignPrimaryAuthor ? formData.proposer_id : user?.id || ''
   );
 
   const [loading, setLoading] = useState(false);
