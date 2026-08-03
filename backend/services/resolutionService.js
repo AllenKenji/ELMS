@@ -422,7 +422,7 @@ exports.createResolution = async (data, user) => {
     excludeIds: proposer.id,
   });
   let finalResolutionNumber = resolution_number;
-  if (isCouncilorRole(user?.role) && isBlankInput(resolution_number)) {
+  if ((isCouncilorRole(user?.role || user?.role_name) || isSecretaryUploader) && isBlankInput(resolution_number)) {
     finalResolutionNumber = await generateNextResolutionNumber();
   }
   const initialStatus = status || 'Draft';

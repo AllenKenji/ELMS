@@ -510,7 +510,7 @@ exports.createOrdinance = async (data, user) => {
     excludeIds: proposer.id,
   });
   let finalOrdinanceNumber = ordinance_number;
-  if (isCouncilorRole(user?.role) && isBlankInput(ordinance_number)) {
+  if ((isCouncilorRole(user?.role || user?.role_name) || isSecretaryUploader) && isBlankInput(ordinance_number)) {
     finalOrdinanceNumber = await generateNextOrdinanceNumber();
   }
   const initialStatus = status || 'Draft';
