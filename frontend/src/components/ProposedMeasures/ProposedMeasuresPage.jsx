@@ -51,6 +51,7 @@ export default function ProposedMeasuresPage() {
   const [draftFormInitialData, setDraftFormInitialData] = useState(null);
 
   const normalizedRole = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  const isSecretaryUploader = normalizedRole === 'secretary' || normalizedRole === 'committee secretary';
   const canCreate = ['admin', 'councilor', 'vice mayor', 'secretary', 'committee secretary'].includes(normalizedRole);
   const canDelete = user?.role === 'Admin';
 
@@ -341,9 +342,9 @@ export default function ProposedMeasuresPage() {
             <button
               onClick={() => setShowTypeSelector(true)}
               className="btn-new-proposed"
-              aria-label="Create new proposed measure"
+              aria-label={isSecretaryUploader ? 'Scan proposed measure' : 'Create new proposed measure'}
             >
-              ➕ New Proposed Measure
+              {isSecretaryUploader ? '🖨️ Scan Proposed Measure' : '➕ New Proposed Measure'}
             </button>
           )}
           <button onClick={fetchMeasures} className="btn-refresh" title="Refresh">
@@ -357,7 +358,7 @@ export default function ProposedMeasuresPage() {
         <div className="type-selector-overlay">
           <div className="type-selector-modal">
             <div className="type-selector-header">
-              <h4>📋 New Proposed Measure</h4>
+              <h4>{isSecretaryUploader ? '🖨️ Scan Proposed Measure' : '📋 New Proposed Measure'}</h4>
               <button
                 className="btn-close-selector"
                 onClick={() => setShowTypeSelector(false)}
@@ -366,7 +367,11 @@ export default function ProposedMeasuresPage() {
                 ✕
               </button>
             </div>
-            <p className="type-selector-subtitle">Select the type of measure you want to propose:</p>
+            <p className="type-selector-subtitle">
+              {isSecretaryUploader
+                ? 'Select the document type to scan and upload as a legacy proposed measure:'
+                : 'Select the type of measure you want to propose:'}
+            </p>
             <div className="type-selector-options">
               <button
                 className="type-option-btn ordinance-option"
