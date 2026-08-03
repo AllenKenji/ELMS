@@ -29,6 +29,13 @@ function canAssignPrimaryAuthor(role) {
     || normalizedRole === 'committee secretary';
 }
 
+function canBypassWorkflowForLegacy(role) {
+  const normalizedRole = normalizeRoleName(role);
+  return normalizedRole === 'admin'
+    || normalizedRole === 'secretary'
+    || normalizedRole === 'committee secretary';
+}
+
 async function resolveResolutionProposer(data, user) {
   const creatorRole = normalizeRoleName(user?.role);
 
@@ -391,6 +398,15 @@ exports.createResolution = async (data, user) => {
     effectivity_clause,
     attachments,
   } = data;
+
+  const legacyImportRequested = parseBooleanInput(data?.is_legacy_import);
+  const autoPostRequested = parseBooleanInput(data?.auto_post_publicly);
+  if ((legacyImportRequested || autoPostRequested) && !canBypassWorkflowForLegacy(user?.role)) {
+    const err = new Error('Only Admin/Secretary/Committee Secretary can use legacy resolution publish bypass options.');
+    err.status = 403;
+    throw err;
+  }
+
   const proposer = await resolveResolutionProposer({ proposer_id }, user);
   const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors, {
     allowEmpty: true,
@@ -429,31 +445,52 @@ exports.createResolution = async (data, user) => {
 
   resolution = await autoPostLegacyResolutionIfNeeded(resolution, data, user);
 
-  await AuditLog.create(null, user.id, 'RESOLUTION_CREATE', `Resolution "${title}" created`);
-  await createNotification(user.id, `Your resolution "${title}" has been created.`);
-
-  // Persist notifications for Secretary users so they can see new measures in the notifications panel.
-  const secretaryUsers = await pool.query(
-    `SELECT u.id
-     FROM users u
-     JOIN roles r ON r.id = u.role_id
-     WHERE r.role_name = 'Secretary'`
-  );
-  for (const secretary of secretaryUsers.rows) {
-    await createNotification(
-      secretary.id,
-      `A new proposed resolution "${title}" was created and is ready for review.`,
-      {
-        type: 'activity',
-        title: 'New Proposed Measure',
-        relatedId: resolution.id,
-        relatedType: 'resolution',
-      }
-    );
+  try {
+    await AuditLog.create(null, user.id, 'RESOLUTION_CREATE', `Resolution "${title}" created`);
+  } catch (err) {
+    console.warn('Non-fatal: failed to write resolution create audit log', err?.message || err);
   }
 
-  const io = getIO();
-  io.emit('resolutionCreated', resolution);
+  try {
+    await createNotification(user.id, `Your resolution "${title}" has been created.`);
+  } catch (err) {
+    console.warn('Non-fatal: failed to notify resolution creator', err?.message || err);
+  }
+
+  // Persist notifications for Secretary users so they can see new measures in the notifications panel.
+  try {
+    const secretaryUsers = await pool.query(
+      `SELECT u.id
+       FROM users u
+       JOIN roles r ON r.id = u.role_id
+       WHERE r.role_name = 'Secretary'`
+    );
+    for (const secretary of secretaryUsers.rows) {
+      try {
+        await createNotification(
+          secretary.id,
+          `A new proposed resolution "${title}" was created and is ready for review.`,
+          {
+            type: 'activity',
+            title: 'New Proposed Measure',
+            relatedId: resolution.id,
+            relatedType: 'resolution',
+          }
+        );
+      } catch (err) {
+        console.warn('Non-fatal: failed to notify secretary for resolution create', err?.message || err);
+      }
+    }
+  } catch (err) {
+    console.warn('Non-fatal: failed to query secretary users for resolution notifications', err?.message || err);
+  }
+
+  try {
+    const io = getIO();
+    io.emit('resolutionCreated', resolution);
+  } catch (err) {
+    console.warn('Non-fatal: failed to emit resolutionCreated socket event', err?.message || err);
+  }
 
   return resolution;
 };

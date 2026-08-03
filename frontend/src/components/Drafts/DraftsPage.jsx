@@ -22,7 +22,7 @@ export default function DraftsPage() {
   const [proposingDraft, setProposingDraft] = useState(null);
   const [proposingInitialData, setProposingInitialData] = useState(null);
 
-  const canCreate = ['Admin', 'Councilor', 'Vice Mayor'].includes(user?.role ?? '');
+  const canCreate = ['Admin', 'Councilor', 'Vice Mayor', 'Secretary', 'Committee Secretary'].includes(user?.role ?? '');
 
   const fetchDrafts = useCallback(async () => {
     try {

@@ -29,6 +29,13 @@ function canAssignPrimaryAuthor(role) {
     || normalizedRole === 'committee secretary';
 }
 
+function canBypassWorkflowForLegacy(role) {
+  const normalizedRole = normalizeRoleName(role);
+  return normalizedRole === 'admin'
+    || normalizedRole === 'secretary'
+    || normalizedRole === 'committee secretary';
+}
+
 async function resolveOrdinanceProposer(data, user) {
   const creatorRole = normalizeRoleName(user?.role);
 
@@ -479,6 +486,15 @@ exports.createOrdinance = async (data, user) => {
     effectivity_clause = '',
     attachments = [],
   } = data;
+
+  const legacyImportRequested = parseBooleanInput(data?.is_legacy_import);
+  const autoPostRequested = parseBooleanInput(data?.auto_post_publicly);
+  if ((legacyImportRequested || autoPostRequested) && !canBypassWorkflowForLegacy(user?.role)) {
+    const err = new Error('Only Admin/Secretary/Committee Secretary can use legacy ordinance publish bypass options.');
+    err.status = 403;
+    throw err;
+  }
+
   const proposer = await resolveOrdinanceProposer({ proposer_id }, user);
   const normalizedCoAuthors = await normalizeCouncilorCoAuthors(co_authors, {
     allowEmpty: true,
@@ -513,52 +529,81 @@ exports.createOrdinance = async (data, user) => {
 
   ordinance = await autoPostLegacyOrdinanceIfNeeded(ordinance, data, user);
 
-  await AuditLog.create(null, user.id, 'ORDINANCE_CREATE', `Ordinance "${title}" created`);
-  await createNotification(user.id, `Your ordinance "${title}" has been created.`);
+  try {
+    await AuditLog.create(null, user.id, 'ORDINANCE_CREATE', `Ordinance "${title}" created`);
+  } catch (err) {
+    console.warn('Non-fatal: failed to write ordinance create audit log', err?.message || err);
+  }
+
+  try {
+    await createNotification(user.id, `Your ordinance "${title}" has been created.`);
+  } catch (err) {
+    console.warn('Non-fatal: failed to notify ordinance creator', err?.message || err);
+  }
 
   // Persist notifications for Secretary users so they can see new measures in the notifications panel.
-  const secretaryUsers = await pool.query(
-    `SELECT u.id
-     FROM users u
-     JOIN roles r ON r.id = u.role_id
-     WHERE r.role_name = 'Secretary'`
-  );
-  for (const secretary of secretaryUsers.rows) {
-    await createNotification(
-      secretary.id,
-      `A new proposed ordinance "${title}" was created and is ready for review.`,
-      {
-        type: 'activity',
-        title: 'New Proposed Measure',
-        relatedId: ordinance.id,
-        relatedType: 'ordinance',
-      }
+  try {
+    const secretaryUsers = await pool.query(
+      `SELECT u.id
+       FROM users u
+       JOIN roles r ON r.id = u.role_id
+       WHERE r.role_name = 'Secretary'`
     );
+    for (const secretary of secretaryUsers.rows) {
+      try {
+        await createNotification(
+          secretary.id,
+          `A new proposed ordinance "${title}" was created and is ready for review.`,
+          {
+            type: 'activity',
+            title: 'New Proposed Measure',
+            relatedId: ordinance.id,
+            relatedType: 'ordinance',
+          }
+        );
+      } catch (err) {
+        console.warn('Non-fatal: failed to notify secretary for ordinance create', err?.message || err);
+      }
+    }
+  } catch (err) {
+    console.warn('Non-fatal: failed to query secretary users for ordinance notifications', err?.message || err);
   }
 
   // Notify all Vice Mayors if no committee is assigned
   if (!data.committee_id) {
     // Query all users with the 'Vice Mayor' role
-    const { rows: viceMayors } = await require('../models/User').findAll();
-    for (const vm of viceMayors) {
-      if ((vm.role_name || '').toLowerCase() === 'vice mayor') {
-        await createNotification(
-          vm.id,
-          `A proposed measure ("${title}") has been created and is not yet assigned to a committee.`,
-          {
-            type: 'warning',
-            title: 'Unassigned Proposed Measure',
-            relatedId: ordinance.id,
-            relatedType: 'ordinance',
+    try {
+      const { rows: viceMayors } = await require('../models/User').findAll();
+      for (const vm of viceMayors) {
+        if ((vm.role_name || '').toLowerCase() === 'vice mayor') {
+          try {
+            await createNotification(
+              vm.id,
+              `A proposed measure ("${title}") has been created and is not yet assigned to a committee.`,
+              {
+                type: 'warning',
+                title: 'Unassigned Proposed Measure',
+                relatedId: ordinance.id,
+                relatedType: 'ordinance',
+              }
+            );
+          } catch (err) {
+            console.warn('Non-fatal: failed to notify vice mayor for ordinance create', err?.message || err);
           }
-        );
+        }
       }
+    } catch (err) {
+      console.warn('Non-fatal: failed to query vice mayors for ordinance notifications', err?.message || err);
     }
   }
 
-  const io = getIO();
-  io.to('Secretary').emit('ordinanceCreated', ordinance);
-  io.to('Councilor').emit('ordinanceCreated', ordinance);
+  try {
+    const io = getIO();
+    io.to('Secretary').emit('ordinanceCreated', ordinance);
+    io.to('Councilor').emit('ordinanceCreated', ordinance);
+  } catch (err) {
+    console.warn('Non-fatal: failed to emit ordinanceCreated socket event', err?.message || err);
+  }
 
   return ordinance;
 };

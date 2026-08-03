@@ -44,6 +44,11 @@ function normalizeFormData(data) {
     attachments_text: attachmentsToText(source.attachments),
     attachments_files: [],
     remarks: source.remarks || '',
+    is_legacy_import: false,
+    auto_post_publicly: false,
+    posting_duration_days: '3',
+    posting_location: '',
+    posting_notes: '',
   };
 }
 
@@ -66,6 +71,11 @@ function isCouncilorUser(user) {
 }
 
 function canAssignPrimaryAuthor(user) {
+  const roleName = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  return roleName === 'admin' || roleName === 'secretary' || roleName === 'committee secretary';
+}
+
+function canBypassWorkflowForLegacy(user) {
   const roleName = String(user?.role_name || user?.role || '').trim().toLowerCase();
   return roleName === 'admin' || roleName === 'secretary' || roleName === 'committee secretary';
 }
@@ -94,6 +104,7 @@ export default function ResolutionForm({
 }) {
   const { user } = useAuth();
   const userCanAssignPrimaryAuthor = canAssignPrimaryAuthor(user);
+  const canBypassLegacyWorkflow = canBypassWorkflowForLegacy(user);
   const effectivePrimaryAuthorId = String(
     userCanAssignPrimaryAuthor ? formData.proposer_id : user?.id || ''
   );
@@ -445,6 +456,15 @@ export default function ResolutionForm({
       if (userCanAssignPrimaryAuthor && formData.proposer_id) {
         formPayload.append('proposer_id', formData.proposer_id);
       }
+
+      if (!resolutionId && canBypassLegacyWorkflow && formData.is_legacy_import) {
+        formPayload.append('is_legacy_import', 'true');
+        formPayload.append('auto_post_publicly', formData.auto_post_publicly ? 'true' : 'false');
+        formPayload.append('posting_duration_days', String(formData.posting_duration_days || '3'));
+        formPayload.append('posting_location', String(formData.posting_location || '').trim());
+        formPayload.append('posting_notes', String(formData.posting_notes || '').trim());
+      }
+
       formPayload.append('status', initialStatusOnCreate);
       normalizedCoAuthorIds.forEach((id) => formPayload.append('co_authors[]', id));
       parseAttachments(formData.attachments_text).forEach((att) => formPayload.append('attachments[]', att));
@@ -855,6 +875,87 @@ export default function ResolutionForm({
               rows="3"
             />
           </div>
+
+          {!resolutionId && canBypassLegacyWorkflow && (
+            <div className="form-group">
+              <label>Legacy Publication (Skip Workflow)</label>
+              <label className="template-toolbar-item" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(formData.is_legacy_import)}
+                  disabled={loading}
+                  onChange={(e) => {
+                    const { checked } = e.target;
+                    setFormData((prev) => ({
+                      ...prev,
+                      is_legacy_import: checked,
+                      auto_post_publicly: checked ? prev.auto_post_publicly : false,
+                    }));
+                  }}
+                />
+                This is a legacy resolution already implemented (digitization upload)
+              </label>
+
+              {formData.is_legacy_import && (
+                <>
+                  <label className="template-toolbar-item" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(formData.auto_post_publicly)}
+                      disabled={loading}
+                      onChange={(e) => {
+                        const { checked } = e.target;
+                        setFormData((prev) => ({
+                          ...prev,
+                          auto_post_publicly: checked,
+                        }));
+                      }}
+                    />
+                    Auto post publicly after submit
+                  </label>
+
+                  {formData.auto_post_publicly && (
+                    <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="60"
+                        placeholder="Posting duration (days)"
+                        value={formData.posting_duration_days}
+                        disabled={loading}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          posting_duration_days: e.target.value,
+                        }))}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Posting location (optional)"
+                        value={formData.posting_location}
+                        disabled={loading}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          posting_location: e.target.value,
+                        }))}
+                      />
+                      <textarea
+                        rows="2"
+                        placeholder="Posting notes (optional)"
+                        value={formData.posting_notes}
+                        disabled={loading}
+                        onChange={(e) => setFormData((prev) => ({
+                          ...prev,
+                          posting_notes: e.target.value,
+                        }))}
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              <p className="field-helper">Use only for old resolutions that are already approved/implemented and need public online visibility.</p>
+            </div>
+          )}
 
           {/* Form Actions */}
           <div className="form-actions">

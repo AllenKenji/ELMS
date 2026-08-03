@@ -44,6 +44,11 @@ function normalizeFormData(data) {
     attachments_text: attachmentsToText(source.attachments),
     attachments_files: [],
     remarks: source.remarks || '',
+    is_legacy_import: false,
+    auto_post_publicly: false,
+    posting_duration_days: '3',
+    posting_location: '',
+    posting_notes: '',
   };
 }
 // Handle file uploads for attachments
@@ -89,6 +94,11 @@ function canAssignPrimaryAuthor(user) {
   return roleName === 'admin' || roleName === 'secretary' || roleName === 'committee secretary';
 }
 
+function canBypassWorkflowForLegacy(user) {
+  const roleName = String(user?.role_name || user?.role || '').trim().toLowerCase();
+  return roleName === 'admin' || roleName === 'secretary' || roleName === 'committee secretary';
+}
+
 export default function OrdinanceForm({
   onSuccess,
   onCancel,
@@ -99,6 +109,7 @@ export default function OrdinanceForm({
 }) {
   const { user } = useAuth();
   const userCanAssignPrimaryAuthor = canAssignPrimaryAuthor(user);
+  const canBypassLegacyWorkflow = canBypassWorkflowForLegacy(user);
   const effectivePrimaryAuthorId = String(
     userCanAssignPrimaryAuthor ? formData.proposer_id : user?.id || ''
   );
@@ -450,6 +461,15 @@ export default function OrdinanceForm({
       if (userCanAssignPrimaryAuthor && formData.proposer_id) {
         formPayload.append('proposer_id', formData.proposer_id);
       }
+
+      if (!ordinanceId && canBypassLegacyWorkflow && formData.is_legacy_import) {
+        formPayload.append('is_legacy_import', 'true');
+        formPayload.append('auto_post_publicly', formData.auto_post_publicly ? 'true' : 'false');
+        formPayload.append('posting_duration_days', String(formData.posting_duration_days || '3'));
+        formPayload.append('posting_location', String(formData.posting_location || '').trim());
+        formPayload.append('posting_notes', String(formData.posting_notes || '').trim());
+      }
+
       normalizedCoAuthorIds.forEach((id) => formPayload.append('co_authors[]', id));
       parseAttachments(formData.attachments_text).forEach((att) => formPayload.append('attachments[]', att));
       if (formData.attachments_files && formData.attachments_files.length > 0) {
@@ -880,6 +900,87 @@ export default function OrdinanceForm({
             {formData.remarks.length}/500 characters
           </div>
         </div>
+
+        {!ordinanceId && canBypassLegacyWorkflow && (
+          <div className="form-group">
+            <label>Legacy Publication (Skip Workflow)</label>
+            <label className="template-toolbar-item" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={Boolean(formData.is_legacy_import)}
+                disabled={loading}
+                onChange={(e) => {
+                  const { checked } = e.target;
+                  setFormData((prev) => ({
+                    ...prev,
+                    is_legacy_import: checked,
+                    auto_post_publicly: checked ? prev.auto_post_publicly : false,
+                  }));
+                }}
+              />
+              This is a legacy ordinance already implemented (digitization upload)
+            </label>
+
+            {formData.is_legacy_import && (
+              <>
+                <label className="template-toolbar-item" style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.auto_post_publicly)}
+                    disabled={loading}
+                    onChange={(e) => {
+                      const { checked } = e.target;
+                      setFormData((prev) => ({
+                        ...prev,
+                        auto_post_publicly: checked,
+                      }));
+                    }}
+                  />
+                  Auto post publicly after submit
+                </label>
+
+                {formData.auto_post_publicly && (
+                  <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="60"
+                      placeholder="Posting duration (days)"
+                      value={formData.posting_duration_days}
+                      disabled={loading}
+                      onChange={(e) => setFormData((prev) => ({
+                        ...prev,
+                        posting_duration_days: e.target.value,
+                      }))}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Posting location (optional)"
+                      value={formData.posting_location}
+                      disabled={loading}
+                      onChange={(e) => setFormData((prev) => ({
+                        ...prev,
+                        posting_location: e.target.value,
+                      }))}
+                    />
+                    <textarea
+                      rows="2"
+                      placeholder="Posting notes (optional)"
+                      value={formData.posting_notes}
+                      disabled={loading}
+                      onChange={(e) => setFormData((prev) => ({
+                        ...prev,
+                        posting_notes: e.target.value,
+                      }))}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="form-hint">Use only for old ordinances that are already approved/implemented and need public online visibility.</div>
+          </div>
+        )}
 
         {/* Form Actions */}
         <div className="form-actions">

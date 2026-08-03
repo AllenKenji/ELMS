@@ -16,7 +16,7 @@ const workflowLimiter = rateLimit({
   message: { status: 'fail', message: 'Too many requests, please try again later.' },
 });
 
-router.post('/', authenticateToken, authorizeRoles('Councilor', 'Admin'), upload.array('attachments_files'), resolutionController.create);
+router.post('/', authenticateToken, authorizeRoles('Councilor', 'Admin', 'Secretary', 'Committee Secretary'), upload.array('attachments_files'), resolutionController.create);
 router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Councilor', 'Admin'), upload.array('attachments_files'), resolutionController.update);
 router.get('/', authenticateToken, resolutionController.getAll);
 router.get('/:id', authenticateToken, resolutionController.getById);
