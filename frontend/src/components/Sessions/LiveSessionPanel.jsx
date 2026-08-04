@@ -126,6 +126,20 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const broadcastModeRef = useRef(null);
   const isBroadcastingRef = useRef(false);
   const isWatchingRef = useRef(false);
+  const canBroadcastRef = useRef(canBroadcast);
+  const resolveParticipantNameBySocketRef = useRef((socketId, providedName) => {
+    const explicitName = String(providedName || '').trim();
+    if (explicitName) return explicitName;
+    return 'Participant';
+  });
+  const resolveParticipantRoleBySocketRef = useRef((socketId, providedRole) => {
+    const explicitRole = String(providedRole || '').trim();
+    if (explicitRole) return explicitRole;
+    return '';
+  });
+  const upsertCameraPublisherRef = useRef(() => {});
+  const removeCameraPublisherRef = useRef(() => {});
+  const subscribeToCameraPublisherRef = useRef(() => {});
   const sourceBroadcastStreamRef = useRef(null);
   const previousParticipantsRef = useRef(new Map());
 
@@ -299,6 +313,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   useEffect(() => {
     isWatchingRef.current = isWatching;
   }, [isWatching]);
+
+  useEffect(() => {
+    canBroadcastRef.current = canBroadcast;
+  }, [canBroadcast]);
 
   useEffect(() => {
     isCameraOnRef.current = isCameraOn;
@@ -639,6 +657,18 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   }, [resolveParticipantName, resolveParticipantRole]);
 
   useEffect(() => {
+    resolveParticipantNameBySocketRef.current = resolveParticipantName;
+  }, [resolveParticipantName]);
+
+  useEffect(() => {
+    resolveParticipantRoleBySocketRef.current = resolveParticipantRole;
+  }, [resolveParticipantRole]);
+
+  useEffect(() => {
+    upsertCameraPublisherRef.current = upsertCameraPublisher;
+  }, [upsertCameraPublisher]);
+
+  useEffect(() => {
     setCameraPublishers((prev) => {
       let hasChanges = false;
       const next = prev.map((item) => {
@@ -673,6 +703,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     }
   }, []);
 
+  useEffect(() => {
+    removeCameraPublisherRef.current = removeCameraPublisher;
+  }, [removeCameraPublisher]);
+
   const subscribeToCameraPublisher = useCallback((publisherSocketId) => {
     if (!socketRef.current || !publisherSocketId) return;
     if (publisherSocketId === socketRef.current.id) return;
@@ -683,6 +717,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       publisherSocketId,
     });
   }, [normalizedSessionId]);
+
+  useEffect(() => {
+    subscribeToCameraPublisherRef.current = subscribeToCameraPublisher;
+  }, [subscribeToCameraPublisher]);
 
   const stopCameraPreview = useCallback(() => {
     if (socketRef.current) {
@@ -976,7 +1014,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
 
     socket.on('live:viewer-joined', async (payload) => {
-      if (!canBroadcast || !isBroadcastingRef.current) return;
+      if (!canBroadcastRef.current || !isBroadcastingRef.current) return;
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
       const viewerSocketId = payload?.viewerSocketId;
       if (!viewerSocketId) return;
@@ -1059,15 +1097,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           .filter((item) => item?.publisherSocketId && item.publisherSocketId !== socket.id)
           .map((item) => ({
             socketId: item.publisherSocketId,
-            name: resolveParticipantName(item.publisherSocketId, item.name),
-            role: resolveParticipantRole(item.publisherSocketId, item.role),
+            name: resolveParticipantNameBySocketRef.current(item.publisherSocketId, item.name),
+            role: resolveParticipantRoleBySocketRef.current(item.publisherSocketId, item.role),
           }))
       );
 
       publishers.forEach((item) => {
         const publisherSocketId = item?.publisherSocketId;
         if (!publisherSocketId || publisherSocketId === socket.id) return;
-        subscribeToCameraPublisher(publisherSocketId);
+        subscribeToCameraPublisherRef.current(publisherSocketId);
       });
     });
 
@@ -1076,13 +1114,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       const publisherSocketId = payload?.publisherSocketId;
       if (!publisherSocketId || publisherSocketId === socket.id) return;
 
-      upsertCameraPublisher(publisherSocketId, payload?.name, payload?.role);
-      subscribeToCameraPublisher(publisherSocketId);
+      upsertCameraPublisherRef.current(publisherSocketId, payload?.name, payload?.role);
+      subscribeToCameraPublisherRef.current(publisherSocketId);
     });
 
     socket.on('camera:unpublished', (payload) => {
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
-      removeCameraPublisher(payload?.publisherSocketId);
+      removeCameraPublisherRef.current(payload?.publisherSocketId);
     });
 
     socket.on('camera:subscriber-joined', async (payload) => {
@@ -1155,7 +1193,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             if (!stream) return;
 
             remoteCameraStreamsRef.current.set(publisherSocketId, stream);
-            upsertCameraPublisher(publisherSocketId, null, resolveParticipantRole(publisherSocketId));
+            upsertCameraPublisherRef.current(
+              publisherSocketId,
+              null,
+              resolveParticipantRoleBySocketRef.current(publisherSocketId)
+            );
 
             const node = cameraTileVideoRefs.current.get(publisherSocketId);
             if (node) {
@@ -1280,21 +1322,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setParticipantActivity([]);
     };
   }, [
-    canBroadcast,
     closeBroadcasterPeers,
     closeViewerPeer,
     createBroadcasterPeer,
     createViewerPeer,
-    hostName,
     normalizedSessionId,
-    resolveParticipantName,
-    resolveParticipantRole,
-    removeCameraPublisher,
-    sendModerationCommand,
     stopCameraPreview,
     stopBroadcast,
-    subscribeToCameraPublisher,
-    upsertCameraPublisher,
   ]);
 
   return (
