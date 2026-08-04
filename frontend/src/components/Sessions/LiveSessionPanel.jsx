@@ -5,9 +5,27 @@ import { API_BASE_URL } from '../../api/api';
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 function getSocketBaseUrl() {
-  return String(import.meta.env.VITE_SOCKET_URL || API_BASE_URL)
-    .trim()
-    .replace(/\/+$/, '');
+  const candidateValues = [
+    import.meta.env.VITE_SOCKET_URL,
+    import.meta.env.VITE_API_URL,
+    API_BASE_URL,
+  ];
+
+  const localCandidates = ['http://localhost:5000', 'http://127.0.0.1:5000', 'http://0.0.0.0:5000'];
+  const isLocalHost = typeof window !== 'undefined' && ['localhost', '127.0.0.1', '0.0.0.0'].includes(window.location.hostname);
+
+  const orderedCandidates = isLocalHost
+    ? [...localCandidates, ...candidateValues]
+    : [...candidateValues, ...localCandidates];
+
+  for (const value of orderedCandidates) {
+    const candidate = String(value || '').trim().replace(/\/+$/, '');
+    if (candidate) {
+      return candidate;
+    }
+  }
+
+  return 'http://localhost:5000';
 }
 
 function stopTracks(stream) {
