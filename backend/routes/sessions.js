@@ -28,7 +28,7 @@ router.post('/:id/participants/from-oob', authenticateToken, authorizeRoles('Sec
 router.put('/:id/participants/:userId', authenticateToken, sessionController.updateParticipant);
 router.get('/:id/minutes', sessionLimiter, authenticateToken, sessionController.getMinutes);
 router.get('/:id/recordings', sessionLimiter, authenticateToken, sessionController.getRecordings);
-router.post('/:id/recording', authenticateToken, authorizeRoles('Secretary', 'Admin', 'Vice Mayor', 'Councilor'), sessionRecordingUpload.single('recording_file'), sessionController.uploadRecording);
+router.post('/:id/recording', authenticateToken, authorizeRoles('Secretary', 'Admin', 'Vice Mayor'), sessionRecordingUpload.single('recording_file'), sessionController.uploadRecording);
 router.get('/:id/committee-reports', authenticateToken, sessionController.getCommitteeReports);
 
 // Session agenda items (for legislative workflow)

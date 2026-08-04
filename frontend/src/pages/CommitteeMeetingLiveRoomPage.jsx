@@ -14,7 +14,7 @@ function canBroadcastMeeting(user, committee) {
     .toLowerCase()
     .replace(/[_\s]+/g, ' ');
 
-  if (['admin', 'vice mayor', 'secretary', 'committee secretary'].includes(normalizedUserRole)) return true;
+  if (['admin', 'committee secretary'].includes(normalizedUserRole)) return true;
   if (String(committee.chair_id) === String(user.id)) return true;
 
   return Array.isArray(committee.members) && committee.members.some(
@@ -26,7 +26,7 @@ function canBroadcastMeeting(user, committee) {
 
       return (
         String(member.user_id) === String(user.id) &&
-        ['chair', 'vice chair', 'secretary', 'committee secretary'].includes(normalizedMemberRole)
+        ['chair', 'committee secretary'].includes(normalizedMemberRole)
       );
     }
   );
@@ -44,6 +44,7 @@ export default function CommitteeMeetingLiveRoomPage() {
   const [meeting, setMeeting] = useState(null);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
   const [remoteLiveStream, setRemoteLiveStream] = useState(null);
+  const [localLiveStream, setLocalLiveStream] = useState(null);
   const [presenterCameraStream, setPresenterCameraStream] = useState(null);
   const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
   const [isBroadcastingLive, setIsBroadcastingLive] = useState(false);
@@ -189,6 +190,7 @@ export default function CommitteeMeetingLiveRoomPage() {
         onRemoteStreamChange={setRemoteLiveStream}
         onBroadcastStateChange={setIsBroadcastingLive}
         onPresenterCameraStreamChange={setPresenterCameraStream}
+        onLocalBroadcastStreamChange={setLocalLiveStream}
       />
 
       {!meeting.ended && canBroadcast && (
@@ -201,7 +203,7 @@ export default function CommitteeMeetingLiveRoomPage() {
             meetingTitle={meeting.title}
             committeeId={meeting.committee_id}
             meetingId={meeting.id}
-            preferredCaptureStream={remoteLiveStream}
+            preferredCaptureStream={localLiveStream || remoteLiveStream}
             overlayStream={presenterCameraStream}
             recordingUrl={meeting.recording_url}
             recordingUploadedAt={meeting.recording_uploaded_at}

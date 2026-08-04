@@ -109,7 +109,7 @@ function formatParticipantLabel(name, role, { isHost = false, hasRaisedHand = fa
   return `${resolvedName}${roleSuffix}${hostSuffix}${handSuffix}`;
 }
 
-export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null, onBroadcastStateChange = null, onPresenterCameraStreamChange = null }) {
+export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null, onBroadcastStateChange = null, onPresenterCameraStreamChange = null, onLocalBroadcastStreamChange = null }) {
   const [isLive, setIsLive] = useState(false);
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [isWatching, setIsWatching] = useState(false);
@@ -480,6 +480,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     microphoneStreamRef.current = null;
     sourceBroadcastStreamRef.current = null;
     broadcastModeRef.current = null;
+    onLocalBroadcastStreamChange?.(null);
     setLiveDiagnostics({ publishVideo: false, publishAudio: false, recvVideo: false, recvAudio: false });
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = null;
@@ -488,7 +489,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (socketRef.current) {
       socketRef.current.emit('live:stop', { sessionId: normalizedSessionId });
     }
-  }, [closeBroadcasterPeers, normalizedSessionId]);
+  }, [closeBroadcasterPeers, normalizedSessionId, onLocalBroadcastStreamChange]);
 
   const startBroadcast = useCallback(async () => {
     if (!canBroadcast || isBroadcasting || !socketRef.current) return;
@@ -586,6 +587,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       ]);
 
       localStreamRef.current = stream;
+      onLocalBroadcastStreamChange?.(stream);
       microphoneStreamRef.current = microphoneStream;
       setLiveDiagnostics({
         publishVideo: Boolean(stream.getVideoTracks().length),
@@ -613,7 +615,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setError(message);
       setStatus(message);
     }
-  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, stopBroadcast]);
+  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, onLocalBroadcastStreamChange, stopBroadcast]);
 
   const createBroadcasterPeer = useCallback(async (viewerSocketId) => {
     if (!localStreamRef.current || !socketRef.current) return;
@@ -1084,6 +1086,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       stopTracks(localStreamRef.current);
     }
     localStreamRef.current = buildOutboundStream(broadcastStream, false);
+    onLocalBroadcastStreamChange?.(localStreamRef.current);
     sourceBroadcastStreamRef.current = broadcastStream;
     broadcastModeRef.current = 'external';
     setLiveDiagnostics({
@@ -1105,7 +1108,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     }
 
     return undefined;
-  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, isLive, liveHostName, normalizedSessionId, stopBroadcast]);
+  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, isLive, liveHostName, normalizedSessionId, onLocalBroadcastStreamChange, stopBroadcast]);
 
   useEffect(() => {
     if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
@@ -1627,6 +1630,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setParticipantCount(0);
       setViewerCount(0);
       setParticipantActivity([]);
+      onLocalBroadcastStreamChange?.(null);
     };
   }, [
     closeBroadcasterPeers,
@@ -1634,6 +1638,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     createBroadcasterPeer,
     createViewerPeer,
     normalizedSessionId,
+    onLocalBroadcastStreamChange,
     stopCameraPreview,
     stopBroadcast,
   ]);

@@ -116,6 +116,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   const [joining, setJoining] = useState(false);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
   const [remoteLiveStream, setRemoteLiveStream] = useState(null);
+  const [localLiveStream, setLocalLiveStream] = useState(null);
   const [presenterCameraStream, setPresenterCameraStream] = useState(null);
   const [isLocalRecordingActive, setIsLocalRecordingActive] = useState(false);
   const [isSessionUploadActive, setIsSessionUploadActive] = useState(false);
@@ -286,11 +287,11 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   };
 
   const canRecordSession = () => {
-    return hasRole('Admin', 'Secretary', 'Vice Mayor', 'Councilor');
+    return hasRole('Admin', 'Secretary', 'Vice Mayor');
   };
 
   const canStartLiveStream = () => {
-    return hasRole('Admin', 'Secretary', 'Vice Mayor') || isParticipant;
+    return hasRole('Admin', 'Secretary', 'Vice Mayor');
   };
 
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;
@@ -572,6 +573,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                     hostRole={user?.role_name || user?.role || ''}
                     onRemoteStreamChange={setRemoteLiveStream}
                     onPresenterCameraStreamChange={setPresenterCameraStream}
+                    onLocalBroadcastStreamChange={setLocalLiveStream}
                   />
                 )}
 
@@ -608,7 +610,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                       subjectLabel="session"
                       uploadUrl={`/sessions/${sessionId}/recording`}
                       uploadFields={{ minutes_id: selectedMinutesId }}
-                      preferredCaptureStream={remoteLiveStream}
+                      preferredCaptureStream={localLiveStream || remoteLiveStream}
                       overlayStream={presenterCameraStream}
                       recordingUrl={latestRecording?.recording_url}
                       recordingUploadedAt={latestRecording?.recording_uploaded_at}

@@ -7,6 +7,7 @@ const meetingRecordingUpload = require('../middleware/meetingRecordingUpload');
 
 const COMMITTEE_MEETING_ROLES = new Set(['Chair', 'Vice Chair', 'Secretary', 'Committee Secretary']);
 const COMMITTEE_MEETING_VIEW_ROLES = new Set(['Chair', 'Vice Chair', 'Member', 'Secretary', 'Committee Secretary']);
+const COMMITTEE_RECORDING_ROLES = new Set(['Chair', 'Committee Secretary']);
 
 async function loadCommitteeContext(committeeId) {
 	const committeeResult = await Committee.findById(committeeId);
@@ -79,6 +80,38 @@ async function authorizeCommitteeMeetingManagement(req, res, next) {
 	}
 }
 
+async function authorizeCommitteeMeetingRecording(req, res, next) {
+	try {
+		if (!req.user || !req.user.role || !req.user.id) {
+			return res.status(401).json({ error: 'No user information found in token' });
+		}
+
+		// Admin is an emergency override for recording actions.
+		if (req.user.role === 'Admin' || req.user.role === 1) {
+			return next();
+		}
+
+		const context = await loadCommitteeContext(req.params.id);
+		if (!context) {
+			return res.status(404).json({ error: 'Committee not found' });
+		}
+
+		const isChair = String(context.committee.chair_id) === String(req.user.id);
+		const isAllowedMember = context.members.some(
+			(member) => String(member.user_id) === String(req.user.id) && COMMITTEE_RECORDING_ROLES.has(member.role)
+		);
+
+		if (isChair || isAllowedMember) {
+			return next();
+		}
+
+		return res.status(403).json({ error: 'Access denied: only Committee Secretary, Chair, or Admin can manage recordings' });
+	} catch (err) {
+		console.error('Committee recording authorization error:', err);
+		return res.status(500).json({ error: 'Authorization error' });
+	}
+}
+
 // Custom middleware: allow only Admin or the assigned Chairperson
 async function authorizeAdminOrChair(req, res, next) {
 	try {
@@ -107,10 +140,10 @@ const committeeController = require('../controllers/committeeController');
 
 router.post('/', authenticateToken, authorizeRoles('Admin', 'Vice Mayor'), committeeController.create);
 router.post('/:id/meetings', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.createMeeting);
-router.post('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCommitteeMeetingManagement, meetingRecordingUpload.single('recording_file'), committeeController.uploadMeetingRecording);
-router.post('/:id/meetings/:meetingId/recording-link', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.saveMeetingRecordingLink);
+router.post('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCommitteeMeetingRecording, meetingRecordingUpload.single('recording_file'), committeeController.uploadMeetingRecording);
+router.post('/:id/meetings/:meetingId/recording-link', authenticateToken, authorizeCommitteeMeetingRecording, committeeController.saveMeetingRecordingLink);
 router.get('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCommitteeMeetingView, committeeController.getMeetingRecording);
-router.delete('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.deleteMeetingRecording);
+router.delete('/:id/meetings/:meetingId/recording', authenticateToken, authorizeCommitteeMeetingRecording, committeeController.deleteMeetingRecording);
 router.get('/meetings/upcoming', authenticateToken, committeeController.getUpcomingMeetings);
 router.get('/:id/meetings', authenticateToken, authorizeCommitteeMeetingView, committeeController.getCommitteeMeetings);
 router.delete('/:id/meetings/:meetingId', authenticateToken, authorizeCommitteeMeetingManagement, committeeController.deleteMeeting);
