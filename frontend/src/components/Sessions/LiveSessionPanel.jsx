@@ -359,6 +359,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     setError('');
     try {
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        throw new Error('Your browser does not support screen sharing.');
+      }
+
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
@@ -416,7 +420,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         hostRole: resolvedParticipantRole,
       });
     } catch (err) {
-      setError(err?.message || 'Unable to start live stream.');
+      const message = err?.message || 'Unable to start live stream.';
+      setError(message);
+      setStatus(message);
     }
   }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, stopBroadcast]);
 
@@ -1140,6 +1146,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
 
     return () => {
+      const cameraPublisherPeers = Array.from(cameraPublisherPeersRef.current.values());
+      const cameraSubscriberPeers = Array.from(cameraSubscriberPeersRef.current.values());
+      const remoteCameraStreams = Array.from(remoteCameraStreamsRef.current.values());
+
       if (isBroadcastingRef.current) {
         stopBroadcast(broadcastModeRef.current === 'manual');
       }
@@ -1149,17 +1159,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       socketRef.current = null;
       closeBroadcasterPeers();
       closeViewerPeer();
-      for (const pc of cameraPublisherPeersRef.current.values()) {
-        pc.close();
-      }
+      cameraPublisherPeers.forEach((pc) => pc.close());
       cameraPublisherPeersRef.current.clear();
-      for (const pc of cameraSubscriberPeersRef.current.values()) {
-        pc.close();
-      }
+      cameraSubscriberPeers.forEach((pc) => pc.close());
       cameraSubscriberPeersRef.current.clear();
-      for (const stream of remoteCameraStreamsRef.current.values()) {
+      remoteCameraStreams.forEach((stream) => {
         stream.getTracks().forEach((track) => track.stop());
-      }
+      });
       remoteCameraStreamsRef.current.clear();
       setCameraPublishers([]);
       setLiveParticipants([]);

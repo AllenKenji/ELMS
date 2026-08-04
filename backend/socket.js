@@ -138,10 +138,8 @@ function cleanupCameraStateIfEmpty(sessionId) {
 
 function init(server) {
   const { Server } = require('socket.io');
-  const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const { buildAllowedOrigins } = require('./utils/origins');
+  const allowedOrigins = buildAllowedOrigins(process.env.CORS_ORIGINS || 'http://localhost:5173');
 
   io = new Server(server, {
     cors: {
