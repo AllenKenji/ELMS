@@ -38,6 +38,7 @@ function buildLiveParticipantsPayload(state) {
       name: state.broadcasterName || 'Host',
       role: state.broadcasterRole || null,
       type: 'host',
+      raisedHand: false,
     });
   }
 
@@ -47,6 +48,7 @@ function buildLiveParticipantsPayload(state) {
       name: viewerData?.name || 'Participant',
       role: viewerData?.role || null,
       type: 'viewer',
+      raisedHand: Boolean(viewerData?.raisedHand),
     });
   }
 
@@ -299,7 +301,7 @@ function init(server) {
       }
 
       const normalizedCommand = String(command).trim().toLowerCase();
-      if (!['disable-camera', 'disable-audio'].includes(normalizedCommand)) {
+      if (!['disable-camera', 'enable-camera', 'disable-audio', 'enable-audio'].includes(normalizedCommand)) {
         return;
       }
 
@@ -387,6 +389,7 @@ function init(server) {
       state.viewers.set(socket.id, {
         name: String(viewerName || '').trim().slice(0, 120) || 'Participant',
         role: String(viewerRole || '').trim().slice(0, 120) || null,
+        raisedHand: false,
       });
       socket.join(getLiveRoom(sessionId));
       socket.data.liveSessionIds.add(sessionId);
@@ -399,6 +402,41 @@ function init(server) {
           viewerSocketId: socket.id,
         });
       }
+    });
+
+    socket.on('live:raise-hand', ({ sessionId: sessionIdValue, raised, targetSocketId } = {}) => {
+      const sessionId = normalizeSessionId(sessionIdValue);
+      if (!sessionId) {
+        return;
+      }
+
+      const state = liveSessions.get(sessionId);
+      if (!state) {
+        return;
+      }
+
+      const requestedTargetSocketId = String(targetSocketId || '').trim();
+      let resolvedTargetSocketId = socket.id;
+
+      // Host can update a specific viewer's raised-hand state (e.g., after Invite to Speak).
+      if (requestedTargetSocketId) {
+        if (state.broadcasterSocketId !== socket.id) {
+          return;
+        }
+        resolvedTargetSocketId = requestedTargetSocketId;
+      }
+
+      if (!state.viewers.has(resolvedTargetSocketId)) {
+        return;
+      }
+
+      const viewer = state.viewers.get(resolvedTargetSocketId) || {};
+      state.viewers.set(resolvedTargetSocketId, {
+        ...viewer,
+        raisedHand: Boolean(raised),
+      });
+
+      emitLiveParticipants(sessionId);
     });
 
     socket.on('live:offer', ({ sessionId: sessionIdValue, targetSocketId, sdp } = {}) => {

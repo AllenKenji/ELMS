@@ -76,12 +76,13 @@ function attachVideoStream(videoNode, stream, { muted = false } = {}) {
   videoNode.play?.().catch(() => {});
 }
 
-function formatParticipantLabel(name, role, { isHost = false } = {}) {
+function formatParticipantLabel(name, role, { isHost = false, hasRaisedHand = false } = {}) {
   const resolvedName = String(name || '').trim() || 'Participant';
   const resolvedRole = String(role || '').trim();
   const roleSuffix = resolvedRole ? ` (${resolvedRole})` : '';
   const hostSuffix = isHost ? ' (Host)' : '';
-  return `${resolvedName}${roleSuffix}${hostSuffix}`;
+  const handSuffix = hasRaisedHand ? ' ✋' : '';
+  return `${resolvedName}${roleSuffix}${hostSuffix}${handSuffix}`;
 }
 
 export default function LiveSessionPanel({ sessionId, canBroadcast = false, broadcastStream = null, hostName = '', hostRole = '', onRemoteStreamChange = null, onBroadcastStateChange = null, onPresenterCameraStreamChange = null }) {
@@ -102,6 +103,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const [liveParticipants, setLiveParticipants] = useState([]);
   const [participantCount, setParticipantCount] = useState(0);
   const [viewerCount, setViewerCount] = useState(0);
+  const [isHandRaised, setIsHandRaised] = useState(false);
   const [participantActivity, setParticipantActivity] = useState([]);
 
   const localVideoRef = useRef(null);
@@ -126,6 +128,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const broadcastModeRef = useRef(null);
   const isBroadcastingRef = useRef(false);
   const isWatchingRef = useRef(false);
+  const isHandRaisedRef = useRef(false);
   const canBroadcastRef = useRef(canBroadcast);
   const resolveParticipantNameBySocketRef = useRef((socketId, providedName) => {
     const explicitName = String(providedName || '').trim();
@@ -200,6 +203,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     return map;
   }, [liveParticipants]);
 
+  const raisedHandCount = useMemo(() => {
+    return liveParticipants.filter((participant) => participant?.type === 'viewer' && participant?.raisedHand).length;
+  }, [liveParticipants]);
+
   const resolveParticipantName = useCallback((socketId, providedName) => {
     const normalizedSocketId = String(socketId || '').trim();
     const explicitName = String(providedName || '').trim();
@@ -238,6 +245,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           {
             name: String(participant.name || '').trim() || 'Participant',
             type: participant.type === 'host' ? 'host' : 'viewer',
+            raisedHand: Boolean(participant.raisedHand),
           },
         ])
     );
@@ -267,6 +275,23 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           id: `${timestamp}-left-${socketId}`,
           kind: 'left',
           message: `${participant.name}${participant.type === 'host' ? ' (Host)' : ''} left`,
+          timestamp,
+        });
+      }
+    }
+
+    for (const [socketId, participant] of currentParticipants.entries()) {
+      const previousParticipant = previousParticipants.get(socketId);
+      if (!previousParticipant || participant.type !== 'viewer') {
+        continue;
+      }
+
+      if (Boolean(previousParticipant.raisedHand) !== Boolean(participant.raisedHand)) {
+        const isRaised = Boolean(participant.raisedHand);
+        newEvents.push({
+          id: `${timestamp}-hand-${socketId}-${isRaised ? 'up' : 'down'}`,
+          kind: isRaised ? 'hand-up' : 'hand-down',
+          message: `${participant.name} ${isRaised ? 'raised hand' : 'lowered hand'}`,
           timestamp,
         });
       }
@@ -313,6 +338,26 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   useEffect(() => {
     isWatchingRef.current = isWatching;
   }, [isWatching]);
+
+  useEffect(() => {
+    isHandRaisedRef.current = isHandRaised;
+  }, [isHandRaised]);
+
+  useEffect(() => {
+    const currentSocketId = socketRef.current?.id || null;
+    if (!currentSocketId) {
+      setIsHandRaised(false);
+      return;
+    }
+
+    const selfParticipant = liveParticipants.find((participant) => String(participant?.socketId || '') === currentSocketId);
+    if (!selfParticipant || selfParticipant.type !== 'viewer') {
+      setIsHandRaised(false);
+      return;
+    }
+
+    setIsHandRaised(Boolean(selfParticipant.raisedHand));
+  }, [liveParticipants]);
 
   useEffect(() => {
     canBroadcastRef.current = canBroadcast;
@@ -630,11 +675,36 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   }, [isWatching, normalizedSessionId]);
 
   const stopWatching = useCallback(() => {
+    if (socketRef.current && isHandRaisedRef.current) {
+      socketRef.current.emit('live:raise-hand', {
+        sessionId: normalizedSessionId,
+        raised: false,
+      });
+    }
+    isHandRaisedRef.current = false;
+    setIsHandRaised(false);
     isWatchingRef.current = false;
     setIsWatching(false);
     closeViewerPeer();
     setStatus(isLive ? 'Live stream available. Click Watch Live.' : 'No live stream in progress.');
-  }, [closeViewerPeer, isLive]);
+  }, [closeViewerPeer, isLive, normalizedSessionId]);
+
+  const toggleRaiseHand = useCallback(() => {
+    if (!socketRef.current || !isLive || isCurrentHost) {
+      return;
+    }
+
+    const nextRaised = !isHandRaisedRef.current;
+    isHandRaisedRef.current = nextRaised;
+    setIsHandRaised(nextRaised);
+
+    socketRef.current.emit('live:raise-hand', {
+      sessionId: normalizedSessionId,
+      raised: nextRaised,
+    });
+
+    setStatus(nextRaised ? 'Hand raised. Host has been notified.' : 'Hand lowered.');
+  }, [isCurrentHost, isLive, normalizedSessionId]);
 
   const upsertCameraPublisher = useCallback((socketId, name, role) => {
     if (!socketId) return;
@@ -760,13 +830,41 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     setCameraError('');
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280, max: 1280 },
+            height: { ideal: 720, max: 720 },
+            frameRate: { ideal: 24, max: 30 },
+            facingMode: 'user',
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
+      } catch {
+        // Fallback to permissive defaults for devices that reject strict constraints.
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+          },
+        });
+      }
+
+      const cameraTrack = stream.getVideoTracks()[0] || null;
+      if (cameraTrack && typeof cameraTrack.applyConstraints === 'function') {
+        try {
+          await cameraTrack.applyConstraints({
+            frameRate: { ideal: 24, max: 30 },
+          });
+        } catch {
+          // Continue with original camera settings when frame-rate constraints are unsupported.
+        }
+      }
 
       cameraStreamRef.current = stream;
       setIsCameraOn(true);
@@ -816,6 +914,24 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       command,
     });
   }, [isCurrentHost, normalizedSessionId]);
+
+  const inviteParticipantToSpeak = useCallback((participant) => {
+    const targetSocketId = String(participant?.socketId || '').trim();
+    if (!targetSocketId) {
+      return;
+    }
+
+    sendModerationCommand(targetSocketId, 'enable-camera');
+    sendModerationCommand(targetSocketId, 'enable-audio');
+    socketRef.current?.emit('live:raise-hand', {
+      sessionId: normalizedSessionId,
+      targetSocketId,
+      raised: false,
+    });
+
+    const participantLabel = String(participant?.name || '').trim() || 'Participant';
+    setStatus(`Invitation sent to ${participantLabel} to speak.`);
+  }, [normalizedSessionId, sendModerationCommand]);
 
   useEffect(() => {
     if (!isLive || isBroadcastingRef.current || !socketConnected || isWatchingRef.current) {
@@ -936,6 +1052,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           viewerName: resolvedParticipantNameRef.current,
           viewerRole: resolvedParticipantRoleRef.current,
         });
+
+        if (isHandRaisedRef.current) {
+          socket.emit('live:raise-hand', {
+            sessionId: normalizedSessionId,
+            raised: true,
+          });
+        }
       }
     });
 
@@ -962,6 +1085,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setViewerCount(Number(payload?.viewerCount || 0));
 
       if (!active) {
+        isHandRaisedRef.current = false;
+        setIsHandRaised(false);
         if (isWatchingRef.current) {
           isWatchingRef.current = false;
           closeViewerPeer();
@@ -1007,6 +1132,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           name: String(item?.name || '').trim() || 'Participant',
           role: String(item?.role || '').trim() || '',
           type: item?.type === 'host' ? 'host' : 'viewer',
+          raisedHand: Boolean(item?.raisedHand),
         }))
       );
       setParticipantCount(Number(payload?.participantCount || participants.length || 0));
@@ -1138,6 +1264,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           pc.addTrack(track, cameraStreamRef.current);
         });
 
+        preferVp8Codec(pc);
+
         pc.onicecandidate = (event) => {
           if (!event.candidate) return;
           socket.emit('camera:ice-candidate', {
@@ -1268,7 +1396,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (Number(payload?.sessionId) !== normalizedSessionId) return;
 
       const command = String(payload?.command || '').trim().toLowerCase();
-      if (!['disable-camera', 'disable-audio'].includes(command)) return;
+      if (!['disable-camera', 'enable-camera', 'disable-audio', 'enable-audio'].includes(command)) return;
 
       if (command === 'disable-camera') {
         if (cameraStreamRef.current) {
@@ -1283,6 +1411,21 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         return;
       }
 
+      if (command === 'enable-camera') {
+        if (!cameraStreamRef.current) {
+          setCameraError('Host requested camera enable. Turn on your camera to continue.');
+          return;
+        }
+
+        const videoTracks = cameraStreamRef.current.getVideoTracks();
+        videoTracks.forEach((track) => {
+          track.enabled = true;
+        });
+        setIsCameraOn(videoTracks.some((track) => track.enabled));
+        setCameraError('');
+        return;
+      }
+
       if (command === 'disable-audio' && cameraStreamRef.current) {
         const audioTracks = cameraStreamRef.current.getAudioTracks();
         audioTracks.forEach((track) => {
@@ -1290,6 +1433,21 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         });
         setIsMicrophoneOn(false);
         setCameraError('Host muted your camera audio.');
+        return;
+      }
+
+      if (command === 'enable-audio') {
+        if (!cameraStreamRef.current) {
+          setCameraError('Host requested audio enable. Turn on your camera/microphone to continue.');
+          return;
+        }
+
+        const audioTracks = cameraStreamRef.current.getAudioTracks();
+        audioTracks.forEach((track) => {
+          track.enabled = true;
+        });
+        setIsMicrophoneOn(audioTracks.some((track) => track.enabled));
+        setCameraError('');
       }
     });
 
@@ -1383,6 +1541,16 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             Leave Live
           </button>
         )}
+
+        {isLive && !isCurrentHost && (
+          <button
+            type="button"
+            className={isHandRaised ? 'btn-live-stop' : 'btn-live-watch'}
+            onClick={toggleRaiseHand}
+          >
+            {isHandRaised ? 'Lower Hand' : 'Raise Hand'}
+          </button>
+        )}
       </div>
 
       <p className="live-session-status">{status}</p>
@@ -1403,9 +1571,17 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         <p className="live-session-status" style={{ marginTop: '0.4rem' }}>
           Participants joined: {participantCount} total ({viewerCount} viewer{viewerCount === 1 ? '' : 's'})
         </p>
+        {raisedHandCount > 0 && (
+          <p className="live-session-status" style={{ marginTop: '0.15rem', color: '#8e4b10' }}>
+            {raisedHandCount} participant{raisedHandCount === 1 ? '' : 's'} requesting to speak (✋)
+          </p>
+        )}
         {liveParticipants.length > 0 && (
           <p className="live-session-host" style={{ marginTop: 0.25 }}>
-            {liveParticipants.map((item) => formatParticipantLabel(item.name, item.role, { isHost: item.type === 'host' })).join(', ')}
+            {liveParticipants.map((item) => formatParticipantLabel(item.name, item.role, {
+              isHost: item.type === 'host',
+              hasRaisedHand: Boolean(item.raisedHand),
+            })).join(', ')}
           </p>
         )}
         {participantActivity.length > 0 && (
@@ -1415,7 +1591,20 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             </p>
             <div style={{ maxHeight: 120, overflowY: 'auto', border: '1px solid #eceef2', borderRadius: 8, padding: '0.35rem 0.5rem', background: '#fafbfc' }}>
               {participantActivity.map((entry) => (
-                <p key={entry.id} className="live-session-host" style={{ margin: '0.15rem 0', color: entry.kind === 'left' ? '#8e4b10' : '#1e5631' }}>
+                <p
+                  key={entry.id}
+                  className="live-session-host"
+                  style={{
+                    margin: '0.15rem 0',
+                    color: entry.kind === 'left'
+                      ? '#8e4b10'
+                      : entry.kind === 'hand-up'
+                        ? '#a35600'
+                        : entry.kind === 'hand-down'
+                          ? '#355364'
+                          : '#1e5631',
+                  }}
+                >
                   [{entry.timestamp}] {entry.message}
                 </p>
               ))}
@@ -1475,11 +1664,22 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
                 <p className="live-camera-name">{formatParticipantLabel(item.name, item.role)}</p>
                 {isCurrentHost && (
                   <div className="live-participant-controls">
+                    {item.type === 'viewer' && item.raisedHand && (
+                      <button type="button" className="btn-live-start" onClick={() => inviteParticipantToSpeak(item)}>
+                        Invite to Speak
+                      </button>
+                    )}
                     <button type="button" className="btn-live-stop" onClick={() => sendModerationCommand(item.socketId, 'disable-camera')}>
                       Disable Camera
                     </button>
+                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(item.socketId, 'enable-camera')}>
+                      Enable Camera
+                    </button>
                     <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(item.socketId, 'disable-audio')}>
                       Disable Audio
+                    </button>
+                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(item.socketId, 'enable-audio')}>
+                      Enable Audio
                     </button>
                   </div>
                 )}
