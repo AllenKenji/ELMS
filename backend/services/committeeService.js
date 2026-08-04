@@ -237,7 +237,19 @@ exports.getCommitteeMeetings = async (committeeId) => {
     `SELECT cm.*, uploader.name AS recording_uploaded_by_name,
             minutes.generated_minutes AS meeting_minutes,
             minutes.transcript AS meeting_transcript,
-            COALESCE(minutes.attendees, minutes.participants) AS meeting_attendees
+            COALESCE(
+              NULLIF(TRIM(
+                CASE
+                  WHEN jsonb_typeof(minutes.attendees_json) = 'array' THEN (
+                    SELECT string_agg(value, ', ')
+                    FROM jsonb_array_elements_text(minutes.attendees_json) AS value
+                  )
+                  ELSE NULL
+                END
+              ), ''),
+              NULLIF(TRIM(minutes.attendees), ''),
+              NULLIF(TRIM(minutes.participants), '')
+            ) AS meeting_attendees
      FROM committee_meetings cm
      LEFT JOIN users uploader ON uploader.id = cm.recording_uploaded_by
      LEFT JOIN committee_minutes minutes ON minutes.id = cm.minutes_id

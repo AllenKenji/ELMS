@@ -120,7 +120,19 @@ async function getLatestEndedCommitteeMeetingForOrdinance(client, ordinanceId, c
   const result = await client.query(
     `SELECT cm.meeting_date,
             cm.recording_url,
-            COALESCE(minutes.attendees, minutes.participants) AS meeting_attendees
+            COALESCE(
+              NULLIF(TRIM(
+                CASE
+                  WHEN jsonb_typeof(minutes.attendees_json) = 'array' THEN (
+                    SELECT string_agg(value, ', ')
+                    FROM jsonb_array_elements_text(minutes.attendees_json) AS value
+                  )
+                  ELSE NULL
+                END
+              ), ''),
+              NULLIF(TRIM(minutes.attendees), ''),
+              NULLIF(TRIM(minutes.participants), '')
+            ) AS meeting_attendees
      FROM committee_meetings cm
      LEFT JOIN committee_minutes minutes ON minutes.id = cm.minutes_id
      WHERE cm.ordinance_id = $1
