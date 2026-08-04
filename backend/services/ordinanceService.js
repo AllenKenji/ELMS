@@ -1408,9 +1408,12 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     const resolvedAttendees = latestEndedMeeting
       ? normalizeAttendeesValue(latestEndedMeeting.meeting_attendees)
       : normalizeAttendeesValue(reportData.attendees);
+    const resolvedRecordingUrl =
+      normalizeLinkedRecordingUrl(reportData.recording_url)
+      || normalizeLinkedRecordingUrl(latestEndedMeeting?.recording_url);
     const resolvedReportContent = appendMeetingRecordingLine(
       reportData.report_content,
-      latestEndedMeeting?.recording_url
+      resolvedRecordingUrl
     );
 
     const report = await Ordinance.insertCommitteeReport(client, {

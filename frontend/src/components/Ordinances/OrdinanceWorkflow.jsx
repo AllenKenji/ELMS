@@ -16,6 +16,19 @@ function normalizeAttendeesInput(attendeesValue) {
   return String(attendeesValue || '').trim();
 }
 
+function normalizeMeetingRecordingUrlInput(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(normalized) || normalized.startsWith('/uploads/')) {
+    return normalized;
+  }
+
+  return '';
+}
+
 function buildRecordingHref(recordingUrl) {
   const normalized = String(recordingUrl || '').trim();
   if (!normalized) return '';
@@ -355,6 +368,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         meeting_date: endedMeeting?.meeting_date || '',
         meeting_minutes: endedMeeting?.meeting_minutes || endedMeeting?.meeting_transcript || '',
         attendees: normalizeAttendeesInput(endedMeeting?.meeting_attendees),
+        recording_url: String(endedMeeting?.recording_url || '').trim(),
       });
       setActiveAction(action);
       return;
@@ -448,6 +462,12 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           setSubmitting(false);
           return;
         }
+        const normalizedRecordingUrl = normalizeMeetingRecordingUrlInput(form.recording_url);
+        if (String(form.recording_url || '').trim() && !normalizedRecordingUrl) {
+          setError('Recording URL must start with http(s):// or /uploads/.');
+          setSubmitting(false);
+          return;
+        }
         const endedMeeting = getLatestEndedMeeting(committeeMeetings, ordinanceId);
 
         // Extract from ended committee meeting if available
@@ -479,7 +499,8 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           report_content: form.report_content,
           meeting_date,
           meeting_minutes,
-          attendees
+          attendees,
+          recording_url: normalizedRecordingUrl || null,
         };
 
         await api.post(`/ordinances/${ordinanceId}/committee-report`, body);
@@ -589,8 +610,23 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         <textarea value={form.meeting_minutes || ''} onChange={e => setField('meeting_minutes', e.target.value)} rows={2} />
       </div>
       <div className="form-group">
+        <label>Meeting Recording URL (optional)</label>
+        <input
+          type="url"
+          value={form.recording_url || ''}
+          onChange={e => setField('recording_url', e.target.value)}
+          placeholder="https://... or /uploads/..."
+        />
+        <small style={{ color: '#666', marginTop: 6, display: 'block' }}>
+          If provided, this recording link is appended to report content.
+        </small>
+      </div>
+      <div className="form-group">
         <label>Attendees (comma-separated)</label>
         <input type="text" value={form.attendees || ''} onChange={e => setField('attendees', e.target.value)} placeholder="e.g. John Doe, Jane Smith" />
+        <small style={{ color: '#666', marginTop: 6, display: 'block' }}>
+          Auto-filled from the latest ended committee meeting attendees when available.
+        </small>
       </div>
     </>
   );
