@@ -392,7 +392,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setError('');
       try {
         await new Promise((resolve, reject) => {
-          const timeout = window.setTimeout(() => reject(new Error(`Timed out waiting for the live connection at ${socketBaseUrl}.`)), 10000);
+          let lastConnectError = null;
+          const timeout = window.setTimeout(() => {
+            const message = lastConnectError?.message || `Timed out waiting for the live connection at ${socketBaseUrl}.`;
+            reject(new Error(message));
+          }, 20000);
           const clear = () => {
             window.clearTimeout(timeout);
             socket.off('connect', onConnect);
@@ -403,9 +407,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             resolve();
           };
           const onError = (error) => {
-            clear();
             console.error('[live] socket connect error', { socketBaseUrl, error });
-            reject(new Error(`Unable to connect to the live service at ${socketBaseUrl}.`));
+            // WebSocket can fail while polling fallback still succeeds.
+            lastConnectError = error instanceof Error
+              ? error
+              : new Error(`Unable to connect to the live service at ${socketBaseUrl}.`);
           };
 
           socket.on('connect', onConnect);
@@ -855,7 +861,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     }
 
     const socket = io(getSocketBaseUrl(), {
-      transports: ['websocket', 'polling'],
+      // Start with polling so environments that block websocket can still connect.
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
