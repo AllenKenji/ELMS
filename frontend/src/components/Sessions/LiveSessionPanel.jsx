@@ -988,6 +988,31 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     });
   }, [isCurrentHost, normalizedSessionId]);
 
+  const sendBulkModerationCommand = useCallback((command) => {
+    if (!isCurrentHost || !socketRef.current) {
+      return;
+    }
+
+    manageableParticipants.forEach((participant) => {
+      const targetSocketId = String(participant?.socketId || '').trim();
+      if (!targetSocketId) {
+        return;
+      }
+
+      sendModerationCommand(targetSocketId, command);
+    });
+
+    const actionLabelByCommand = {
+      'disable-camera': 'disabled camera',
+      'enable-camera': 'enabled camera',
+      'disable-audio': 'disabled audio',
+      'enable-audio': 'enabled audio',
+    };
+
+    const actionLabel = actionLabelByCommand[command] || 'updated controls';
+    setStatus(`Host ${actionLabel} for all participants.`);
+  }, [isCurrentHost, manageableParticipants, sendModerationCommand]);
+
   const inviteParticipantToSpeak = useCallback((participant) => {
     const targetSocketId = String(participant?.socketId || '').trim();
     if (!targetSocketId) {
@@ -1666,11 +1691,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           </button>
         )}
 
-        {canRaiseHand && (
+        {!isCurrentHost && (
           <button
             type="button"
             className={isHandRaised ? 'btn-live-stop' : 'btn-live-watch'}
             onClick={toggleRaiseHand}
+            disabled={!canRaiseHand}
+            title={canRaiseHand ? 'Raise your hand to request to speak' : 'Join/watch live to use raise hand'}
           >
             {isHandRaised ? 'Lower Hand' : 'Raise Hand'}
           </button>
@@ -1741,6 +1768,20 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             <p className="live-session-host" style={{ margin: '0 0 0.35rem 0', fontWeight: 700 }}>
               Participant Controls
             </p>
+            <div className="live-participant-controls" style={{ marginTop: 0, marginBottom: '0.5rem' }}>
+              <button type="button" className="btn-live-stop" onClick={() => sendBulkModerationCommand('disable-camera')}>
+                Disable All Cameras
+              </button>
+              <button type="button" className="btn-live-watch" onClick={() => sendBulkModerationCommand('enable-camera')}>
+                Enable All Cameras
+              </button>
+              <button type="button" className="btn-live-watch" onClick={() => sendBulkModerationCommand('disable-audio')}>
+                Disable All Audio
+              </button>
+              <button type="button" className="btn-live-watch" onClick={() => sendBulkModerationCommand('enable-audio')}>
+                Enable All Audio
+              </button>
+            </div>
             <div style={{ display: 'grid', gap: '0.45rem' }}>
               {manageableParticipants.map((participant) => (
                 <div
@@ -1763,18 +1804,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
                         Invite to Speak
                       </button>
                     )}
-                    <button type="button" className="btn-live-stop" onClick={() => sendModerationCommand(participant.socketId, 'disable-camera')}>
-                      Disable Camera
-                    </button>
-                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(participant.socketId, 'enable-camera')}>
-                      Enable Camera
-                    </button>
-                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(participant.socketId, 'disable-audio')}>
-                      Disable Audio
-                    </button>
-                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(participant.socketId, 'enable-audio')}>
-                      Enable Audio
-                    </button>
+                    {!participant.raisedHand && (
+                      <p className="live-session-status" style={{ margin: 0 }}>
+                        Waiting for hand raise.
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1843,18 +1877,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
                         Invite to Speak
                       </button>
                     )}
-                    <button type="button" className="btn-live-stop" onClick={() => sendModerationCommand(item.socketId, 'disable-camera')}>
-                      Disable Camera
-                    </button>
-                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(item.socketId, 'enable-camera')}>
-                      Enable Camera
-                    </button>
-                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(item.socketId, 'disable-audio')}>
-                      Disable Audio
-                    </button>
-                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(item.socketId, 'enable-audio')}>
-                      Enable Audio
-                    </button>
                   </div>
                 )}
               </div>
