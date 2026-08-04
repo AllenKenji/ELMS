@@ -595,6 +595,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (!socketRef.current || isWatching) return;
 
     setError('');
+    // Keep the mutable flag in sync immediately to avoid dropping early offers.
+    isWatchingRef.current = true;
     setIsWatching(true);
     setStatus('Connecting to live stream...');
     socketRef.current.emit('live:viewer-ready', {
@@ -605,6 +607,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   }, [isWatching, normalizedSessionId]);
 
   const stopWatching = useCallback(() => {
+    isWatchingRef.current = false;
     setIsWatching(false);
     closeViewerPeer();
     setStatus(isLive ? 'Live stream available. Click Watch Live.' : 'No live stream in progress.');
@@ -916,6 +919,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
       if (!active) {
         if (isWatchingRef.current) {
+          isWatchingRef.current = false;
           closeViewerPeer();
           setIsWatching(false);
         }
@@ -926,6 +930,18 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         }
       } else if (!isBroadcastingRef.current) {
         setStatus('Live stream is active.');
+
+        // Join immediately to avoid missing early offer events on fast publishers.
+        if (!isWatchingRef.current) {
+          isWatchingRef.current = true;
+          setIsWatching(true);
+          setStatus('Connecting to live stream...');
+          socket.emit('live:viewer-ready', {
+            sessionId: normalizedSessionId,
+            viewerName: resolvedParticipantNameRef.current,
+            viewerRole: resolvedParticipantRoleRef.current,
+          });
+        }
       }
 
       if (!active) {
