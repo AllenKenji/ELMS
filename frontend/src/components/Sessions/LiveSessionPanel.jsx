@@ -170,6 +170,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const subscribeToCameraPublisherRef = useRef(() => {});
   const startCameraPreviewRef = useRef(null);
   const sourceBroadcastStreamRef = useRef(null);
+  const manualBroadcastFallbackStreamRef = useRef(null);
   const previousParticipantsRef = useRef(new Map());
 
   const normalizedSessionId = useMemo(() => Number(sessionId), [sessionId]);
@@ -476,8 +477,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       stopTracks(microphoneStreamRef.current);
     }
 
+    if (stopMedia && manualBroadcastFallbackStreamRef.current && manualBroadcastFallbackStreamRef.current !== localStreamRef.current) {
+      stopTracks(manualBroadcastFallbackStreamRef.current);
+    }
+
     localStreamRef.current = null;
     microphoneStreamRef.current = null;
+    manualBroadcastFallbackStreamRef.current = null;
     sourceBroadcastStreamRef.current = null;
     broadcastModeRef.current = null;
     onLocalBroadcastStreamChange?.(null);
@@ -1060,8 +1066,28 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     if (!broadcastStream) {
       if (broadcastModeRef.current === 'external' && isBroadcasting) {
-        stopBroadcast(false);
-        setStatus('Live stream ended because local recording stopped.');
+        const fallbackStream = manualBroadcastFallbackStreamRef.current;
+        const canRestoreFallback = Boolean(
+          fallbackStream?.getVideoTracks?.().some((track) => track.readyState === 'live')
+        );
+
+        if (canRestoreFallback) {
+          localStreamRef.current = fallbackStream;
+          sourceBroadcastStreamRef.current = null;
+          broadcastModeRef.current = 'manual';
+          manualBroadcastFallbackStreamRef.current = null;
+          onLocalBroadcastStreamChange?.(localStreamRef.current);
+          setLiveDiagnostics((prev) => ({
+            ...prev,
+            publishVideo: Boolean(localStreamRef.current?.getVideoTracks?.().length),
+            publishAudio: Boolean(localStreamRef.current?.getAudioTracks?.().length),
+          }));
+          setStatus('Recording stopped. Live session continues on your existing live stream.');
+        } else {
+          // No viable stream to continue from, so end live cleanly.
+          stopBroadcast(false);
+          setStatus('Recording stopped and no fallback live stream was available.');
+        }
       }
       return undefined;
     }
@@ -1087,6 +1113,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (broadcastModeRef.current !== 'external' && !isBroadcastingRef.current) {
       stopTracks(localStreamRef.current);
     }
+
+    if (broadcastModeRef.current === 'manual' && isBroadcastingRef.current && localStreamRef.current) {
+      manualBroadcastFallbackStreamRef.current = localStreamRef.current;
+    }
+
     localStreamRef.current = buildOutboundStream(broadcastStream, false);
     onLocalBroadcastStreamChange?.(localStreamRef.current);
     sourceBroadcastStreamRef.current = broadcastStream;
