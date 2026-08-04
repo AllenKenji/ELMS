@@ -832,7 +832,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     subscribeToCameraPublisherRef.current = subscribeToCameraPublisher;
   }, [subscribeToCameraPublisher]);
 
-  const stopCameraPreview = useCallback(() => {
+  const stopCameraPreview = useCallback(({ clearRemoteSubscriptions = false } = {}) => {
     if (socketRef.current) {
       socketRef.current.emit('camera:unpublish', { sessionId: normalizedSessionId });
     }
@@ -841,16 +841,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       pc.close();
     }
     cameraPublisherPeersRef.current.clear();
-
-    for (const pc of cameraSubscriberPeersRef.current.values()) {
-      pc.close();
-    }
-    cameraSubscriberPeersRef.current.clear();
-
-    for (const stream of remoteCameraStreamsRef.current.values()) {
-      stream.getTracks().forEach((track) => track.stop());
-    }
-    remoteCameraStreamsRef.current.clear();
 
     if (cameraStreamRef.current) {
       cameraStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -863,7 +853,20 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     setIsCameraOn(false);
     setIsMicrophoneOn(false);
-    setCameraPublishers([]);
+
+    if (clearRemoteSubscriptions) {
+      for (const pc of cameraSubscriberPeersRef.current.values()) {
+        pc.close();
+      }
+      cameraSubscriberPeersRef.current.clear();
+
+      for (const stream of remoteCameraStreamsRef.current.values()) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+      remoteCameraStreamsRef.current.clear();
+      setCameraPublishers([]);
+      setCameraStreamReadyBySocketId({});
+    }
   }, [normalizedSessionId]);
 
   const startCameraPreview = useCallback(async () => {
@@ -1559,7 +1562,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (isBroadcastingRef.current) {
         stopBroadcast(broadcastModeRef.current === 'manual');
       }
-      stopCameraPreview();
+      stopCameraPreview({ clearRemoteSubscriptions: true });
       closeViewerPeer();
       socket.disconnect();
       socketRef.current = null;
