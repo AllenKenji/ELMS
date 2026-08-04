@@ -848,7 +848,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       return undefined;
     }
 
-    const socket = io(getSocketBaseUrl());
+    const socket = io(getSocketBaseUrl(), {
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 10000,
+    });
     socketRef.current = socket;
 
     socket.on('connect', () => {
