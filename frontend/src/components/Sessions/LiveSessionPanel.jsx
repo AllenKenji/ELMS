@@ -101,6 +101,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const socketRef = useRef(null);
   const localStreamRef = useRef(null);
   const microphoneStreamRef = useRef(null);
+  const resolvedParticipantNameRef = useRef('');
+  const resolvedParticipantRoleRef = useRef('');
   const viewerPeerRef = useRef(null);
   const viewerBroadcasterSocketIdRef = useRef(null);
   const broadcasterPeersRef = useRef(new Map());
@@ -130,6 +132,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   useEffect(() => {
     setParticipantName(String(hostName || '').trim());
   }, [hostName]);
+
+  useEffect(() => {
+    resolvedParticipantNameRef.current = resolvedParticipantName;
+  }, [resolvedParticipantName]);
+
+  useEffect(() => {
+    resolvedParticipantRoleRef.current = resolvedParticipantRole;
+  }, [resolvedParticipantRole]);
 
   const participantNamesBySocketId = useMemo(() => {
     const map = new Map();
@@ -356,6 +366,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
   const startBroadcast = useCallback(async () => {
     if (!canBroadcast || isBroadcasting || !socketRef.current) return;
+    if (!socketConnected) {
+      setStatus('Connecting to live service...');
+      return;
+    }
 
     setError('');
     try {
@@ -416,15 +430,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setStatus(stream.getAudioTracks().length > 0 ? 'You are live with audio. Waiting for participants to connect...' : 'You are live, but no audio track was captured. Waiting for participants to connect...');
       socketRef.current.emit('live:publish', {
         sessionId: normalizedSessionId,
-        hostName: resolvedParticipantName,
-        hostRole: resolvedParticipantRole,
+        hostName: resolvedParticipantNameRef.current,
+        hostRole: resolvedParticipantRoleRef.current,
       });
     } catch (err) {
       const message = err?.message || 'Unable to start live stream.';
       setError(message);
       setStatus(message);
     }
-  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, stopBroadcast]);
+  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, socketConnected, stopBroadcast]);
 
   const createBroadcasterPeer = useCallback(async (viewerSocketId) => {
     if (!localStreamRef.current || !socketRef.current) return;
@@ -529,10 +543,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     setStatus('Connecting to live stream...');
     socketRef.current.emit('live:viewer-ready', {
       sessionId: normalizedSessionId,
-      viewerName: resolvedParticipantName,
-      viewerRole: resolvedParticipantRole,
+      viewerName: resolvedParticipantNameRef.current,
+      viewerRole: resolvedParticipantRoleRef.current,
     });
-  }, [isWatching, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole]);
+  }, [isWatching, normalizedSessionId]);
 
   const stopWatching = useCallback(() => {
     setIsWatching(false);
@@ -659,15 +673,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (socketRef.current) {
         socketRef.current.emit('camera:publish', {
           sessionId: normalizedSessionId,
-          name: resolvedParticipantName,
-          role: resolvedParticipantRole,
+          name: resolvedParticipantNameRef.current,
+          role: resolvedParticipantRoleRef.current,
         });
       }
     } catch (err) {
       setCameraError(err?.message || 'Unable to access camera.');
       stopCameraPreview();
     }
-  }, [normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, stopCameraPreview]);
+  }, [normalizedSessionId, stopCameraPreview]);
 
   const toggleCameraPreview = useCallback(() => {
     if (isCameraOn) {
@@ -716,10 +730,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     socketRef.current.emit('camera:publish', {
       sessionId: normalizedSessionId,
-      name: resolvedParticipantName,
-      role: resolvedParticipantRole,
+      name: resolvedParticipantNameRef.current,
+      role: resolvedParticipantRoleRef.current,
     });
-  }, [isCameraOn, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, socketConnected]);
+  }, [isCameraOn, normalizedSessionId, socketConnected]);
 
   useEffect(() => {
     if (!canBroadcast || !socketRef.current) {
@@ -769,13 +783,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setStatus('Live via local recording. Participants can now watch.');
       socketRef.current.emit('live:publish', {
         sessionId: normalizedSessionId,
-        hostName: resolvedParticipantName,
-        hostRole: resolvedParticipantRole,
+        hostName: resolvedParticipantNameRef.current,
+        hostRole: resolvedParticipantRoleRef.current,
       });
     }
 
     return undefined;
-  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, isLive, liveHostName, normalizedSessionId, resolvedParticipantName, resolvedParticipantRole, stopBroadcast]);
+  }, [broadcastStream, canBroadcast, hostName, isBroadcasting, isLive, liveHostName, normalizedSessionId, stopBroadcast]);
 
   useEffect(() => {
     if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
@@ -793,8 +807,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (isCameraOnRef.current) {
         socket.emit('camera:publish', {
           sessionId: normalizedSessionId,
-          name: resolvedParticipantName,
-          role: resolvedParticipantRole,
+          name: resolvedParticipantNameRef.current,
+          role: resolvedParticipantRoleRef.current,
         });
       }
 
@@ -802,16 +816,16 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (isBroadcastingRef.current) {
         socket.emit('live:publish', {
           sessionId: normalizedSessionId,
-          hostName: resolvedParticipantName,
-          hostRole: resolvedParticipantRole,
+          hostName: resolvedParticipantNameRef.current,
+          hostRole: resolvedParticipantRoleRef.current,
         });
       }
 
       if (isWatchingRef.current) {
         socket.emit('live:viewer-ready', {
           sessionId: normalizedSessionId,
-          viewerName: resolvedParticipantName,
-          viewerRole: resolvedParticipantRole,
+          viewerName: resolvedParticipantNameRef.current,
+          viewerRole: resolvedParticipantRoleRef.current,
         });
       }
     });
@@ -1181,8 +1195,6 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     createViewerPeer,
     hostName,
     normalizedSessionId,
-    resolvedParticipantName,
-    resolvedParticipantRole,
     resolveParticipantName,
     resolveParticipantRole,
     removeCameraPublisher,
