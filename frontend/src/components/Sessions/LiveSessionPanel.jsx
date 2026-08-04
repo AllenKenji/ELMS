@@ -233,6 +233,22 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     return liveParticipants.filter((participant) => participant?.type === 'viewer' && participant?.raisedHand).length;
   }, [liveParticipants]);
 
+  const manageableParticipants = useMemo(() => {
+    const currentSocketId = String(socketRef.current?.id || '').trim();
+    return liveParticipants.filter((participant) => {
+      const socketId = String(participant?.socketId || '').trim();
+      if (!socketId) {
+        return false;
+      }
+
+      if (participant?.type !== 'viewer') {
+        return false;
+      }
+
+      return socketId !== currentSocketId;
+    });
+  }, [liveParticipants]);
+
   const resolveParticipantName = useCallback((socketId, providedName) => {
     const normalizedSocketId = String(socketId || '').trim();
     const explicitName = String(providedName || '').trim();
@@ -335,6 +351,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (!currentSocketId) return Boolean(isBroadcasting);
     return Boolean(isBroadcasting || (liveHostSocketId && liveHostSocketId === currentSocketId));
   }, [isBroadcasting, liveHostSocketId]);
+
+  const canRaiseHand = useMemo(() => {
+    return !isCurrentHost && (isLive || isWatching);
+  }, [isCurrentHost, isLive, isWatching]);
 
   const liveHostLabel = useMemo(() => {
     if (!isLive) {
@@ -1646,7 +1666,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           </button>
         )}
 
-        {isLive && !isCurrentHost && (
+        {canRaiseHand && (
           <button
             type="button"
             className={isHandRaised ? 'btn-live-stop' : 'btn-live-watch'}
@@ -1711,6 +1731,52 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
                 >
                   [{entry.timestamp}] {entry.message}
                 </p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isCurrentHost && manageableParticipants.length > 0 && (
+          <div style={{ marginTop: '0.6rem' }}>
+            <p className="live-session-host" style={{ margin: '0 0 0.35rem 0', fontWeight: 700 }}>
+              Participant Controls
+            </p>
+            <div style={{ display: 'grid', gap: '0.45rem' }}>
+              {manageableParticipants.map((participant) => (
+                <div
+                  key={`manage-${participant.socketId}`}
+                  style={{
+                    border: '1px solid #d8e3ea',
+                    borderRadius: 8,
+                    padding: '0.45rem 0.5rem',
+                    background: '#f8fcff',
+                  }}
+                >
+                  <p className="live-camera-name" style={{ marginTop: 0, marginBottom: '0.35rem' }}>
+                    {formatParticipantLabel(participant.name, participant.role, {
+                      hasRaisedHand: Boolean(participant.raisedHand),
+                    })}
+                  </p>
+                  <div className="live-participant-controls" style={{ marginTop: 0 }}>
+                    {participant.raisedHand && (
+                      <button type="button" className="btn-live-start" onClick={() => inviteParticipantToSpeak(participant)}>
+                        Invite to Speak
+                      </button>
+                    )}
+                    <button type="button" className="btn-live-stop" onClick={() => sendModerationCommand(participant.socketId, 'disable-camera')}>
+                      Disable Camera
+                    </button>
+                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(participant.socketId, 'enable-camera')}>
+                      Enable Camera
+                    </button>
+                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(participant.socketId, 'disable-audio')}>
+                      Disable Audio
+                    </button>
+                    <button type="button" className="btn-live-watch" onClick={() => sendModerationCommand(participant.socketId, 'enable-audio')}>
+                      Enable Audio
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
