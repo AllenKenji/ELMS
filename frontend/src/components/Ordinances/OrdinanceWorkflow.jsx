@@ -130,14 +130,32 @@ function canDo(userRole, action) {
   return ROLE_ACTIONS[userRole]?.includes(action) ?? false;
 }
 
+function canSubmitCommitteeReportForMeasure(measure, user) {
+  if (!measure?.committee || !user?.id) {
+    return false;
+  }
+
+  const userId = String(user.id);
+  const isChair = String(measure.committee.chair_id) === userId;
+  const isCommitteeSecretary = Boolean(
+    measure.committee.members?.some((member) => (
+      String(member.user_id) === userId && String(member.role || '').trim() === 'Committee Secretary'
+    ))
+  );
+
+  return isChair || isCommitteeSecretary;
+}
+
 function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) {
+  const canSubmitCommitteeReport = canSubmitCommitteeReportForMeasure(ord, user);
+
   // Committee meeting creation: allow if user is chair or secretary of assigned committee during review
   if (readingStage === 'COMMITTEE_REVIEW') {
     const isChair = ord?.committee && ord.committee.chair_id === user?.id;
     const isSecretary = ord?.committee && ord.committee.members?.some(m => m.user_id === user?.id && m.role === 'Committee Secretary');
     const actions = [];
     if (isChair || isSecretary) actions.push('create-meeting');
-    if (canDo(userRole, 'committee-report')) actions.push('committee-report');
+    if (canSubmitCommitteeReport) actions.push('committee-report');
     return actions;
   }
   switch (readingStage) {
@@ -170,7 +188,7 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) 
       return canDo(userRole, 'assign-committee') ? ['assign-committee'] : [];
     case 'COMMITTEE_REPORT_SUBMITTED': {
       const acts = [];
-      if (canDo(userRole, 'committee-report')) acts.push('committee-report');
+      if (canSubmitCommitteeReport) acts.push('committee-report');
       if (workflowStatus?.committeeReport && canDo(userRole, 'record-second-session')) acts.push('record-second-session');
       return acts;
     }

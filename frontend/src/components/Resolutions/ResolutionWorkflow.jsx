@@ -130,12 +130,31 @@ function canDo(userRole, action) {
   return ROLE_ACTIONS[userRole]?.includes(action) ?? false;
 }
 
+function canSubmitCommitteeReportForMeasure(measure, user) {
+  if (!measure?.committee || !user?.id) {
+    return false;
+  }
+
+  const userId = String(user.id);
+  const isChair = String(measure.committee.chair_id) === userId;
+  const isCommitteeSecretary = Boolean(
+    measure.committee.members?.some((member) => (
+      String(member.user_id) === userId && String(member.role || '').trim() === 'Committee Secretary'
+    ))
+  );
+
+  return isChair || isCommitteeSecretary;
+}
+
 function getAvailableActions(readingStage, userRole, res, user, workflowStatus) {
+  const canSubmitCommitteeReport = canSubmitCommitteeReportForMeasure(res, user);
+
   if (readingStage === 'COMMITTEE_REVIEW') {
     const isChair = res?.committee && res.committee.chair_id === user?.id;
     const isSecretary = res?.committee && res.committee.members?.some(m => m.user_id === user?.id && m.role === 'Committee Secretary');
     const actions = [];
     if (isChair || isSecretary) actions.push('create-meeting');
+    if (canSubmitCommitteeReport) actions.push('committee-report');
     return actions;
   }
   switch (readingStage) {
@@ -168,7 +187,7 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
       return canDo(userRole, 'assign-committee') ? ['assign-committee'] : [];
     case 'COMMITTEE_REPORT_SUBMITTED': {
       const acts = [];
-      if (canDo(userRole, 'committee-report')) acts.push('committee-report');
+      if (canSubmitCommitteeReport) acts.push('committee-report');
       if (workflowStatus?.committeeReport && canDo(userRole, 'record-second-session')) acts.push('record-second-session');
       return acts;
     }
