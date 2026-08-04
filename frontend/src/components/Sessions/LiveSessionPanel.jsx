@@ -1367,8 +1367,29 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           };
 
           pc.ontrack = (event) => {
-            const [stream] = event.streams || [];
+            const [streamFromEvent] = event.streams || [];
+            let stream = streamFromEvent || remoteCameraStreamsRef.current.get(publisherSocketId) || null;
+
+            // Some browsers deliver camera tracks without event.streams.
+            if (!stream && event.track) {
+              stream = new MediaStream();
+            }
+
             if (!stream) return;
+
+            if (event.track) {
+              const hasTrack = stream.getTracks().some((track) => track.id === event.track.id);
+              if (!hasTrack) {
+                stream.addTrack(event.track);
+              }
+
+              event.track.onended = () => {
+                setCameraStreamReadyBySocketId((prev) => ({
+                  ...prev,
+                  [publisherSocketId]: false,
+                }));
+              };
+            }
 
             remoteCameraStreamsRef.current.set(publisherSocketId, stream);
             setCameraStreamReadyBySocketId((prev) => ({
