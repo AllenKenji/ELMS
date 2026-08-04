@@ -20,13 +20,42 @@ function buildAllowedOrigins(rawOrigins = '') {
   const seen = new Set();
   const origins = [];
 
-  combined.forEach((origin) => {
-    if (!origin || seen.has(origin)) {
+  combined.forEach((originValue) => {
+    const origin = String(originValue || '').trim().replace(/\/+$/, '');
+    if (!origin) {
       return;
     }
 
-    seen.add(origin);
-    origins.push(origin);
+    let url = null;
+    try {
+      url = new URL(origin);
+    } catch {
+      return;
+    }
+
+    const variants = [origin];
+    const hostname = String(url.hostname || '').trim();
+    const isIpAddress = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+
+    // Support common production host variants such as www/non-www.
+    if (hostname && hostname !== 'localhost' && !isIpAddress) {
+      const alternateHostname = hostname.startsWith('www.')
+        ? hostname.slice(4)
+        : `www.${hostname}`;
+
+      if (alternateHostname && alternateHostname !== hostname) {
+        variants.push(`${url.protocol}//${alternateHostname}${url.port ? `:${url.port}` : ''}`);
+      }
+    }
+
+    variants.forEach((candidate) => {
+      if (!candidate || seen.has(candidate)) {
+        return;
+      }
+
+      seen.add(candidate);
+      origins.push(candidate);
+    });
   });
 
   return origins;
