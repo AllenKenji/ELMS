@@ -3,6 +3,25 @@ import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../../api/api';
 
 const ICE_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
+const LIVE_SCREEN_MAX_WIDTH = 1280;
+const LIVE_SCREEN_MAX_HEIGHT = 720;
+const LIVE_SCREEN_MAX_FPS = 24;
+
+async function applyLiveScreenTrackConstraints(videoTrack) {
+  if (!videoTrack || typeof videoTrack.applyConstraints !== 'function') {
+    return;
+  }
+
+  try {
+    await videoTrack.applyConstraints({
+      width: { ideal: LIVE_SCREEN_MAX_WIDTH, max: LIVE_SCREEN_MAX_WIDTH },
+      height: { ideal: LIVE_SCREEN_MAX_HEIGHT, max: LIVE_SCREEN_MAX_HEIGHT },
+      frameRate: { ideal: LIVE_SCREEN_MAX_FPS, max: LIVE_SCREEN_MAX_FPS },
+    });
+  } catch {
+    // Continue even if a browser/device does not support these constraints.
+  }
+}
 
 function getSocketBaseUrl() {
   const configuredCandidates = [
@@ -76,6 +95,11 @@ function attachVideoStream(videoNode, stream, { muted = false } = {}) {
   videoNode.play?.().catch(() => {});
 }
 
+function isMonitorDisplayTrack(track) {
+  const displaySurface = String(track?.getSettings?.()?.displaySurface || '').toLowerCase();
+  return displaySurface === 'monitor';
+}
+
 function formatParticipantLabel(name, role, { isHost = false, hasRaisedHand = false } = {}) {
   const resolvedName = String(name || '').trim() || 'Participant';
   const resolvedRole = String(role || '').trim();
@@ -143,6 +167,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const upsertCameraPublisherRef = useRef(() => {});
   const removeCameraPublisherRef = useRef(() => {});
   const subscribeToCameraPublisherRef = useRef(() => {});
+  const startCameraPreviewRef = useRef(null);
   const sourceBroadcastStreamRef = useRef(null);
   const previousParticipantsRef = useRef(new Map());
 
@@ -524,6 +549,11 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         throw new Error('No screen video track was captured.');
       }
 
+      await applyLiveScreenTrackConstraints(screenVideoTrack);
+      if ('contentHint' in screenVideoTrack) {
+        screenVideoTrack.contentHint = 'detail';
+      }
+
       const preferredAudioTrack =
         microphoneStream?.getAudioTracks()?.[0] ||
         screenStream.getAudioTracks()?.[0] ||
@@ -831,12 +861,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     try {
       let stream;
+      const sharedScreenTrack = localStreamRef.current?.getVideoTracks?.()?.[0] || null;
+      const isMonitorShareActive = isMonitorDisplayTrack(sharedScreenTrack);
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            width: { ideal: 1280, max: 1280 },
-            height: { ideal: 720, max: 720 },
-            frameRate: { ideal: 24, max: 30 },
+            width: isMonitorShareActive ? { ideal: 640, max: 640 } : { ideal: 1280, max: 1280 },
+            height: isMonitorShareActive ? { ideal: 360, max: 360 } : { ideal: 720, max: 720 },
+            frameRate: isMonitorShareActive ? { ideal: 15, max: 20 } : { ideal: 24, max: 30 },
             facingMode: 'user',
           },
           audio: {
@@ -859,11 +891,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       if (cameraTrack && typeof cameraTrack.applyConstraints === 'function') {
         try {
           await cameraTrack.applyConstraints({
-            frameRate: { ideal: 24, max: 30 },
+            frameRate: isMonitorShareActive ? { ideal: 15, max: 20 } : { ideal: 24, max: 30 },
           });
         } catch {
           // Continue with original camera settings when frame-rate constraints are unsupported.
         }
+      }
+
+      if (isMonitorShareActive) {
+        setStatus('Camera enabled with monitor-safe quality to avoid green-screen artifacts on monitor sharing.');
       }
 
       cameraStreamRef.current = stream;
@@ -882,6 +918,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       stopCameraPreview();
     }
   }, [normalizedSessionId, stopCameraPreview]);
+
+  useEffect(() => {
+    startCameraPreviewRef.current = startCameraPreview;
+  }, [startCameraPreview]);
 
   const toggleCameraPreview = useCallback(() => {
     if (isCameraOn) {
@@ -1406,14 +1446,29 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           });
         }
 
+        // Unpublish when host disables camera so a future enable triggers a clean republish.
+        if (socketRef.current) {
+          socketRef.current.emit('camera:unpublish', { sessionId: normalizedSessionId });
+        }
+
+        for (const pc of cameraPublisherPeersRef.current.values()) {
+          pc.close();
+        }
+        cameraPublisherPeersRef.current.clear();
+
         setIsCameraOn(false);
         setCameraError('Host disabled your camera. You may turn it on again when allowed.');
         return;
       }
 
       if (command === 'enable-camera') {
-        if (!cameraStreamRef.current) {
-          setCameraError('Host requested camera enable. Turn on your camera to continue.');
+        const hasLiveCameraTrack = Boolean(
+          cameraStreamRef.current?.getVideoTracks?.().some((track) => track.readyState === 'live')
+        );
+
+        if (!hasLiveCameraTrack) {
+          setCameraError('Host requested camera enable. Re-initializing camera...');
+          startCameraPreviewRef.current?.();
           return;
         }
 
@@ -1421,7 +1476,17 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         videoTracks.forEach((track) => {
           track.enabled = true;
         });
-        setIsCameraOn(videoTracks.some((track) => track.enabled));
+
+        // Re-announce publisher state so subscribers can reattach cleanly.
+        if (socketRef.current) {
+          socketRef.current.emit('camera:publish', {
+            sessionId: normalizedSessionId,
+            name: resolvedParticipantNameRef.current,
+            role: resolvedParticipantRoleRef.current,
+          });
+        }
+
+        setIsCameraOn(videoTracks.some((track) => track.readyState === 'live' && track.enabled));
         setCameraError('');
         return;
       }
