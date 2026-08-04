@@ -366,9 +366,42 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
   const startBroadcast = useCallback(async () => {
     if (!canBroadcast || isBroadcasting || !socketRef.current) return;
-    if (!socketConnected) {
+
+    const socket = socketRef.current;
+    if (!socket.connected) {
       setStatus('Connecting to live service...');
-      return;
+      setError('');
+      try {
+        await new Promise((resolve, reject) => {
+          const timeout = window.setTimeout(() => reject(new Error('Timed out waiting for the live connection.')), 8000);
+          const clear = () => {
+            window.clearTimeout(timeout);
+            socket.off('connect', onConnect);
+            socket.off('connect_error', onError);
+          };
+          const onConnect = () => {
+            clear();
+            resolve();
+          };
+          const onError = () => {
+            clear();
+            reject(new Error('Unable to connect to the live service.'));
+          };
+
+          socket.on('connect', onConnect);
+          socket.on('connect_error', onError);
+          if (socket.connected) {
+            clear();
+            resolve();
+          } else {
+            socket.connect();
+          }
+        });
+      } catch (err) {
+        setError(err?.message || 'Unable to connect to the live service.');
+        setStatus(err?.message || 'Unable to connect to the live service.');
+        return;
+      }
     }
 
     setError('');
@@ -377,6 +410,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
         throw new Error('Your browser does not support screen sharing.');
       }
 
+      setStatus('Requesting screen share permission...');
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
@@ -438,7 +472,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setError(message);
       setStatus(message);
     }
-  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, socketConnected, stopBroadcast]);
+  }, [canBroadcast, hostName, isBroadcasting, normalizedSessionId, stopBroadcast]);
 
   const createBroadcasterPeer = useCallback(async (viewerSocketId) => {
     if (!localStreamRef.current || !socketRef.current) return;
@@ -832,6 +866,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
 
     socket.on('disconnect', () => {
       setSocketConnected(false);
+      setStatus('Live connection lost. Reconnecting...');
+    });
+
+    socket.on('connect_error', () => {
+      setSocketConnected(false);
+      setError('Unable to connect to the live service.');
+      setStatus('Unable to connect to the live service.');
     });
 
     socket.on('live:status', (payload) => {
