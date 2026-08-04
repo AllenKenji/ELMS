@@ -1082,7 +1082,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       return undefined;
     }
 
-    if (broadcastModeRef.current !== 'external') {
+    // If already live via manual capture, do not stop existing publish tracks here.
+    // Stopping them can fire track.onended and trigger stopBroadcast().
+    if (broadcastModeRef.current !== 'external' && !isBroadcastingRef.current) {
       stopTracks(localStreamRef.current);
     }
     localStreamRef.current = buildOutboundStream(broadcastStream, false);
