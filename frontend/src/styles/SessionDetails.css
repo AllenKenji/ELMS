@@ -568,6 +568,16 @@
   border-radius: 10px;
   padding: 0.45rem;
   background: #f8fcff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.live-camera-loading {
+  margin: 0;
+  color: #6a7f8c;
+  font-size: 0.78rem;
+  font-weight: 600;
 }
 
 .live-camera-name {
@@ -578,15 +588,21 @@
 }
 
 .live-participant-controls {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.45rem;
   margin-top: 0.45rem;
 }
 
+.live-participant-controls .btn-live-start,
 .live-participant-controls .btn-live-stop,
 .live-participant-controls .btn-live-watch {
-  padding: 0.45rem 0.7rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
   font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: center;
 }
 
 /* Ordinances */

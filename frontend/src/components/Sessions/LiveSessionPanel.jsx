@@ -119,6 +119,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [isMicrophoneOn, setIsMicrophoneOn] = useState(false);
   const [cameraPublishers, setCameraPublishers] = useState([]);
+  const [cameraStreamReadyBySocketId, setCameraStreamReadyBySocketId] = useState({});
   const [liveDiagnostics, setLiveDiagnostics] = useState({ publishVideo: false, publishAudio: false, recvVideo: false, recvAudio: false });
   const [status, setStatus] = useState('No live stream in progress.');
   const [error, setError] = useState('');
@@ -790,6 +791,15 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (!socketId) return;
 
     setCameraPublishers((prev) => prev.filter((item) => item.socketId !== socketId));
+    setCameraStreamReadyBySocketId((prev) => {
+      if (!Object.prototype.hasOwnProperty.call(prev, socketId)) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[socketId];
+      return next;
+    });
     const subscriberPc = cameraSubscriberPeersRef.current.get(socketId);
     if (subscriberPc) {
       subscriberPc.close();
@@ -1361,6 +1371,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             if (!stream) return;
 
             remoteCameraStreamsRef.current.set(publisherSocketId, stream);
+            setCameraStreamReadyBySocketId((prev) => ({
+              ...prev,
+              [publisherSocketId]: true,
+            }));
             upsertCameraPublisherRef.current(
               publisherSocketId,
               null,
@@ -1539,6 +1553,7 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       });
       remoteCameraStreamsRef.current.clear();
       setCameraPublishers([]);
+      setCameraStreamReadyBySocketId({});
       setLiveParticipants([]);
       setParticipantCount(0);
       setViewerCount(0);
@@ -1707,10 +1722,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           <div className="live-camera-grid">
             {cameraPublishers.map((item) => (
               <div key={item.socketId} className="live-camera-tile">
+                {!cameraStreamReadyBySocketId[item.socketId] && (
+                  <p className="live-camera-loading">Camera is connecting...</p>
+                )}
                 <video
                   autoPlay
+                  muted
                   playsInline
-                  controls
+                  controls={false}
                   className="live-video"
                   ref={(node) => {
                     if (!node) {
