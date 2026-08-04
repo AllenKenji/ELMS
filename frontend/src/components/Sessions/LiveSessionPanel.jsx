@@ -386,12 +386,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
     if (!canBroadcast || isBroadcasting || !socketRef.current) return;
 
     const socket = socketRef.current;
+    const socketBaseUrl = getSocketBaseUrl();
+    console.info('[live] attempting socket connection', { socketBaseUrl, sessionId: normalizedSessionId });
     if (!socket.connected) {
-      setStatus('Connecting to live service...');
+      setStatus(`Connecting to live service at ${socketBaseUrl}...`);
       setError('');
       try {
         await new Promise((resolve, reject) => {
-          const timeout = window.setTimeout(() => reject(new Error('Timed out waiting for the live connection.')), 8000);
+          const timeout = window.setTimeout(() => reject(new Error(`Timed out waiting for the live connection at ${socketBaseUrl}.`)), 10000);
           const clear = () => {
             window.clearTimeout(timeout);
             socket.off('connect', onConnect);
@@ -401,9 +403,10 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
             clear();
             resolve();
           };
-          const onError = () => {
+          const onError = (error) => {
             clear();
-            reject(new Error('Unable to connect to the live service.'));
+            console.error('[live] socket connect error', { socketBaseUrl, error });
+            reject(new Error(`Unable to connect to the live service at ${socketBaseUrl}.`));
           };
 
           socket.on('connect', onConnect);
@@ -416,8 +419,9 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
           }
         });
       } catch (err) {
-        setError(err?.message || 'Unable to connect to the live service.');
-        setStatus(err?.message || 'Unable to connect to the live service.');
+        const message = err?.message || `Unable to connect to the live service at ${socketBaseUrl}.`;
+        setError(message);
+        setStatus(message);
         return;
       }
     }
@@ -893,7 +897,8 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       setStatus('Live connection lost. Reconnecting...');
     });
 
-    socket.on('connect_error', () => {
+    socket.on('connect_error', (error) => {
+      console.error('[live] socket connection failed', { socketBaseUrl: getSocketBaseUrl(), error });
       setSocketConnected(false);
       setError('Unable to connect to the live service.');
       setStatus('Unable to connect to the live service.');

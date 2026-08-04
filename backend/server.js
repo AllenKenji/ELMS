@@ -38,6 +38,16 @@ app.get('/health', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
+app.get('/socket-health', (_req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    socket: {
+      path: '/socket.io/',
+      transports: ['websocket', 'polling'],
+    },
+  });
+});
+
 // Serve uploads folder as static files (must be before any auth middleware)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
