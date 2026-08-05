@@ -14,6 +14,8 @@ const RECORDER_AUDIO_BITS_PER_SECOND = 96_000;
 const RECORDER_MAX_WIDTH = 1280;
 const RECORDER_MAX_HEIGHT = 720;
 const RECORDER_MAX_FPS = 24;
+const UPLOAD_MAX_ATTEMPTS = 3;
+const UPLOAD_RETRY_BASE_DELAY_MS = 1500;
 
 function getSupportedMimeType() {
   if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
@@ -157,6 +159,22 @@ function waitForNextTick() {
   return new Promise((resolve) => {
     window.setTimeout(resolve, 0);
   });
+}
+
+function waitForDelay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function isRetryableUploadError(error) {
+  const status = Number(error?.status || error?.response?.status || 0);
+  if ([0, 408, 429, 500, 502, 503, 504].includes(status)) {
+    return true;
+  }
+
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('network') || message.includes('timeout') || message.includes('temporarily unavailable');
 }
 
 function waitForVideoMetadata(videoElement) {
@@ -416,17 +434,45 @@ export default function LocalMeetingRecorder({
     setStatus('Uploading recording to the server...');
 
     try {
-      const response = await api.post(
-        uploadUrl || `/committees/${committeeId}/meetings/${meetingId}/recording`,
-        formData,
-        {
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+      let response = null;
+      let lastUploadError = null;
+
+      for (let attempt = 1; attempt <= UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+        setStatus(
+          attempt === 1
+            ? 'Uploading recording to the server...'
+            : `Retrying upload (${attempt}/${UPLOAD_MAX_ATTEMPTS})... Keep this page open.`
+        );
+
+        try {
+          response = await api.post(
+            uploadUrl || `/committees/${committeeId}/meetings/${meetingId}/recording`,
+            formData,
+            {
+              timeout: 15 * 60 * 1000,
+              onUploadProgress: (progressEvent) => {
+                if (progressEvent.total) {
+                  setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+                }
+              },
             }
-          },
+          );
+          lastUploadError = null;
+          break;
+        } catch (uploadError) {
+          lastUploadError = uploadError;
+          if (attempt >= UPLOAD_MAX_ATTEMPTS || !isRetryableUploadError(uploadError)) {
+            break;
+          }
+
+          const backoffMs = UPLOAD_RETRY_BASE_DELAY_MS * attempt;
+          await waitForDelay(backoffMs);
         }
-      );
+      }
+
+      if (!response) {
+        throw lastUploadError || new Error('Upload failed.');
+      }
 
       setUploadProgress(100);
       setStatus('Recording saved locally and uploaded to the server.');
@@ -438,7 +484,7 @@ export default function LocalMeetingRecorder({
     } catch (uploadError) {
       const message = getApiErrorMessage(uploadError, 'Recording was saved locally but the server upload failed.');
       setError(message);
-      setStatus('Recording was saved locally but was not uploaded to the server.');
+      setStatus('Recording was saved locally but was not uploaded to the server. Use Upload local copy to retry.');
       toast.error(message);
     } finally {
       setIsUploading(false);
@@ -657,6 +703,22 @@ export default function LocalMeetingRecorder({
   useEffect(() => {
     onUploadStateChange?.(isUploading);
   }, [isUploading, onUploadStateChange]);
+
+  useEffect(() => {
+    if (!isUploading) {
+      return undefined;
+    }
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isUploading]);
 
   useEffect(() => {
     return () => {
@@ -957,6 +1019,7 @@ export default function LocalMeetingRecorder({
               <li>Choose the {subjectLabel} tab or window in the browser share dialog.</li>
               <li>Turn on tab audio or system audio if the browser offers that option.</li>
               <li>Keep this page open until you press Stop &amp; Save.</li>
+              <li>After Stop &amp; Save, wait for upload completion before refreshing or closing this tab.</li>
               <li>{canUploadToServer ? `The file saves to this laptop first, then uploads to the ${subjectLabel} record.` : `The file saves to this laptop only in this first ${subjectLabel} recording version.`}</li>
             </ul>
             <div className="committee-recorder-tips-actions">
