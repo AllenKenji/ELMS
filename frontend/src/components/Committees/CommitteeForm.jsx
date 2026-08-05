@@ -54,6 +54,10 @@ import { useState, useEffect } from 'react';
 import api from '../../api/api';
 import '../../styles/CommitteeForm.css';
 
+function normalizeId(value) {
+  return String(value || '').trim();
+}
+
 export default function CommitteeForm({ onSuccess, onCancel, committeeId = null, initialData = null }) {
   const [formData, setFormData] = useState(
     initialData
@@ -62,7 +66,7 @@ export default function CommitteeForm({ onSuccess, onCancel, committeeId = null,
           description: initialData.description || '',
           chair_id: initialData.chair_id || '',
           vice_chair_id: initialData.vice_chair_id || '',
-          member_ids: initialData.member_ids || [],
+          member_ids: (initialData.member_ids || []).map((id) => normalizeId(id)).filter(Boolean),
           status: initialData.status || 'Active',
           type: initialData.type || '',
           scope: initialData.scope || '',
@@ -105,6 +109,29 @@ export default function CommitteeForm({ onSuccess, onCancel, committeeId = null,
         setSecretaries([]);
       });
   }, []);
+
+  useEffect(() => {
+    const selectedLeadershipIds = new Set([
+      normalizeId(formData.chair_id),
+      normalizeId(formData.vice_chair_id),
+    ].filter(Boolean));
+
+    if (selectedLeadershipIds.size === 0) {
+      return;
+    }
+
+    setFormData((prev) => {
+      const filteredMemberIds = (prev.member_ids || []).filter((id) => !selectedLeadershipIds.has(normalizeId(id)));
+      if (filteredMemberIds.length === (prev.member_ids || []).length) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        member_ids: filteredMemberIds,
+      };
+    });
+  }, [formData.chair_id, formData.vice_chair_id]);
 
   const validateForm = () => {
     const errors = {};
@@ -201,6 +228,16 @@ export default function CommitteeForm({ onSuccess, onCancel, committeeId = null,
       setLoading(false);
     }
   };
+
+  const selectedLeadershipIds = new Set([
+    normalizeId(formData.chair_id),
+    normalizeId(formData.vice_chair_id),
+  ].filter(Boolean));
+
+  const availableMemberCouncilors = councilors.filter((u) => {
+    const userId = normalizeId(u.id);
+    return !selectedLeadershipIds.has(userId) && !formData.member_ids.includes(userId);
+  });
 
   return (
     <div className="committee-form-overlay">
@@ -379,14 +416,14 @@ export default function CommitteeForm({ onSuccess, onCancel, committeeId = null,
                     name="add_member"
                     value=""
                     onChange={e => {
-                      const id = e.target.value;
+                      const id = normalizeId(e.target.value);
                       if (id && !formData.member_ids.includes(id)) {
                         setFormData(prev => ({ ...prev, member_ids: [...prev.member_ids, id] }));
                       }
                     }}
                   >
                     <option value="">— Add councilor as member —</option>
-                    {councilors.filter(u => !formData.member_ids.includes(String(u.id))).map(u => (
+                    {availableMemberCouncilors.map(u => (
                       <option key={u.id} value={u.id}>{u.name}</option>
                     ))}
                   </select>
@@ -401,7 +438,7 @@ export default function CommitteeForm({ onSuccess, onCancel, committeeId = null,
                             type="button"
                             className="remove-member-btn"
                             title="Remove member"
-                            onClick={() => setFormData(prev => ({ ...prev, member_ids: prev.member_ids.filter(mid => mid !== id) }))}
+                            onClick={() => setFormData(prev => ({ ...prev, member_ids: prev.member_ids.filter(mid => normalizeId(mid) !== normalizeId(id)) }))}
                           >
                             ✕
                           </button>
