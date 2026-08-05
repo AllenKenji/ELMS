@@ -159,15 +159,16 @@ function canSubmitCommitteeReportForMeasure(measure, user) {
   return isChair || isCommitteeSecretary;
 }
 
-function getAvailableActions(readingStage, userRole, res, user, workflowStatus) {
+function getAvailableActions(readingStage, userRole, res, user, workflowStatus, committeeMeetings = []) {
   const canSubmitCommitteeReport = canSubmitCommitteeReportForMeasure(res, user);
+  const hasEndedCommitteeMeeting = Boolean(getLatestEndedMeeting(committeeMeetings, res?.id));
 
   if (readingStage === 'COMMITTEE_REVIEW') {
     const isChair = res?.committee && res.committee.chair_id === user?.id;
     const isSecretary = res?.committee && res.committee.members?.some(m => m.user_id === user?.id && m.role === 'Committee Secretary');
     const actions = [];
     if (isChair || isSecretary) actions.push('create-meeting');
-    if (canSubmitCommitteeReport) actions.push('committee-report');
+    if (canSubmitCommitteeReport && hasEndedCommitteeMeeting) actions.push('committee-report');
     return actions;
   }
   switch (readingStage) {
@@ -186,8 +187,8 @@ function getAvailableActions(readingStage, userRole, res, user, workflowStatus) 
       const actions = [];
       if (!res?.session_id_first_reading) {
         if (canDo(userRole, 'assign-session')) actions.push('assign-session');
-      } else {
-        if (canDo(userRole, 'first-reading')) actions.push('first-reading');
+      } else if (canDo(userRole, 'first-reading')) {
+        actions.push('first-reading');
       }
 
       if (canDo(userRole, 'admin-override-session')) {
@@ -631,7 +632,9 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
       : normalizedStage
   );
   const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === displayStage));
-  const availableActions = isRejected ? [] : getAvailableActions(normalizedStage, user?.role, resl, user, workflowStatus);
+  const availableActions = isRejected
+    ? []
+    : getAvailableActions(normalizedStage, user?.role, resl, user, workflowStatus, committeeMeetings);
   const currentStageDef = STAGES.find(s => s.key === displayStage);
   const assignedSessionId = Number(resl?.session_id_first_reading || form.session_id);
   const assignedSession = sessions.find((session) => Number(session.id) === assignedSessionId);

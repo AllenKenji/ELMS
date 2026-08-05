@@ -159,8 +159,9 @@ function canSubmitCommitteeReportForMeasure(measure, user) {
   return isChair || isCommitteeSecretary;
 }
 
-function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) {
+function getAvailableActions(readingStage, userRole, ord, user, workflowStatus, committeeMeetings = []) {
   const canSubmitCommitteeReport = canSubmitCommitteeReportForMeasure(ord, user);
+  const hasEndedCommitteeMeeting = Boolean(getLatestEndedMeeting(committeeMeetings, ord?.id));
 
   // Committee meeting creation: allow if user is chair or secretary of assigned committee during review
   if (readingStage === 'COMMITTEE_REVIEW') {
@@ -168,7 +169,7 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) 
     const isSecretary = ord?.committee && ord.committee.members?.some(m => m.user_id === user?.id && m.role === 'Committee Secretary');
     const actions = [];
     if (isChair || isSecretary) actions.push('create-meeting');
-    if (canSubmitCommitteeReport) actions.push('committee-report');
+    if (canSubmitCommitteeReport && hasEndedCommitteeMeeting) actions.push('committee-report');
     return actions;
   }
   switch (readingStage) {
@@ -187,8 +188,8 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus) 
       const actions = [];
       if (!ord?.session_id_first_reading) {
         if (canDo(userRole, 'assign-session')) actions.push('assign-session');
-      } else {
-        if (canDo(userRole, 'first-reading')) actions.push('first-reading');
+      } else if (canDo(userRole, 'first-reading')) {
+        actions.push('first-reading');
       }
 
       if (canDo(userRole, 'admin-override-session')) {
@@ -649,7 +650,9 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
       : normalizedStage
   );
   const currentStageIndex = isRejected ? -1 : (STAGES.findIndex(s => s.key === displayStage));
-  const availableActions = isRejected ? [] : getAvailableActions(normalizedStage, user?.role, ord, user, workflowStatus);
+  const availableActions = isRejected
+    ? []
+    : getAvailableActions(normalizedStage, user?.role, ord, user, workflowStatus, committeeMeetings);
         
   const currentStageDef = STAGES.find(s => s.key === displayStage);
   const assignedSessionId = Number(ord?.session_id_first_reading || form.session_id);
