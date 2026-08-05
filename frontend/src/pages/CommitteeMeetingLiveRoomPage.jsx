@@ -32,6 +32,32 @@ function canBroadcastMeeting(user, committee) {
   );
 }
 
+function canRecordMeeting(user, committee) {
+  if (!user || !committee) return false;
+
+  const normalizedUserRole = String(user.role || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, ' ');
+
+  if (normalizedUserRole === 'admin') return true;
+  if (String(committee.chair_id) === String(user.id)) return true;
+
+  return Array.isArray(committee.members) && committee.members.some(
+    (member) => {
+      const normalizedMemberRole = String(member.role || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[_\s]+/g, ' ');
+
+      return (
+        String(member.user_id) === String(user.id) &&
+        ['chair', 'committee secretary'].includes(normalizedMemberRole)
+      );
+    }
+  );
+}
+
 export default function CommitteeMeetingLiveRoomPage() {
   const { committeeId, meetingId } = useParams();
   const location = useLocation();
@@ -101,6 +127,11 @@ export default function CommitteeMeetingLiveRoomPage() {
   const canBroadcast = useMemo(() => {
     if (watchMode) return false;
     return canBroadcastMeeting(user, committee);
+  }, [watchMode, user, committee]);
+
+  const canRecord = useMemo(() => {
+    if (watchMode) return false;
+    return canRecordMeeting(user, committee);
   }, [watchMode, user, committee]);
 
   const viewerTabUrl = useMemo(() => {
@@ -193,7 +224,7 @@ export default function CommitteeMeetingLiveRoomPage() {
         onLocalBroadcastStreamChange={setLocalLiveStream}
       />
 
-      {!meeting.ended && canBroadcast && (
+      {!meeting.ended && canRecord && (
         <section className="detail-section full-width" style={{ marginTop: '1rem' }}>
           <h3>Committee Recording</h3>
           <p className="session-recording-hint" style={{ marginBottom: '0.75rem' }}>
