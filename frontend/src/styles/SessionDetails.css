@@ -746,6 +746,37 @@
   color: #1f7a43;
 }
 
+.session-recording-minutes-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.session-minutes-delete-button {
+  border: 1px solid #e6b8b8;
+  background: #fff4f4;
+  color: #b13a3a;
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.session-minutes-delete-button:hover:not(:disabled) {
+  background: #fee8e8;
+  border-color: #d88d8d;
+  color: #962f2f;
+}
+
+.session-minutes-delete-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 /* Empty State */
 .empty-state {
   text-align: center;

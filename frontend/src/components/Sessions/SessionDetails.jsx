@@ -113,6 +113,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   const [activeTab, setActiveTab] = useState(initialTab || 'details');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deletingMinutesId, setDeletingMinutesId] = useState(null);
   const [joining, setJoining] = useState(false);
   const [liveBroadcastStream, setLiveBroadcastStream] = useState(null);
   const [remoteLiveStream, setRemoteLiveStream] = useState(null);
@@ -286,12 +287,44 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
     return hasRole('Admin', 'Secretary');
   };
 
+  const canDeleteSessionMinutes = () => {
+    return hasRole('Admin');
+  };
+
   const canRecordSession = () => {
     return hasRole('Admin', 'Secretary', 'Vice Mayor');
   };
 
   const canStartLiveStream = () => {
     return hasRole('Admin', 'Vice Mayor');
+  };
+
+  const handleDeleteSessionMinutes = async (minutesId) => {
+    if (!canDeleteSessionMinutes()) {
+      return;
+    }
+
+    const selectedMinutes = sessionMinutes.find((minutes) => String(minutes.id) === String(minutesId));
+    const confirmed = window.confirm(
+      `Delete session minutes${selectedMinutes?.title ? ` "${selectedMinutes.title}"` : ''}? This will also remove attached recording links from this record.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingMinutesId(minutesId);
+    setError('');
+
+    try {
+      await api.delete(`/minutes/${minutesId}`);
+      setSessionMinutes((prev) => prev.filter((minutes) => String(minutes.id) !== String(minutesId)));
+      setSelectedMinutesId((prev) => (String(prev) === String(minutesId) ? '' : prev));
+    } catch (err) {
+      setError(err?.response?.data?.error || err?.message || 'Failed to delete session minutes.');
+    } finally {
+      setDeletingMinutesId(null);
+    }
   };
 
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;
@@ -641,7 +674,19 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                         <div key={minutes.id} className="session-recording-minutes-card">
                           <div className="session-recording-minutes-head">
                             <strong>{minutes.title}</strong>
-                            <span className="status-badge" style={{ backgroundColor: '#4a90e2' }}>{minutes.status || 'Draft'}</span>
+                            <div className="session-recording-minutes-actions">
+                              <span className="status-badge" style={{ backgroundColor: '#4a90e2' }}>{minutes.status || 'Draft'}</span>
+                              {canDeleteSessionMinutes() && (
+                                <button
+                                  type="button"
+                                  className="session-minutes-delete-button"
+                                  onClick={() => handleDeleteSessionMinutes(minutes.id)}
+                                  disabled={String(deletingMinutesId) === String(minutes.id)}
+                                >
+                                  {String(deletingMinutesId) === String(minutes.id) ? 'Deleting...' : 'Delete Minutes'}
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="session-recording-meta-row">
                             <span>📅 {minutes.meeting_date ? new Date(minutes.meeting_date).toLocaleDateString() : 'No meeting date'}</span>
