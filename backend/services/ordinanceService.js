@@ -208,6 +208,29 @@ function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   return normalizedNotes ? `${recordingLine}\n\n${normalizedNotes}` : recordingLine;
 }
 
+async function notifyUrgentActionByRoles(clientOrPool, roleNames, message, options = {}) {
+  const normalizedRoles = Array.isArray(roleNames)
+    ? [...new Set(roleNames.map((role) => String(role || '').trim()).filter(Boolean))]
+    : [];
+
+  if (!normalizedRoles.length) {
+    return;
+  }
+
+  const source = clientOrPool || pool;
+  const usersRes = await source.query(
+    `SELECT DISTINCT u.id
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE r.role_name = ANY($1::text[])`,
+    [normalizedRoles]
+  );
+
+  for (const row of usersRes.rows) {
+    await createNotification(row.id, message, options);
+  }
+}
+
 async function autoPostLegacyOrdinanceIfNeeded(ordinance, payload, actorUser) {
   const isLegacyImport = parseBooleanInput(payload?.is_legacy_import);
   const autoPostPublicly = parseBooleanInput(payload?.auto_post_publicly);
@@ -564,30 +587,19 @@ exports.createOrdinance = async (data, user) => {
 
   // Persist notifications for Secretary users so they can see new measures in the notifications panel.
   try {
-    const secretaryUsers = await pool.query(
-      `SELECT u.id
-       FROM users u
-       JOIN roles r ON r.id = u.role_id
-       WHERE r.role_name = 'Secretary'`
-    );
-    for (const secretary of secretaryUsers.rows) {
-      try {
-        await createNotification(
-          secretary.id,
-          `A new proposed ordinance "${title}" was created and is ready for review.`,
-          {
-            type: 'activity',
-            title: 'New Proposed Measure',
-            relatedId: ordinance.id,
-            relatedType: 'ordinance',
-          }
-        );
-      } catch (err) {
-        console.warn('Non-fatal: failed to notify secretary for ordinance create', err?.message || err);
+    await notifyUrgentActionByRoles(
+      pool,
+      ['Secretary'],
+      `Urgent action: Review proposed ordinance "${title}" and assign a session for first reading when complete.`,
+      {
+        type: 'warning',
+        title: 'Urgent Action Required',
+        relatedId: ordinance.id,
+        relatedType: 'ordinance',
       }
-    }
+    );
   } catch (err) {
-    console.warn('Non-fatal: failed to query secretary users for ordinance notifications', err?.message || err);
+    console.warn('Non-fatal: failed to notify secretary for ordinance create', err?.message || err);
   }
 
   // Notify all Vice Mayors if no committee is assigned
@@ -600,10 +612,10 @@ exports.createOrdinance = async (data, user) => {
           try {
             await createNotification(
               vm.id,
-              `A proposed measure ("${title}") has been created and is not yet assigned to a committee.`,
+              `Urgent action: Proposed ordinance "${title}" is not assigned to a committee. Assign a committee after first reading.`,
               {
                 type: 'warning',
-                title: 'Unassigned Proposed Measure',
+                title: 'Urgent Action Required',
                 relatedId: ordinance.id,
                 relatedType: 'ordinance',
               }
@@ -1161,24 +1173,17 @@ exports.submitToViceMayor = async (id, comment, userId) => {
     await createNotification(userId, `Ordinance "${ordinance.title}" submitted to Vice Mayor.`);
 
     // Persist a notification for all Secretary users so they still receive it even when offline.
-    const secretaryUsers = await client.query(
-      `SELECT u.id
-       FROM users u
-       JOIN roles r ON r.id = u.role_id
-       WHERE r.role_name = 'Secretary'`
+    await notifyUrgentActionByRoles(
+      client,
+      ['Secretary'],
+      `Urgent action: Proposed ordinance "${ordinance.title}" was submitted. Review it and assign a session for first reading.`,
+      {
+        type: 'warning',
+        title: 'Urgent Action Required',
+        relatedId: Number(id),
+        relatedType: 'ordinance',
+      }
     );
-    for (const secretary of secretaryUsers.rows) {
-      await createNotification(
-        secretary.id,
-        `A proposed ordinance "${ordinance.title}" was submitted by a councilor and is ready for review.`,
-        {
-          type: 'activity',
-          title: 'Proposed Measure Submitted',
-          relatedId: Number(id),
-          relatedType: 'ordinance',
-        }
-      );
-    }
 
     const io = getIO();
     io.to('Secretary').emit('ordinanceSubmitted', updated.rows[0]);
@@ -1358,6 +1363,27 @@ exports.assignCommittee = async (id, committeeId, userId, meetingDetails = {}) =
     await AuditLog.create(client, userId, 'COMMITTEE_ASSIGNED', `Committee ${committeeId} assigned to "${ordinance.title}"`);
     const notifMsg = `Your ordinance "${ordinance.title}" has been assigned to a committee.`;
     await createNotification(ordinance.proposer_id, notifMsg);
+
+    const committeeLeadsRes = await client.query(
+      `SELECT DISTINCT cm.user_id AS id
+       FROM committee_members cm
+       WHERE cm.committee_id = $1
+         AND cm.role IN ('Chair', 'Committee Secretary')`,
+      [committeeId]
+    );
+    for (const lead of committeeLeadsRes.rows) {
+      await createNotification(
+        lead.id,
+        `Urgent action: Ordinance "${ordinance.title}" is assigned to your committee. Schedule/hold the committee meeting and submit the committee report.`,
+        {
+          type: 'warning',
+          title: 'Urgent Action Required',
+          relatedId: Number(id),
+          relatedType: 'ordinance',
+        }
+      );
+    }
+
     const io = getIO();
     io.emit('ordinanceCommitteeAssigned', updated.rows[0]);
 
@@ -1453,10 +1479,19 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     // Notify all secretaries and admins
     const usersRes = await client.query(`SELECT u.id, r.role_name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin')`);
     for (const user of usersRes.rows) {
+      const normalizedRole = String(user.role || '').toLowerCase();
+      const isSecretary = normalizedRole === 'secretary';
       await createNotification(
         user.id,
-        `Committee report was submitted for ordinance "${ordinance.title}". Recommendation: ${reportData.recommendation}`,
-        { type: 'activity', title: 'Committee Report Submitted', relatedId: id, relatedType: 'ordinance' }
+        isSecretary
+          ? `Urgent action: Committee report for ordinance "${ordinance.title}" is submitted. Assign a session for second reading.`
+          : `Committee report was submitted for ordinance "${ordinance.title}". Recommendation: ${reportData.recommendation}`,
+        {
+          type: isSecretary ? 'warning' : 'activity',
+          title: isSecretary ? 'Urgent Action Required' : 'Committee Report Submitted',
+          relatedId: id,
+          relatedType: 'ordinance',
+        }
       );
     }
 
@@ -1866,7 +1901,16 @@ exports.openThirdReadingVote = async (id, sessionId, presidingOfficer, userId) =
       `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name = 'Councilor'`
     );
     for (const c of councilors.rows) {
-      await createNotification(c.id, `Voting is now open for "${ordinance.title}". Please cast your vote.`);
+      await createNotification(
+        c.id,
+        `Urgent action: Voting is now open for "${ordinance.title}". Cast your vote now.`,
+        {
+          type: 'warning',
+          title: 'Urgent Vote Required',
+          relatedId: Number(id),
+          relatedType: 'ordinance',
+        }
+      );
     }
 
     const io = getIO();

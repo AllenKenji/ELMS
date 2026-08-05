@@ -5,6 +5,16 @@ import { io } from 'socket.io-client';
 import { API_BASE_URL } from '../api/api';
 import '../styles/NotificationBell.css';
 
+function isUrgentNotification(notification) {
+  if (!notification) return false;
+
+  const title = String(notification.title || '').toLowerCase();
+  const message = String(notification.message || '').toLowerCase();
+  const type = String(notification.type || '').toLowerCase();
+
+  return type === 'warning' || title.includes('urgent') || message.includes('urgent action') || message.includes('action required');
+}
+
 export default function NotificationBell() {
   const { user, accessToken } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -13,6 +23,7 @@ export default function NotificationBell() {
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
 
   // Fetch unread count
   useEffect(() => {
@@ -70,7 +81,9 @@ export default function NotificationBell() {
       setLoading(true);
       try {
         const res = await api.get('/notifications?unread=true');
-        setNotifications(res.data || []);
+        const fetchedNotifications = res.data || [];
+        setNotifications(fetchedNotifications);
+        setActiveFilter(fetchedNotifications.some(isUrgentNotification) ? 'urgent' : 'all');
         setSelectedIds([]);
       } catch (err) {
         if (err?.status === 401 || err?.response?.status === 401) {
@@ -92,7 +105,7 @@ export default function NotificationBell() {
       setNotifications(notifications.map(n =>
         n.id === id ? { ...n, is_read: !isRead } : n
       ));
-      setUnreadCount(Math.max(0, unreadCount - 1));
+      setUnreadCount((prev) => (isRead ? prev + 1 : Math.max(0, prev - 1)));
     } catch (err) {
       console.error('Error marking notification:', err);
     }
@@ -114,13 +127,19 @@ export default function NotificationBell() {
     ));
   };
 
+  const urgentNotifications = notifications.filter(isUrgentNotification);
+  const visibleNotifications = activeFilter === 'urgent' ? urgentNotifications : notifications;
+  const selectedVisibleIds = visibleNotifications
+    .map((notification) => notification.id)
+    .filter((id) => selectedIds.includes(id));
+
   const selectAllVisible = () => {
-    const visibleIds = notifications.map((n) => n.id);
+    const visibleIds = visibleNotifications.map((n) => n.id);
     setSelectedIds(visibleIds);
   };
 
   const selectUnreadVisible = () => {
-    const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
+    const unreadIds = visibleNotifications.filter((n) => !n.is_read).map((n) => n.id);
     setSelectedIds(unreadIds);
   };
 
@@ -129,15 +148,15 @@ export default function NotificationBell() {
   };
 
   const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return;
+    if (selectedVisibleIds.length === 0) return;
 
-    const confirmed = window.confirm(`Delete ${selectedIds.length} selected notification(s)? This action cannot be undone.`);
+    const confirmed = window.confirm(`Delete ${selectedVisibleIds.length} selected notification(s)? This action cannot be undone.`);
     if (!confirmed) return;
 
     try {
       setBulkDeleting(true);
-      await api.post('/notifications/bulk-delete', { ids: selectedIds });
-      setNotifications((prev) => prev.filter((n) => !selectedIds.includes(n.id)));
+      await api.post('/notifications/bulk-delete', { ids: selectedVisibleIds });
+      setNotifications((prev) => prev.filter((n) => !selectedVisibleIds.includes(n.id)));
       setSelectedIds([]);
     } catch (err) {
       console.error('Error bulk deleting notifications:', err);
@@ -217,6 +236,35 @@ export default function NotificationBell() {
             </div>
 
             {user && notifications.length > 0 && (
+              <div className="dropdown-filters" role="tablist" aria-label="Notification filters">
+                <button
+                  type="button"
+                  role="tab"
+                  className={`dropdown-filter-tab ${activeFilter === 'urgent' ? 'active' : ''}`}
+                  aria-selected={activeFilter === 'urgent'}
+                  onClick={() => {
+                    setActiveFilter('urgent');
+                    setSelectedIds([]);
+                  }}
+                >
+                  Urgent ({urgentNotifications.length})
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className={`dropdown-filter-tab ${activeFilter === 'all' ? 'active' : ''}`}
+                  aria-selected={activeFilter === 'all'}
+                  onClick={() => {
+                    setActiveFilter('all');
+                    setSelectedIds([]);
+                  }}
+                >
+                  All unread ({notifications.length})
+                </button>
+              </div>
+            )}
+
+            {user && visibleNotifications.length > 0 && (
               <div className="dropdown-bulk-actions">
                 <button className="bulk-action-btn" onClick={selectUnreadVisible}>
                   Select unread
@@ -230,9 +278,9 @@ export default function NotificationBell() {
                 <button
                   className="bulk-action-btn delete"
                   onClick={handleBulkDelete}
-                  disabled={selectedIds.length === 0 || bulkDeleting}
+                  disabled={selectedVisibleIds.length === 0 || bulkDeleting}
                 >
-                  {bulkDeleting ? 'Deleting...' : `Delete (${selectedIds.length})`}
+                  {bulkDeleting ? 'Deleting...' : `Delete (${selectedVisibleIds.length})`}
                 </button>
               </div>
             )}
@@ -248,9 +296,13 @@ export default function NotificationBell() {
               <div className="dropdown-empty">
                 <p>All caught up! 🎉</p>
               </div>
+            ) : visibleNotifications.length === 0 ? (
+              <div className="dropdown-empty">
+                <p>No urgent action items right now.</p>
+              </div>
             ) : (
               <div className="notifications-list">
-                {notifications.map(notif => (
+                {visibleNotifications.map(notif => (
                   <div
                     key={notif.id}
                     className={`notification-item ${notif.is_read ? '' : 'unread'}`}

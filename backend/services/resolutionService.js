@@ -208,6 +208,29 @@ function buildReadingNotesWithRecording(discussionNotes, recordingUrl) {
   return normalizedNotes ? `${recordingLine}\n\n${normalizedNotes}` : recordingLine;
 }
 
+async function notifyUrgentActionByRoles(clientOrPool, roleNames, message, options = {}) {
+  const normalizedRoles = Array.isArray(roleNames)
+    ? [...new Set(roleNames.map((role) => String(role || '').trim()).filter(Boolean))]
+    : [];
+
+  if (!normalizedRoles.length) {
+    return;
+  }
+
+  const source = clientOrPool || pool;
+  const usersRes = await source.query(
+    `SELECT DISTINCT u.id
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE r.role_name = ANY($1::text[])`,
+    [normalizedRoles]
+  );
+
+  for (const row of usersRes.rows) {
+    await createNotification(row.id, message, options);
+  }
+}
+
 async function autoPostLegacyResolutionIfNeeded(resolution, payload, actorUser) {
   const isLegacyImport = parseBooleanInput(payload?.is_legacy_import);
   const autoPostPublicly = parseBooleanInput(payload?.auto_post_publicly);
@@ -480,30 +503,19 @@ exports.createResolution = async (data, user) => {
 
   // Persist notifications for Secretary users so they can see new measures in the notifications panel.
   try {
-    const secretaryUsers = await pool.query(
-      `SELECT u.id
-       FROM users u
-       JOIN roles r ON r.id = u.role_id
-       WHERE r.role_name = 'Secretary'`
-    );
-    for (const secretary of secretaryUsers.rows) {
-      try {
-        await createNotification(
-          secretary.id,
-          `A new proposed resolution "${title}" was created and is ready for review.`,
-          {
-            type: 'activity',
-            title: 'New Proposed Measure',
-            relatedId: resolution.id,
-            relatedType: 'resolution',
-          }
-        );
-      } catch (err) {
-        console.warn('Non-fatal: failed to notify secretary for resolution create', err?.message || err);
+    await notifyUrgentActionByRoles(
+      pool,
+      ['Secretary'],
+      `Urgent action: Review proposed resolution "${title}" and assign a session for first reading when complete.`,
+      {
+        type: 'warning',
+        title: 'Urgent Action Required',
+        relatedId: resolution.id,
+        relatedType: 'resolution',
       }
-    }
+    );
   } catch (err) {
-    console.warn('Non-fatal: failed to query secretary users for resolution notifications', err?.message || err);
+    console.warn('Non-fatal: failed to notify secretary for resolution create', err?.message || err);
   }
 
   try {
@@ -908,24 +920,17 @@ exports.submitToViceMayor = async (id, comment, userId) => {
     await createNotification(userId, `Resolution "${resolution.title}" submitted to Vice Mayor.`);
 
     // Persist a notification for all Secretary users so they still receive it even when offline.
-    const secretaryUsers = await client.query(
-      `SELECT u.id
-       FROM users u
-       JOIN roles r ON r.id = u.role_id
-       WHERE r.role_name = 'Secretary'`
+    await notifyUrgentActionByRoles(
+      client,
+      ['Secretary'],
+      `Urgent action: Proposed resolution "${resolution.title}" was submitted. Review it and assign a session for first reading.`,
+      {
+        type: 'warning',
+        title: 'Urgent Action Required',
+        relatedId: Number(id),
+        relatedType: 'resolution',
+      }
     );
-    for (const secretary of secretaryUsers.rows) {
-      await createNotification(
-        secretary.id,
-        `A proposed resolution "${resolution.title}" was submitted by a councilor and is ready for review.`,
-        {
-          type: 'activity',
-          title: 'Proposed Measure Submitted',
-          relatedId: Number(id),
-          relatedType: 'resolution',
-        }
-      );
-    }
 
     const io = getIO();
     io.to('Secretary').emit('resolutionSubmitted', updated.rows[0]);
@@ -1071,6 +1076,27 @@ exports.assignCommittee = async (id, committeeId, userId) => {
     await Resolution.insertWorkflowAction(client, id, 'ASSIGN_COMMITTEE', 'COMMITTEE_REVIEW', userId, `Assigned to committee ${committeeId}`);
     await AuditLog.create(client, userId, 'COMMITTEE_ASSIGNED', `Committee ${committeeId} assigned to "${resolution.title}"`);
     await createNotification(resolution.proposer_id, `Your resolution "${resolution.title}" has been assigned to a committee.`);
+
+    const committeeLeadsRes = await client.query(
+      `SELECT DISTINCT cm.user_id AS id
+       FROM committee_members cm
+       WHERE cm.committee_id = $1
+         AND cm.role IN ('Chair', 'Committee Secretary')`,
+      [committeeId]
+    );
+    for (const lead of committeeLeadsRes.rows) {
+      await createNotification(
+        lead.id,
+        `Urgent action: Resolution "${resolution.title}" is assigned to your committee. Schedule/hold the committee meeting and submit the committee report.`,
+        {
+          type: 'warning',
+          title: 'Urgent Action Required',
+          relatedId: Number(id),
+          relatedType: 'resolution',
+        }
+      );
+    }
+
     const io = getIO();
     io.emit('resolutionCommitteeAssigned', updated.rows[0]);
 
@@ -1141,7 +1167,20 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
 
     const usersRes = await client.query(`SELECT u.id, r.role_name AS role FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name IN ('Secretary', 'Admin')`);
     for (const u of usersRes.rows) {
-      await createNotification(u.id, `Committee report was submitted for resolution "${resolution.title}". Recommendation: ${reportData.recommendation}`);
+      const normalizedRole = String(u.role || '').toLowerCase();
+      const isSecretary = normalizedRole === 'secretary';
+      await createNotification(
+        u.id,
+        isSecretary
+          ? `Urgent action: Committee report for resolution "${resolution.title}" is submitted. Assign a session for second reading.`
+          : `Committee report was submitted for resolution "${resolution.title}". Recommendation: ${reportData.recommendation}`,
+        {
+          type: isSecretary ? 'warning' : 'activity',
+          title: isSecretary ? 'Urgent Action Required' : 'Committee Report Submitted',
+          relatedId: Number(id),
+          relatedType: 'resolution',
+        }
+      );
     }
 
     const io = getIO();
@@ -1545,7 +1584,16 @@ exports.openThirdReadingVote = async (id, sessionId, presidingOfficer, userId) =
       `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id WHERE r.role_name = 'Councilor'`
     );
     for (const c of councilors.rows) {
-      await createNotification(c.id, `Voting is now open for resolution "${resolution.title}". Please cast your vote.`);
+      await createNotification(
+        c.id,
+        `Urgent action: Voting is now open for resolution "${resolution.title}". Cast your vote now.`,
+        {
+          type: 'warning',
+          title: 'Urgent Vote Required',
+          relatedId: Number(id),
+          relatedType: 'resolution',
+        }
+      );
     }
 
     const io = getIO();
