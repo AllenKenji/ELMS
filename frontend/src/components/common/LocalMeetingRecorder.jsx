@@ -106,7 +106,7 @@ function isLikelyVideoFile(file) {
 
 function getRecorderErrorMessage(error) {
   if (error?.name === 'NotAllowedError') {
-    return 'Recording was blocked. Allow screen and microphone access to continue.';
+    return 'Recording was blocked. Allow the requested capture permission to continue.';
   }
 
   if (error?.name === 'NotFoundError') {
@@ -525,7 +525,11 @@ export default function LocalMeetingRecorder({
       setLocalDownload(null);
     }
     setChunkStats({ count: 0, bytes: 0 });
-    setStatus('Requesting screen/tab and microphone access...');
+    setStatus(
+      preferredCaptureStream?.getVideoTracks?.()?.length
+        ? 'Preparing the live session recording...'
+        : 'Requesting screen/tab access and trying microphone access...'
+    );
     chunksRef.current = [];
 
     try {
@@ -743,8 +747,13 @@ export default function LocalMeetingRecorder({
       return;
     }
 
+    if (preferredCaptureStream?.getVideoTracks?.()?.length) {
+      startRecording();
+      return;
+    }
+
     setShowTipsModal(true);
-  }, [isRecording, isSupported, isUploading]);
+  }, [isRecording, isSupported, isUploading, preferredCaptureStream, startRecording]);
 
   const handleProceedFromTips = useCallback(() => {
     setShowTipsModal(false);
@@ -885,7 +894,7 @@ export default function LocalMeetingRecorder({
             onClick={handleStartClick}
             disabled={!isSupported || isRecording || isUploading}
           >
-            Start Local Recording
+            {preferredCaptureStream?.getVideoTracks?.()?.length ? `Start Recording Live ${subjectLabel}` : 'Start Local Recording'}
           </button>
           <button
             type="button"
@@ -1002,7 +1011,9 @@ export default function LocalMeetingRecorder({
           </div>
         )}
         <p className="committee-recorder-note">
-          Share the {subjectLabel} tab or window and enable audio when the browser asks for permission.
+          {preferredCaptureStream?.getVideoTracks?.()?.length
+            ? `This recorder will capture the active live ${subjectLabel} stream directly.`
+            : `Share the ${subjectLabel} tab or window and enable audio when the browser asks for permission.`}
         </p>
         {!isSupported && (
           <p className="committee-recorder-note committee-recorder-note-warning">
@@ -1016,8 +1027,8 @@ export default function LocalMeetingRecorder({
           <div className="committee-recorder-tips-card">
             <h4>Before You Start Recording</h4>
             <ul className="committee-recorder-tips-list">
-              <li>Choose the {subjectLabel} tab or window in the browser share dialog.</li>
-              <li>Turn on tab audio or system audio if the browser offers that option.</li>
+              <li>{preferredCaptureStream?.getVideoTracks?.()?.length ? `The active live ${subjectLabel} stream will be captured directly.` : `Choose the ${subjectLabel} tab or window in the browser share dialog.`}</li>
+              <li>{preferredCaptureStream?.getVideoTracks?.()?.length ? 'Keep the live session running while the recording is in progress.' : 'Turn on tab audio or system audio if the browser offers that option.'}</li>
               <li>Keep this page open until you press Stop &amp; Save.</li>
               <li>After Stop &amp; Save, wait for upload completion before refreshing or closing this tab.</li>
               <li>{canUploadToServer ? `The file saves to this laptop first, then uploads to the ${subjectLabel} record.` : `The file saves to this laptop only in this first ${subjectLabel} recording version.`}</li>
