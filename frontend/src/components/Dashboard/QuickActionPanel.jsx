@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/useAuth';
 import '../../styles/QuickActionPanel.css';
 
-export default function QuickActionPanel({ onNewOrdinance, onNewSession, onViewSessions }) {
+export default function QuickActionPanel() {
   const navigate = useNavigate();
   const { user } = useAuth();
 

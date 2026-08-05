@@ -330,6 +330,7 @@ const ADMIN_STAGE_SEQUENCE = [
   'FIRST_READING',
   'COMMITTEE_REVIEW',
   'COMMITTEE_REPORT_SUBMITTED',
+  'ASSIGN_SECOND_SESSION',
   'RECORD_SECOND_SESSION',
   'SECOND_READING',
   'THIRD_READING_VOTING',
@@ -1401,7 +1402,7 @@ exports.assignCommittee = async (id, committeeId, userId, meetingDetails = {}) =
 
 /**
  * Stage 4: Committee submits its report.
- * Transitions: COMMITTEE_REVIEW → COMMITTEE_REPORT_SUBMITTED
+ * Transitions: COMMITTEE_REPORT_SUBMITTED → ASSIGN_SECOND_SESSION
  */
 
 exports.submitCommitteeReport = async (id, reportData, userId) => {
@@ -1424,11 +1425,15 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     const existing = await Ordinance.findById(id);
     if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Ordinance not found'); e.status = 404; throw e; }
     const ordinance = existing.rows[0];
-    if (!['COMMITTEE_REVIEW', 'COMMITTEE_REPORT_SUBMITTED'].includes(ordinance.reading_stage)) {
+    if (String(ordinance.reading_stage || '').toUpperCase() !== 'COMMITTEE_REPORT_SUBMITTED') {
       await client.query('ROLLBACK');
-      const e = new Error('Committee report requires ordinance to be in COMMITTEE_REVIEW or COMMITTEE_REPORT_SUBMITTED stage'); e.status = 400; throw e;
+      const e = new Error('Committee report requires ordinance to be in COMMITTEE_REPORT_SUBMITTED stage'); e.status = 400; throw e;
     }
-    const reportTargetStage = 'COMMITTEE_REPORT_SUBMITTED';
+    if (Number(ordinance.committee_report_id) > 0) {
+      await client.query('ROLLBACK');
+      const e = new Error('Committee report was already submitted for this ordinance'); e.status = 400; throw e;
+    }
+    const reportTargetStage = 'ASSIGN_SECOND_SESSION';
 
     // Debug logging for permission check
     const committeeId = reportData.committee_id || ordinance.committee_id;
@@ -1513,7 +1518,7 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
 
 /**
  * Stage 5A: Secretary assigns session details before second reading.
- * Transitions: COMMITTEE_REPORT_SUBMITTED -> RECORD_SECOND_SESSION
+ * Transitions: ASSIGN_SECOND_SESSION -> RECORD_SECOND_SESSION
  */
 exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
   const normalizedSessionId = Number(sessionId);
@@ -1537,9 +1542,13 @@ exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
 
     const ordinance = existing.rows[0];
     const currentStage = String(ordinance.reading_stage || '').toUpperCase();
-    if (currentStage !== 'COMMITTEE_REPORT_SUBMITTED' && currentStage !== 'RECORD_SECOND_SESSION') {
+    if (
+      currentStage !== 'ASSIGN_SECOND_SESSION'
+      && currentStage !== 'COMMITTEE_REPORT_SUBMITTED'
+      && currentStage !== 'RECORD_SECOND_SESSION'
+    ) {
       await client.query('ROLLBACK');
-      const e = new Error('Second session assignment requires ordinance to be in COMMITTEE_REPORT_SUBMITTED stage');
+      const e = new Error('Second session assignment requires ordinance to be in ASSIGN_SECOND_SESSION stage');
       e.status = 400;
       throw e;
     }
@@ -1628,9 +1637,11 @@ exports.adminOverrideSessionAssignment = async (id, payload, adminUserId) => {
         targetStage: currentStage === 'SUBMITTED' ? 'RECORD_SESSION' : currentStage,
       }
       : {
-        allowedStages: ['COMMITTEE_REPORT_SUBMITTED', 'RECORD_SECOND_SESSION'],
+        allowedStages: ['COMMITTEE_REPORT_SUBMITTED', 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION'],
         fieldName: 'session_id_second_reading',
-        targetStage: currentStage === 'COMMITTEE_REPORT_SUBMITTED' ? 'RECORD_SECOND_SESSION' : currentStage,
+        targetStage: (currentStage === 'COMMITTEE_REPORT_SUBMITTED' || currentStage === 'ASSIGN_SECOND_SESSION')
+          ? 'RECORD_SECOND_SESSION'
+          : currentStage,
       };
 
     if (!stageRules.allowedStages.includes(currentStage)) {
@@ -1824,7 +1835,8 @@ exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingO
     const stage = String(ordinance.reading_stage || '').toUpperCase();
     const hasAssignedSecondSession = Number.isInteger(Number(ordinance.session_id_second_reading));
     const canProceedFromLegacyCommitteeReport = stage === 'COMMITTEE_REPORT_SUBMITTED' && hasAssignedSecondSession;
-    if (stage !== 'RECORD_SECOND_SESSION' && !canProceedFromLegacyCommitteeReport) {
+    const canProceedFromAssignSecondSession = stage === 'ASSIGN_SECOND_SESSION' && hasAssignedSecondSession;
+    if (stage !== 'RECORD_SECOND_SESSION' && !canProceedFromLegacyCommitteeReport && !canProceedFromAssignSecondSession) {
       await client.query('ROLLBACK');
       const e = new Error('Second Reading requires ordinance to be in RECORD_SECOND_SESSION stage'); e.status = 400; throw e;
     }

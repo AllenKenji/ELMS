@@ -129,14 +129,15 @@ const STAGES = [
   { key: 'RECORD_SESSION', label: '2. Record Session', icon: '🎥', desc: 'Link to session meeting, upload recording after it ends, and prepare notes' },
   { key: 'FIRST_READING', label: '3. First Reading', icon: '📖', desc: 'Secretary records first reading and discussion notes' },
   { key: 'COMMITTEE_REVIEW', label: '4. Committee Review', icon: '🔍', desc: 'Committee deliberates and studies the measure' },
-  { key: 'COMMITTEE_REPORT_SUBMITTED', label: '5. Committee Report', icon: '📋', desc: 'Committee submitted its recommendation' },
-  { key: 'RECORD_SECOND_SESSION', label: '6. Record Second Session', icon: '🗓️', desc: 'Secretary assigns the session for second reading' },
-  { key: 'SECOND_READING', label: '7. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
-  { key: 'THIRD_READING_VOTING', label: '8. Voting Open', icon: '🗳️', desc: 'Electronic voting is in progress' },
-  { key: 'THIRD_READING_VOTED', label: '9. Third Reading / Vote', icon: '✅', desc: 'Final vote taken by full council' },
-  { key: 'APPROVED', label: '10. Executive Approved', icon: '🏛️', desc: 'Mayor/Vice Mayor approved the measure' },
-  { key: 'POSTED', label: '11. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
-  { key: 'EFFECTIVE', label: '12. In Effect', icon: '⚖️', desc: 'Ordinance is now in full effect' },
+  { key: 'COMMITTEE_REPORT_SUBMITTED', label: '5. Committee Report', icon: '📋', desc: 'Committee report is prepared and ready for submission' },
+  { key: 'ASSIGN_SECOND_SESSION', label: '6. Assign Second Session', icon: '🗓️', desc: 'Secretary assigns the session for second reading' },
+  { key: 'RECORD_SECOND_SESSION', label: '7. Record Second Session', icon: '🎥', desc: 'Secretary records the second reading details in the assigned session' },
+  { key: 'SECOND_READING', label: '8. Second Reading', icon: '📖', desc: 'Full reading, debate, and amendments in session' },
+  { key: 'THIRD_READING_VOTING', label: '9. Voting Open', icon: '🗳️', desc: 'Electronic voting is in progress' },
+  { key: 'THIRD_READING_VOTED', label: '10. Third Reading / Vote', icon: '✅', desc: 'Final vote taken by full council' },
+  { key: 'APPROVED', label: '11. Executive Approved', icon: '🏛️', desc: 'Mayor/Vice Mayor approved the measure' },
+  { key: 'POSTED', label: '12. Posted Publicly', icon: '📢', desc: 'Posted for public information period' },
+  { key: 'EFFECTIVE', label: '13. In Effect', icon: '⚖️', desc: 'Ordinance is now in full effect' },
 ];
 
 const STAGE_INDEX = Object.fromEntries(STAGES.map((s, i) => [s.key, i]));
@@ -179,7 +180,6 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus, 
     const isSecretary = ord?.committee && ord.committee.members?.some(m => m.user_id === user?.id && m.role === 'Committee Secretary');
     const actions = [];
     if (isChair || isSecretary) actions.push('create-meeting');
-    if (canSubmitCommitteeReport && hasEndedCommitteeMeeting) actions.push('committee-report');
     return actions;
   }
   switch (readingStage) {
@@ -212,7 +212,15 @@ function getAvailableActions(readingStage, userRole, ord, user, workflowStatus, 
       return canDo(userRole, 'assign-committee') ? ['assign-committee'] : [];
     case 'COMMITTEE_REPORT_SUBMITTED': {
       const acts = [];
-      if (canSubmitCommitteeReport) acts.push('committee-report');
+      if (workflowStatus?.committeeReport && canDo(userRole, 'record-second-session')) {
+        acts.push('record-second-session');
+      } else if (canSubmitCommitteeReport && hasEndedCommitteeMeeting) {
+        acts.push('committee-report');
+      }
+      return acts;
+    }
+    case 'ASSIGN_SECOND_SESSION': {
+      const acts = [];
       if (workflowStatus?.committeeReport && canDo(userRole, 'record-second-session')) acts.push('record-second-session');
       return acts;
     }
@@ -248,7 +256,7 @@ const ACTION_LABELS = {
   'first-reading':       { emoji: '🎥', label: 'Record Session' },
   'assign-committee':    { emoji: '🔍', label: 'Refer to Committee' },
   'committee-report':    { emoji: '📋', label: 'Submit Committee Report' },
-  'record-second-session': { emoji: '🗓️', label: 'Record Second Session' },
+  'record-second-session': { emoji: '🗓️', label: 'Assign Second Session' },
   'second-reading':      { emoji: '📖', label: 'Record Second Reading' },
   'open-voting':         { emoji: '🗳️', label: 'Open Voting' },
   'cast-vote':           { emoji: '✋', label: 'Cast Your Vote' },
@@ -430,7 +438,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         }
 
         const stageNow = String(workflowStatus?.ordinance?.reading_stage || ord?.reading_stage || '').trim().toUpperCase();
-        const readingPhase = stageNow === 'RECORD_SECOND_SESSION' || stageNow === 'COMMITTEE_REPORT_SUBMITTED'
+        const readingPhase = stageNow === 'ASSIGN_SECOND_SESSION' || stageNow === 'RECORD_SECOND_SESSION' || stageNow === 'COMMITTEE_REPORT_SUBMITTED'
           ? 'second'
           : 'first';
 
@@ -655,6 +663,10 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
   const displayStage = (
     normalizedStage === 'SUBMITTED' && ord?.session_id_first_reading
       ? 'RECORD_SESSION'
+      : normalizedStage === 'COMMITTEE_REPORT_SUBMITTED' && ord?.committee_report_id
+        ? 'ASSIGN_SECOND_SESSION'
+      : normalizedStage === 'ASSIGN_SECOND_SESSION' && ord?.session_id_second_reading
+        ? 'RECORD_SECOND_SESSION'
       : normalizedStage === 'COMMITTEE_REPORT_SUBMITTED' && ord?.session_id_second_reading
         ? 'RECORD_SECOND_SESSION'
       : normalizedStage

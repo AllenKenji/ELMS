@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import useReports from '../../hooks/useReports';
 import ReportForm from './ReportForm';
 import ReportDetail from './ReportDetail';
@@ -25,7 +24,6 @@ const SORT_OPTIONS = [
 ];
 
 export default function ReportsList() {
-  const navigate = useNavigate();
   const {
     reports,
     pagination,

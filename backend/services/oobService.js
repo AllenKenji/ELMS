@@ -2,13 +2,14 @@ const Ordinance = require('../models/Ordinance');
 const Resolution = require('../models/Resolution');
 
 /**
- * Get all ordinances with committee reports at COMMITTEE_REPORT_SUBMITTED stage.
+ * Get all ordinances with submitted committee reports before second reading.
  * Returns an array of { ordinance, committeeReport }
  */
 exports.getOrdinancesWithCommitteeReportsSubmitted = async () => {
-  // Get all ordinances at the correct stage
+  // Include legacy + new stage names used before second reading.
   const ordinancesRes = await Ordinance.findAll();
-  const ordinances = ordinancesRes.rows.filter(o => o.reading_stage === 'COMMITTEE_REPORT_SUBMITTED');
+  const allowedStages = new Set(['COMMITTEE_REPORT_SUBMITTED', 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION']);
+  const ordinances = ordinancesRes.rows.filter(o => allowedStages.has(String(o.reading_stage || '').toUpperCase()));
   const results = [];
 
   for (const ord of ordinances) {
@@ -25,12 +26,13 @@ exports.getOrdinancesWithCommitteeReportsSubmitted = async () => {
 };
 
 /**
- * Get all resolutions with committee reports at COMMITTEE_REPORT_SUBMITTED stage.
+ * Get all resolutions with submitted committee reports before second reading.
  * Returns an array of { resolution, committeeReport }
  */
 exports.getResolutionsWithCommitteeReportsSubmitted = async () => {
   const resolutionsRes = await Resolution.findAll();
-  const resolutions = resolutionsRes.rows.filter(r => r.reading_stage === 'COMMITTEE_REPORT_SUBMITTED');
+  const allowedStages = new Set(['COMMITTEE_REPORT_SUBMITTED', 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION']);
+  const resolutions = resolutionsRes.rows.filter(r => allowedStages.has(String(r.reading_stage || '').toUpperCase()));
   const results = [];
 
   for (const res of resolutions) {

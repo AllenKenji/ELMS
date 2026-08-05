@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../../api/api';
 import { useAuth } from '../../context/useAuth';
 import MessageThread from './MessageThread';
@@ -21,7 +21,7 @@ export default function MessageList() {
   const [unreadCount, setUnreadCount] = useState(0);
 
   // Fetch messages
-  const fetchMessages = async (tab = 'inbox') => {
+  const fetchMessages = useCallback(async (tab = 'inbox') => {
     try {
       setLoading(true);
       setError('');
@@ -35,10 +35,10 @@ export default function MessageList() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // Fetch unread count
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     if (!accessToken) {
       setUnreadCount(0);
       return;
@@ -54,13 +54,13 @@ export default function MessageList() {
       }
       console.error('Error fetching unread count:', err);
     }
-  };
+  }, [accessToken]);
 
   // Initial load
   useEffect(() => {
     fetchMessages(activeTab);
     fetchUnreadCount();
-  }, [accessToken, activeTab]);
+  }, [activeTab, fetchMessages, fetchUnreadCount]);
 
   // Search filter
   useEffect(() => {

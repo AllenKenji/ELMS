@@ -11,12 +11,8 @@ export default function DashboardLayout() {
   // console.log('DashboardLayout user:', user);
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [avatarErrored, setAvatarErrored] = useState(false);
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState('');
   const [resolvedPhotoUrl, setResolvedPhotoUrl] = useState(null);
-
-  useEffect(() => {
-    setAvatarErrored(false);
-  }, [user?.photo_url, user?.e_profile_photo_url, user?.profile_photo_url, resolvedPhotoUrl]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -236,12 +232,12 @@ export default function DashboardLayout() {
             <div className="topbar-user">
               {user && <NotificationBell />}
               <div className="user-avatar" aria-hidden="true">
-                {userPhotoUrl && !avatarErrored ? (
+                {userPhotoUrl && failedPhotoUrl !== userPhotoUrl ? (
                   <img
                     src={userPhotoUrl}
                     alt={user?.name || 'User profile photo'}
                     className="user-avatar-image"
-                    onError={() => setAvatarErrored(true)}
+                    onError={() => setFailedPhotoUrl(userPhotoUrl)}
                   />
                 ) : (
                   <span>{user?.name?.charAt(0).toUpperCase() || 'U'}</span>

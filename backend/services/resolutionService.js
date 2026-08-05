@@ -328,6 +328,7 @@ const ADMIN_STAGE_SEQUENCE = [
   'FIRST_READING',
   'COMMITTEE_REVIEW',
   'COMMITTEE_REPORT_SUBMITTED',
+  'ASSIGN_SECOND_SESSION',
   'RECORD_SECOND_SESSION',
   'SECOND_READING',
   'THIRD_READING_VOTING',
@@ -1114,7 +1115,7 @@ exports.assignCommittee = async (id, committeeId, userId) => {
 
 /**
  * Stage 4: Committee submits its report.
- * Transitions: COMMITTEE_REVIEW → COMMITTEE_REPORT_SUBMITTED
+ * Transitions: COMMITTEE_REPORT_SUBMITTED → ASSIGN_SECOND_SESSION
  */
 exports.submitCommitteeReport = async (id, reportData, userId) => {
   const client = await pool.connect();
@@ -1124,10 +1125,16 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     const existing = await Resolution.findById(id);
     if (!existing.rows.length) { await client.query('ROLLBACK'); const e = new Error('Resolution not found'); e.status = 404; throw e; }
     const resolution = existing.rows[0];
-    if (!['COMMITTEE_REVIEW', 'COMMITTEE_REPORT_SUBMITTED'].includes(resolution.reading_stage)) {
+    if (String(resolution.reading_stage || '').toUpperCase() !== 'COMMITTEE_REPORT_SUBMITTED') {
       await client.query('ROLLBACK');
-      const e = new Error('Committee report requires resolution to be in COMMITTEE_REVIEW or COMMITTEE_REPORT_SUBMITTED stage'); e.status = 400; throw e;
+      const e = new Error('Committee report requires resolution to be in COMMITTEE_REPORT_SUBMITTED stage'); e.status = 400; throw e;
     }
+    if (Number(resolution.committee_report_id) > 0) {
+      await client.query('ROLLBACK');
+      const e = new Error('Committee report was already submitted for this resolution'); e.status = 400; throw e;
+    }
+
+    const reportTargetStage = 'ASSIGN_SECOND_SESSION';
 
     const committeeId = reportData.committee_id || resolution.committee_id;
     const roleRes = await client.query(
@@ -1164,11 +1171,11 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
     });
 
     await client.query(
-      `UPDATE resolutions SET committee_report_id=$1, reading_stage='COMMITTEE_REPORT_SUBMITTED', updated_at=NOW() WHERE id=$2`,
-      [report.rows[0].id, id]
+      `UPDATE resolutions SET committee_report_id=$1, reading_stage=$3, updated_at=NOW() WHERE id=$2`,
+      [report.rows[0].id, id, reportTargetStage]
     );
     const updated = await client.query('SELECT * FROM resolutions WHERE id=$1', [id]);
-    await Resolution.insertWorkflowAction(client, id, 'COMMITTEE_REPORT', 'COMMITTEE_REPORT_SUBMITTED', userId, `Recommendation: ${reportData.recommendation}`);
+    await Resolution.insertWorkflowAction(client, id, 'COMMITTEE_REPORT', reportTargetStage, userId, `Recommendation: ${reportData.recommendation}`);
     await AuditLog.create(client, userId, 'COMMITTEE_REPORT_SUBMITTED', `Committee report submitted for "${resolution.title}"`);
     await createNotification(resolution.proposer_id, `Committee report submitted for your resolution "${resolution.title}". Recommendation: ${reportData.recommendation}`);
 
@@ -1200,7 +1207,7 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
 
 /**
  * Stage 5A: Secretary assigns session details before second reading.
- * Transitions: COMMITTEE_REPORT_SUBMITTED -> RECORD_SECOND_SESSION
+ * Transitions: ASSIGN_SECOND_SESSION -> RECORD_SECOND_SESSION
  */
 exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
   const normalizedSessionId = Number(sessionId);
@@ -1224,9 +1231,13 @@ exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
 
     const resolution = existing.rows[0];
     const currentStage = String(resolution.reading_stage || '').toUpperCase();
-    if (currentStage !== 'COMMITTEE_REPORT_SUBMITTED' && currentStage !== 'RECORD_SECOND_SESSION') {
+    if (
+      currentStage !== 'ASSIGN_SECOND_SESSION'
+      && currentStage !== 'COMMITTEE_REPORT_SUBMITTED'
+      && currentStage !== 'RECORD_SECOND_SESSION'
+    ) {
       await client.query('ROLLBACK');
-      const e = new Error('Second session assignment requires resolution to be in COMMITTEE_REPORT_SUBMITTED stage');
+      const e = new Error('Second session assignment requires resolution to be in ASSIGN_SECOND_SESSION stage');
       e.status = 400;
       throw e;
     }
@@ -1315,9 +1326,11 @@ exports.adminOverrideSessionAssignment = async (id, payload, adminUserId) => {
         targetStage: currentStage === 'SUBMITTED' ? 'RECORD_SESSION' : currentStage,
       }
       : {
-        allowedStages: ['COMMITTEE_REPORT_SUBMITTED', 'RECORD_SECOND_SESSION'],
+        allowedStages: ['COMMITTEE_REPORT_SUBMITTED', 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION'],
         fieldName: 'session_id_second_reading',
-        targetStage: currentStage === 'COMMITTEE_REPORT_SUBMITTED' ? 'RECORD_SECOND_SESSION' : currentStage,
+        targetStage: (currentStage === 'COMMITTEE_REPORT_SUBMITTED' || currentStage === 'ASSIGN_SECOND_SESSION')
+          ? 'RECORD_SECOND_SESSION'
+          : currentStage,
       };
 
     if (!stageRules.allowedStages.includes(currentStage)) {
@@ -1511,7 +1524,8 @@ exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingO
     const stage = String(resolution.reading_stage || '').toUpperCase();
     const hasAssignedSecondSession = Number.isInteger(Number(resolution.session_id_second_reading));
     const canProceedFromLegacyCommitteeReport = stage === 'COMMITTEE_REPORT_SUBMITTED' && hasAssignedSecondSession;
-    if (stage !== 'RECORD_SECOND_SESSION' && !canProceedFromLegacyCommitteeReport) {
+    const canProceedFromAssignSecondSession = stage === 'ASSIGN_SECOND_SESSION' && hasAssignedSecondSession;
+    if (stage !== 'RECORD_SECOND_SESSION' && !canProceedFromLegacyCommitteeReport && !canProceedFromAssignSecondSession) {
       await client.query('ROLLBACK');
       const e = new Error('Second Reading requires resolution to be in RECORD_SECOND_SESSION stage'); e.status = 400; throw e;
     }

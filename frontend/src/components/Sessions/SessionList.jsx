@@ -331,7 +331,7 @@ export default function SessionList() {
       return;
     }
 
-    const confirmed = window.confirm(`Delete session \"${session.title}\"? This cannot be undone.`);
+    const confirmed = window.confirm(`Delete session "${session.title}"? This cannot be undone.`);
     if (!confirmed) {
       return;
     }

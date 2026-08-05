@@ -303,10 +303,6 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     return Boolean(getUserPhotoUrl(user) || user?.e_profile_photo_has_data);
   };
 
-  const getUserSignaturePreviewUrl = (user) => {
-    return `${API_BASE_URL}/users/${user.id}/signature/preview`;
-  };
-
   const handlePreviewSignature = async (user) => {
     try {
       const response = await api.get(`/users/${user.id}/signature/preview`, {
@@ -335,12 +331,6 @@ export default function UserManagement({ users, currentUserRole, authContext }) 
     } catch (err) {
       setError(err?.message || 'Failed to load profile photo preview.');
     }
-  };
-
-  const toAbsoluteSignatureUrl = (signatureUrl) => {
-    if (!signatureUrl) return null;
-    if (/^https?:\/\//i.test(signatureUrl)) return signatureUrl;
-    return `${API_BASE_URL}${signatureUrl.startsWith('/') ? '' : '/'}${signatureUrl}`;
   };
 
   const handleSignatureFileChange = (userId, file) => {

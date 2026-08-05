@@ -1635,10 +1635,14 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       }
     });
 
+    const publisherPeerStore = cameraPublisherPeersRef.current;
+    const subscriberPeerStore = cameraSubscriberPeersRef.current;
+    const remoteCameraStreamStore = remoteCameraStreamsRef.current;
+
     return () => {
-      const cameraPublisherPeers = Array.from(cameraPublisherPeersRef.current.values());
-      const cameraSubscriberPeers = Array.from(cameraSubscriberPeersRef.current.values());
-      const remoteCameraStreams = Array.from(remoteCameraStreamsRef.current.values());
+      const cameraPublisherPeers = Array.from(publisherPeerStore.values());
+      const cameraSubscriberPeers = Array.from(subscriberPeerStore.values());
+      const remoteCameraStreams = Array.from(remoteCameraStreamStore.values());
 
       if (isBroadcastingRef.current) {
         stopBroadcast(broadcastModeRef.current === 'manual');
@@ -1650,13 +1654,13 @@ export default function LiveSessionPanel({ sessionId, canBroadcast = false, broa
       closeBroadcasterPeers();
       closeViewerPeer();
       cameraPublisherPeers.forEach((pc) => pc.close());
-      cameraPublisherPeersRef.current.clear();
+      publisherPeerStore.clear();
       cameraSubscriberPeers.forEach((pc) => pc.close());
-      cameraSubscriberPeersRef.current.clear();
+      subscriberPeerStore.clear();
       remoteCameraStreams.forEach((stream) => {
         stream.getTracks().forEach((track) => track.stop());
       });
-      remoteCameraStreamsRef.current.clear();
+      remoteCameraStreamStore.clear();
       setCameraPublishers([]);
       setCameraStreamReadyBySocketId({});
       setLiveParticipants([]);
