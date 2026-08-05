@@ -138,6 +138,18 @@ function cleanupCameraStateIfEmpty(sessionId) {
   }
 }
 
+function normalizeRoleName(roleValue) {
+  return String(roleValue || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[_\s]+/g, ' ');
+}
+
+function cannotStartLiveByRole(roleValue) {
+  const normalizedRole = normalizeRoleName(roleValue);
+  return normalizedRole === 'secretary' || normalizedRole === 'committee secretary';
+}
+
 function init(server) {
   const { Server } = require('socket.io');
   const { buildAllowedOrigins } = require('./utils/origins');
@@ -330,6 +342,11 @@ function init(server) {
     socket.on('live:publish', ({ sessionId: sessionIdValue, hostName, hostRole } = {}) => {
       const sessionId = normalizeSessionId(sessionIdValue);
       if (!sessionId) {
+        return;
+      }
+
+      if (cannotStartLiveByRole(hostRole)) {
+        socket.emit('live:error', { message: 'Secretary roles are not allowed to start a live session.' });
         return;
       }
 

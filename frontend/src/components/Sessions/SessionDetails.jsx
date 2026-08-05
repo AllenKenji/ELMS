@@ -291,7 +291,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   };
 
   const canStartLiveStream = () => {
-    return hasRole('Admin', 'Secretary', 'Vice Mayor');
+    return hasRole('Admin', 'Vice Mayor');
   };
 
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;

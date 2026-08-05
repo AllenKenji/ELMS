@@ -14,7 +14,7 @@ function canBroadcastMeeting(user, committee) {
     .toLowerCase()
     .replace(/[_\s]+/g, ' ');
 
-  if (['admin', 'committee secretary'].includes(normalizedUserRole)) return true;
+  if (normalizedUserRole === 'admin') return true;
   if (String(committee.chair_id) === String(user.id)) return true;
 
   return Array.isArray(committee.members) && committee.members.some(
@@ -26,7 +26,7 @@ function canBroadcastMeeting(user, committee) {
 
       return (
         String(member.user_id) === String(user.id) &&
-        ['chair', 'committee secretary'].includes(normalizedMemberRole)
+        normalizedMemberRole === 'chair'
       );
     }
   );
