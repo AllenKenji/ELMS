@@ -29,6 +29,16 @@ function normalizeMeetingRecordingUrlInput(value) {
   return '';
 }
 
+function normalizeMeetingDateInput(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  // date inputs require YYYY-MM-DD; backend values can be full ISO timestamps.
+  return raw.slice(0, 10);
+}
+
 function buildRecordingHref(recordingUrl) {
   const normalized = String(recordingUrl || '').trim();
   if (!normalized) return '';
@@ -366,7 +376,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
       setForm({
         recommendation: '',
         report_content: '',
-        meeting_date: endedMeeting?.meeting_date || '',
+        meeting_date: normalizeMeetingDateInput(endedMeeting?.meeting_date),
         meeting_minutes: endedMeeting?.meeting_minutes || endedMeeting?.meeting_transcript || '',
         attendees: normalizeAttendeesInput(endedMeeting?.meeting_attendees),
         recording_url: String(endedMeeting?.recording_url || '').trim(),
@@ -482,7 +492,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         }
 
         if (endedMeeting) {
-          meeting_date = endedMeeting.meeting_date || meeting_date;
+          meeting_date = normalizeMeetingDateInput(endedMeeting.meeting_date) || meeting_date;
           meeting_minutes = endedMeeting.meeting_minutes || endedMeeting.meeting_transcript || meeting_minutes;
           const endedMeetingAttendees = endedMeeting.meeting_attendees;
           if (endedMeetingAttendees) {

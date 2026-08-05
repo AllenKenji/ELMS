@@ -22,6 +22,15 @@ function getDocumentDate(doc) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeDateInputValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  return raw.slice(0, 10);
+}
+
 function isArchivedDocument(doc) {
   return String(doc?.status || '').trim().toLowerCase() === 'archived';
 }
@@ -335,7 +344,7 @@ export default function OrderOfBusinessPage() {
       const doc = res.data;
       setHeaderInfo({
         sessionTitle: doc.title || '',
-        date: doc.date ? new Date(doc.date).toISOString().split('T')[0] : '',
+        date: normalizeDateInputValue(doc.date),
         time: doc.time ? doc.time.slice(0, 5) : '',
         venue: doc.venue || '',
         presidingOfficer: doc.presiding_officer || '',

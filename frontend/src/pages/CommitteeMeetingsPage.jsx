@@ -34,6 +34,25 @@ function getDefaultMeetingForm() {
   };
 }
 
+function normalizeDateInputValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  return raw.slice(0, 10);
+}
+
+function normalizeTimeInputValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  const hhmm = raw.match(/^(\d{2}:\d{2})/);
+  return hhmm?.[1] || '';
+}
+
 export default function CommitteeMeetingsPage() {
   const { user } = useAuth();
   const [committees, setCommittees] = useState([]);
@@ -133,8 +152,10 @@ export default function CommitteeMeetingsPage() {
     const meetingMode = form.meeting_mode || 'online';
     const meetingLink = String(form.meeting_link || '').trim();
     const meetingLocation = String(form.meeting_location || '').trim();
+    const normalizedMeetingDate = normalizeDateInputValue(form.meeting_date);
+    const normalizedMeetingTime = normalizeTimeInputValue(form.meeting_time);
 
-    if (!form.title.trim() || !form.meeting_date) {
+    if (!form.title.trim() || !normalizedMeetingDate) {
       setMeetingError('Meeting title and date are required.');
       return;
     }
@@ -150,8 +171,8 @@ export default function CommitteeMeetingsPage() {
 
       const response = await api.post(`/committees/${activeCommittee.id}/meetings`, {
         title: form.title,
-        meeting_date: form.meeting_date,
-        meeting_time: form.meeting_time || '',
+        meeting_date: normalizedMeetingDate,
+        meeting_time: normalizedMeetingTime || '',
         meetingLink,
         meeting_mode: meetingMode,
         meeting_location: meetingLocation,
@@ -342,11 +363,19 @@ export default function CommitteeMeetingsPage() {
                   </label>
                   <label>
                     Meeting Date *
-                    <input type="date" value={form.meeting_date} onChange={(event) => setForm((prev) => ({ ...prev, meeting_date: event.target.value }))} />
+                    <input
+                      type="date"
+                      value={normalizeDateInputValue(form.meeting_date)}
+                      onChange={(event) => setForm((prev) => ({ ...prev, meeting_date: normalizeDateInputValue(event.target.value) }))}
+                    />
                   </label>
                   <label>
                     Meeting Time
-                    <input type="time" value={form.meeting_time} onChange={(event) => setForm((prev) => ({ ...prev, meeting_time: event.target.value }))} />
+                    <input
+                      type="time"
+                      value={normalizeTimeInputValue(form.meeting_time)}
+                      onChange={(event) => setForm((prev) => ({ ...prev, meeting_time: normalizeTimeInputValue(event.target.value) }))}
+                    />
                   </label>
                   <label>
                     Mode

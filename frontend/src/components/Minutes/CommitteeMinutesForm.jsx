@@ -36,13 +36,22 @@ function normalizeAttendees(value) {
   return [];
 }
 
+function normalizeDateInputValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  return raw.slice(0, 10);
+}
+
 export default function CommitteeMinutesForm({ onSubmit, onCancel, initialData, committeeMembers = [] }) {
   const initialAttendees = normalizeAttendees(initialData?.attendees_json || initialData?.attendees);
   const totalMembers = Array.isArray(committeeMembers) ? committeeMembers.length : 0;
   const defaultQuorumRequired = totalMembers > 0 ? Math.ceil(totalMembers / 2) : 0;
   const [formData, setFormData] = useState({
     title: initialData?.title || '',
-    meeting_date: initialData?.meeting_date || '',
+    meeting_date: normalizeDateInputValue(initialData?.meeting_date),
     participants: initialData?.participants || '',
     transcript: initialData?.transcript || '',
     attendees: initialAttendees,

@@ -89,6 +89,15 @@ function isCompletedSession(session) {
   return sessionDate < today;
 }
 
+function normalizeDateInputValue(value) {
+  const raw = String(value || '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  return raw.slice(0, 10);
+}
+
 function formatDuration(totalMinutes) {
   const minutes = Number(totalMinutes || 0);
   if (!minutes) {
@@ -411,7 +420,7 @@ export default function SessionList() {
         sessionId={editingSession.id}
         initialData={{
           title: editingSession.title,
-          date: editingSession.date?.split('T')[0],
+          date: normalizeDateInputValue(editingSession.date),
           time: String(editingSession.session_time || '').match(/^(\d{2}:\d{2})/)?.[1] || '14:00',
           session_time: editingSession.session_time,
           location: editingSession.location,
