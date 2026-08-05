@@ -248,7 +248,7 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
   };
 
   const handleJoinSession = async () => {
-    if (!user?.id || isParticipant) return;
+    if (!user?.id || hasJoinedSession) return;
 
     setJoining(true);
     setError('');
@@ -296,7 +296,11 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
 
   const latestRecordedMinutes = sessionMinutes.find((minutes) => (minutes.recordings || []).length > 0) || null;
   const latestRecording = latestRecordedMinutes?.recordings?.[0] || null;
-  const isParticipant = participants.some((participant) => String(participant.id) === String(user?.id));
+  const currentUserParticipant = participants.find((participant) => String(participant.id) === String(user?.id)) || null;
+  const isParticipant = Boolean(currentUserParticipant);
+  const hasJoinedSession =
+    isParticipant &&
+    String(currentUserParticipant.attendance_status || '').trim().toLowerCase() !== 'pending';
 
   useEffect(() => {
     if (!selectedMinutesId && sessionMinutes.length > 0) {
@@ -753,7 +757,17 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                     {joining ? 'Joining...' : 'Join Session'}
                   </button>
                 )}
-                {user?.id && isParticipant && (
+                {user?.id && isParticipant && !hasJoinedSession && (
+                  <button
+                    type="button"
+                    className="btn-join-session"
+                    onClick={handleJoinSession}
+                    disabled={joining}
+                  >
+                    {joining ? 'Joining...' : 'Join Session'}
+                  </button>
+                )}
+                {user?.id && hasJoinedSession && (
                   <span className="joined-badge">You are joined</span>
                 )}
               </div>
@@ -769,18 +783,23 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
                       </tr>
                     </thead>
                     <tbody>
-                      {participants.map((participant) => (
-                        <tr key={participant.id}>
-                          <td className="name-cell">{participant.name}</td>
-                          <td className="role-cell">{participant.role || 'Member'}</td>
-                          <td className="email-cell">{participant.email}</td>
-                          <td className="status-cell">
-                            <span className="status-indicator">
-                              {participant.attendance_status || 'Pending'}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                      {participants.map((participant) => {
+                        const attendanceStatus = participant.attendance_status || 'Pending';
+                        const normalizedAttendanceStatus = String(attendanceStatus).trim().toLowerCase();
+
+                        return (
+                          <tr key={participant.id}>
+                            <td className="name-cell">{participant.name}</td>
+                            <td className="role-cell">{participant.role || 'Member'}</td>
+                            <td className="email-cell">{participant.email}</td>
+                            <td className="status-cell">
+                              <span className={`status-indicator status-${normalizedAttendanceStatus}`}>
+                                {attendanceStatus}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

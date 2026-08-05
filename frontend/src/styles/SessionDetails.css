@@ -722,13 +722,28 @@
 }
 
 .status-indicator {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  background-color: #efe;
-  color: #3c3;
-  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.75rem;
+  border: 1px solid #d6eadb;
+  background-color: #eef9f1;
+  color: #227a43;
+  border-radius: 999px;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.status-pending {
+  border-color: #ead9b6;
+  background-color: #fff7e6;
+  color: #9a6500;
+}
+
+.status-present {
+  border-color: #cfe7d5;
+  background-color: #eaf8ee;
+  color: #1f7a43;
 }
 
 /* Empty State */

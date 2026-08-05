@@ -245,12 +245,37 @@ exports.joinSession = async (sessionId, userId) => {
   const sessionResult = await pool.query('SELECT id, title FROM sessions WHERE id = $1', [sessionId]);
   ensureFound(sessionResult.rows, 'Session not found');
 
+  const existingParticipantResult = await pool.query(
+    'SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2',
+    [sessionId, userId]
+  );
+
+  if (existingParticipantResult.rows.length > 0) {
+    const existingParticipant = existingParticipantResult.rows[0];
+    const currentStatus = String(existingParticipant.attendance_status || '').trim().toLowerCase();
+
+    if (currentStatus === 'pending') {
+      const updated = await Session.updateParticipantAttendance(sessionId, userId, 'Present');
+      ensureFound(updated.rows, 'Participant not found');
+
+      await createNotification(userId, `You have joined session: "${sessionResult.rows[0].title}"`);
+      return updated.rows[0];
+    }
+
+    const alreadyJoinedErr = new Error('You are already a participant in this session');
+    alreadyJoinedErr.status = 400;
+    throw alreadyJoinedErr;
+  }
+
   const result = await Session.addParticipant(sessionId, userId);
   ensureFound(result.rows, 'You are already a participant in this session', 400);
 
+  const updated = await Session.updateParticipantAttendance(sessionId, userId, 'Present');
+  ensureFound(updated.rows, 'Participant not found');
+
   await createNotification(userId, `You have joined session: "${sessionResult.rows[0].title}"`);
 
-  return result.rows[0];
+  return updated.rows[0];
 };
 
 /**
