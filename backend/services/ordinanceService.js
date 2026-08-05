@@ -610,34 +610,6 @@ exports.createOrdinance = async (data, user) => {
     console.warn('Non-fatal: failed to notify secretary for ordinance create', err?.message || err);
   }
 
-  // Notify all Vice Mayors if no committee is assigned
-  if (!data.committee_id) {
-    // Query all users with the 'Vice Mayor' role
-    try {
-      const { rows: viceMayors } = await require('../models/User').findAll();
-      for (const vm of viceMayors) {
-        if ((vm.role_name || '').toLowerCase() === 'vice mayor') {
-          try {
-            await createNotification(
-              vm.id,
-              `Urgent action: Proposed ordinance "${title}" is not assigned to a committee. Assign a committee after first reading.`,
-              {
-                type: 'warning',
-                title: 'Urgent Action Required',
-                relatedId: ordinance.id,
-                relatedType: 'ordinance',
-              }
-            );
-          } catch (err) {
-            console.warn('Non-fatal: failed to notify vice mayor for ordinance create', err?.message || err);
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Non-fatal: failed to query vice mayors for ordinance notifications', err?.message || err);
-    }
-  }
-
   try {
     const io = getIO();
     io.to('Secretary').emit('ordinanceCreated', ordinance);
