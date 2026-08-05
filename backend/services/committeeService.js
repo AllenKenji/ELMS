@@ -1,8 +1,34 @@
 const fs = require('fs/promises');
 const path = require('path');
 
+function normalizeAttendeeNames(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seen = new Set();
+  const normalized = [];
+
+  value.forEach((entry) => {
+    const name = String(entry || '').trim();
+    if (!name) {
+      return;
+    }
+
+    const key = name.toLowerCase();
+    if (seen.has(key)) {
+      return;
+    }
+
+    seen.add(key);
+    normalized.push(name);
+  });
+
+  return normalized;
+}
+
 // End a meeting (set ended=true)
-exports.endMeeting = async (committeeId, meetingId, userId) => {
+exports.endMeeting = async (committeeId, meetingId, userId, attendanceData = {}) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -15,6 +41,27 @@ exports.endMeeting = async (committeeId, meetingId, userId) => {
       error.status = 404;
       throw error;
     }
+
+    const meeting = result.rows[0];
+    const hasAttendeesPayload = Array.isArray(attendanceData?.attendees);
+    const hasParticipantsPayload = typeof attendanceData?.participants === 'string';
+
+    if (meeting?.minutes_id && (hasAttendeesPayload || hasParticipantsPayload)) {
+      const attendees = normalizeAttendeeNames(attendanceData?.attendees);
+      const participantsTextInput = String(attendanceData?.participants || '').trim();
+      const participants = participantsTextInput || (attendees.length > 0 ? attendees.join(', ') : null);
+
+      await client.query(
+        `UPDATE committee_minutes
+         SET attendees_json = $1::jsonb,
+             participants = $2,
+             quorum_present = COALESCE($3, quorum_present),
+             updated_at = NOW()
+         WHERE id = $4`,
+        [JSON.stringify(attendees), participants, attendees.length || null, meeting.minutes_id]
+      );
+    }
+
     // Optionally, log to audit
     await AuditLog.create(client, userId, 'MEETING_ENDED', `Meeting ID ${meetingId} ended`);
 
@@ -248,11 +295,18 @@ exports.getCommitteeMeetings = async (committeeId) => {
                 END
               ), ''),
               NULLIF(TRIM(minutes.attendees), ''),
-              NULLIF(TRIM(minutes.participants), '')
+              NULLIF(TRIM(minutes.participants), ''),
+              NULLIF(TRIM(committee_members.member_names), '')
             ) AS meeting_attendees
      FROM committee_meetings cm
      LEFT JOIN users uploader ON uploader.id = cm.recording_uploaded_by
      LEFT JOIN committee_minutes minutes ON minutes.id = cm.minutes_id
+     LEFT JOIN LATERAL (
+       SELECT string_agg(u.name, ', ' ORDER BY u.name) AS member_names
+       FROM committee_members cmm
+       JOIN users u ON u.id = cmm.user_id
+       WHERE cmm.committee_id = cm.committee_id
+     ) AS committee_members ON TRUE
      WHERE cm.committee_id = $1
      ORDER BY cm.meeting_date DESC, cm.created_at DESC`,
     [committeeId]

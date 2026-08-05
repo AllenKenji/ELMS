@@ -131,10 +131,17 @@ async function getLatestEndedCommitteeMeetingForResolution(client, resolutionId,
                 END
               ), ''),
               NULLIF(TRIM(minutes.attendees), ''),
-              NULLIF(TRIM(minutes.participants), '')
+              NULLIF(TRIM(minutes.participants), ''),
+              NULLIF(TRIM(committee_members.member_names), '')
             ) AS meeting_attendees
      FROM committee_meetings cm
      LEFT JOIN committee_minutes minutes ON minutes.id = cm.minutes_id
+     LEFT JOIN LATERAL (
+       SELECT string_agg(u.name, ', ' ORDER BY u.name) AS member_names
+       FROM committee_members cmm
+       JOIN users u ON u.id = cmm.user_id
+       WHERE cmm.committee_id = cm.committee_id
+     ) AS committee_members ON TRUE
      WHERE cm.resolution_id = $1
        AND cm.committee_id = $2
        AND cm.ended = TRUE

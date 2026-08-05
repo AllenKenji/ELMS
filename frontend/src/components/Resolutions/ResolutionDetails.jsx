@@ -119,6 +119,10 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
   const [meetingLink, setMeetingLink] = useState('');
   const [meetingMode, setMeetingMode] = useState('place');
   const [meetingLocation, setMeetingLocation] = useState('');
+  const [endMeetingTarget, setEndMeetingTarget] = useState(null);
+  const [endMeetingSelections, setEndMeetingSelections] = useState({});
+  const [endingMeeting, setEndingMeeting] = useState(false);
+  const [endMeetingError, setEndMeetingError] = useState('');
   const committeeId = resolution?.committee_id;
   const resolutionIdRef = resolution?.id;
 
@@ -202,6 +206,104 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
       );
     return isChair || isSecretary;
   }, [resolution, user?.id, committeeMeetings]);
+
+  const endMeetingAttendeeCandidates = useMemo(() => {
+    if (!resolution?.committee) {
+      return [];
+    }
+
+    const candidates = [];
+    const seen = new Set();
+
+    const pushCandidate = (id, name, role) => {
+      const normalizedId = String(id || '').trim();
+      if (!normalizedId || seen.has(normalizedId)) {
+        return;
+      }
+
+      seen.add(normalizedId);
+      candidates.push({ id: normalizedId, name: String(name || '').trim() || `User #${normalizedId}`, role: role || 'Member' });
+    };
+
+    if (resolution.committee.chair_id) {
+      pushCandidate(resolution.committee.chair_id, resolution.committee.chair_name, 'Chair');
+    }
+
+    (resolution.committee.members || []).forEach((member) => {
+      pushCandidate(member.user_id, member.user_name || member.name || member.user_email, member.role || 'Member');
+    });
+
+    return candidates;
+  }, [resolution?.committee]);
+
+  const openEndMeetingModal = (meeting) => {
+    const defaults = {};
+    endMeetingAttendeeCandidates.forEach((candidate) => {
+      defaults[candidate.id] = false;
+    });
+
+    setEndMeetingSelections(defaults);
+    setEndMeetingError('');
+    setEndMeetingTarget(meeting);
+  };
+
+  const setAllEndMeetingSelections = (checked) => {
+    const nextSelections = {};
+    endMeetingAttendeeCandidates.forEach((candidate) => {
+      nextSelections[candidate.id] = checked;
+    });
+    setEndMeetingSelections(nextSelections);
+  };
+
+  const selectCurrentUserForEndMeeting = () => {
+    if (!user?.id) {
+      return;
+    }
+
+    const currentUserId = String(user.id);
+    setEndMeetingSelections((prev) => ({
+      ...prev,
+      [currentUserId]: true,
+    }));
+  };
+
+  const hasCurrentUserAttendeeCandidate = useMemo(
+    () => endMeetingAttendeeCandidates.some((candidate) => candidate.id === String(user?.id || '')),
+    [endMeetingAttendeeCandidates, user?.id]
+  );
+
+  const handleConfirmEndMeeting = async () => {
+    if (!endMeetingTarget) {
+      return;
+    }
+
+    const selectedAttendees = endMeetingAttendeeCandidates
+      .filter((candidate) => Boolean(endMeetingSelections[candidate.id]))
+      .map((candidate) => candidate.name);
+
+    try {
+      setEndingMeeting(true);
+      setEndMeetingError('');
+
+      await api.patch(
+        `/committees/${endMeetingTarget.committee_id}/meetings/${endMeetingTarget.id}/end`,
+        {
+          attendees: selectedAttendees,
+          participants: selectedAttendees.join(', '),
+        }
+      );
+
+      toast.success('Meeting ended');
+      setEndMeetingTarget(null);
+      await fetchCommitteeMeetings();
+      await fetchResolutionDetails();
+    } catch (err) {
+      console.error('End meeting error:', err);
+      setEndMeetingError(err?.response?.data?.error || 'Failed to end meeting');
+    } finally {
+      setEndingMeeting(false);
+    }
+  };
 
   const closeCreateMeetingModal = () => {
     setShowCreateMeetingModal(false);
@@ -854,19 +956,7 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
                           {canEndMeeting && !meeting.ended && (
                             <button
                               className="btn btn-warning btn-end-meeting"
-                              onClick={async () => {
-                                if (window.confirm('End this meeting? This will disable the join link for all participants.')) {
-                                  try {
-                                    await api.patch(`/committees/${meeting.committee_id}/meetings/${meeting.id}/end`);
-                                    toast.success('Meeting ended');
-                                    await fetchCommitteeMeetings();
-                                    await fetchResolutionDetails();
-                                  } catch (err) {
-                                    console.error('End meeting error:', err);
-                                    toast.error('Failed to end meeting');
-                                  }
-                                }
-                              }}
+                              onClick={() => openEndMeetingModal(meeting)}
                             >
                               End Meeting
                             </button>
@@ -999,6 +1089,98 @@ export default function ResolutionDetails({ resolutionId, onClose, onStatusChang
         </div>
 
         {/* Status Change Modal */}
+        {endMeetingTarget && (
+          <div className="status-modal-overlay">
+            <div className="status-modal">
+              <h3>End Meeting</h3>
+              <p>
+                Check attendees who actually joined this committee meeting before ending it.
+              </p>
+
+              {endMeetingAttendeeCandidates.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setAllEndMeetingSelections(true)}
+                    disabled={endingMeeting}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setAllEndMeetingSelections(false)}
+                    disabled={endingMeeting}
+                  >
+                    Clear All
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={selectCurrentUserForEndMeeting}
+                    disabled={endingMeeting || !hasCurrentUserAttendeeCandidate}
+                  >
+                    Select Me
+                  </button>
+                </div>
+              )}
+
+              {endMeetingAttendeeCandidates.length > 0 ? (
+                <div className="status-options" style={{ maxHeight: 240, overflowY: 'auto' }}>
+                  {endMeetingAttendeeCandidates.map((candidate) => (
+                    <label key={candidate.id} className="status-option" style={{ alignItems: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(endMeetingSelections[candidate.id])}
+                        onChange={(event) => {
+                          const { checked } = event.target;
+                          setEndMeetingSelections((prev) => ({
+                            ...prev,
+                            [candidate.id]: checked,
+                          }));
+                        }}
+                      />
+                      <span className="status-label">
+                        {candidate.name} ({candidate.role})
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="no-data">No committee members found. You can still end the meeting.</p>
+              )}
+
+              {endMeetingError && (
+                <div className="alert alert-error" style={{ marginTop: '0.75rem' }}>
+                  {endMeetingError}
+                </div>
+              )}
+
+              <div className="modal-actions">
+                <button
+                  onClick={() => {
+                    if (endingMeeting) return;
+                    setEndMeetingTarget(null);
+                    setEndMeetingError('');
+                  }}
+                  className="btn-cancel"
+                  disabled={endingMeeting}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmEndMeeting}
+                  className="btn-confirm"
+                  disabled={endingMeeting}
+                >
+                  {endingMeeting ? 'Ending...' : 'End Meeting'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showStatusModal && (
           <div className="status-modal-overlay">
             <div className="status-modal">

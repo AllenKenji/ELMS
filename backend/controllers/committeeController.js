@@ -4,7 +4,12 @@
  */
 exports.endMeeting = async (req, res) => {
   try {
-    await require('../services/committeeService').endMeeting(req.params.id, req.params.meetingId, req.user.id);
+    await require('../services/committeeService').endMeeting(
+      req.params.id,
+      req.params.meetingId,
+      req.user.id,
+      req.body || {}
+    );
     res.json({ message: 'Meeting ended successfully' });
   } catch (err) {
     console.error('End committee meeting error:', err);
