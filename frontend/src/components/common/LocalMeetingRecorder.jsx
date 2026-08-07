@@ -563,7 +563,7 @@ export default function LocalMeetingRecorder({
     setChunkStats({ count: 0, bytes: 0 });
     setStatus(
       preferredCaptureStream?.getVideoTracks?.()?.length
-        ? 'Preparing the live session recording...'
+        ? 'Starting the live session recording...'
         : 'Requesting screen/tab access and trying microphone access...'
     );
     chunksRef.current = [];
@@ -576,7 +576,6 @@ export default function LocalMeetingRecorder({
       let recordingStream = null;
 
       if (videoTrack) {
-        await applyRecordingTrackConstraints(videoTrack);
         recordingStream = preferredCaptureStream;
         usesExternalCaptureRef.current = true;
       } else {
@@ -614,15 +613,21 @@ export default function LocalMeetingRecorder({
         throw new Error('No screen video track was captured.');
       }
 
-      const displaySurface = String(videoTrack.getSettings?.().displaySurface || '').toLowerCase();
-      const canSafelyCompositeOverlay = displaySurface !== 'monitor';
+      if (preferredCaptureStream?.getVideoTracks?.()?.length) {
+        if (overlayStream?.getVideoTracks?.().length) {
+          toast.info('Live session recording starts immediately. Presenter camera overlay is disabled to avoid startup delay.');
+        }
+      } else {
+        const displaySurface = String(videoTrack.getSettings?.().displaySurface || '').toLowerCase();
+        const canSafelyCompositeOverlay = displaySurface !== 'monitor';
 
-      if (overlayStream?.getVideoTracks?.().length && canSafelyCompositeOverlay) {
-        const composite = await createCompositeRecordingStream(recordingStream, overlayStream);
-        recordingStream = composite.stream;
-        compositeCleanupRef.current = composite.cleanup;
-      } else if (overlayStream?.getVideoTracks?.().length && !canSafelyCompositeOverlay) {
-        toast.info('Presenter camera overlay is disabled for full-screen monitor sharing to avoid green-screen recording issues on some multi-monitor setups.');
+        if (overlayStream?.getVideoTracks?.().length && canSafelyCompositeOverlay) {
+          const composite = await createCompositeRecordingStream(recordingStream, overlayStream);
+          recordingStream = composite.stream;
+          compositeCleanupRef.current = composite.cleanup;
+        } else if (overlayStream?.getVideoTracks?.().length && !canSafelyCompositeOverlay) {
+          toast.info('Presenter camera overlay is disabled for full-screen monitor sharing to avoid green-screen recording issues on some multi-monitor setups.');
+        }
       }
 
       const liveBroadcastStream = new MediaStream([
@@ -721,7 +726,7 @@ export default function LocalMeetingRecorder({
 
       recorder.start(1000);
       setIsRecording(true);
-      setStatus(preferredCaptureStream ? 'Recording the active live stream. Keep this page open until you stop and save.' : 'Recording in progress. Keep this page open until you stop and save.');
+      setStatus(preferredCaptureStream ? 'Recording the active live session. Keep this page open until you stop and save.' : 'Recording in progress. Keep this page open until you stop and save.');
       if (!preferredCaptureStream) {
         toast.info(`Choose the ${subjectLabel} tab or window and enable audio in the share dialog.`);
       }
