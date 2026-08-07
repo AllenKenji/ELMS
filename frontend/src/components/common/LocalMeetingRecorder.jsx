@@ -481,7 +481,12 @@ export default function LocalMeetingRecorder({
               timeout: 15 * 60 * 1000,
               onUploadProgress: (progressEvent) => {
                 if (progressEvent.total) {
-                  setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+                  const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+                  setUploadProgress(progress);
+
+                  if (progress >= 100) {
+                    setStatus('Upload sent. Saving the recording on the server...');
+                  }
                 }
               },
             }
@@ -503,8 +508,10 @@ export default function LocalMeetingRecorder({
         throw lastUploadError || new Error('Upload failed.');
       }
 
+      setStatus('Server save complete. Finalizing upload details...');
+      await waitForNextTick();
       setUploadProgress(100);
-      setStatus('Recording saved locally and uploaded to the server.');
+      setStatus('Upload complete. Recording saved locally and uploaded to the server.');
       toast.success('Recording uploaded to the server.');
       if (response?.data) {
         setSavedRecording(response.data);
