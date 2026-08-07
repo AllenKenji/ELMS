@@ -329,7 +329,7 @@ exports.saveSessionRecording = async (sessionId, file, userId, minutesId = null)
     await client.query('BEGIN');
 
     const sessionResult = await client.query(
-      'SELECT id, title, date FROM sessions WHERE id = $1 FOR UPDATE',
+      'SELECT id, title, date FROM sessions WHERE id = $1',
       [sessionId]
     );
     ensureFound(sessionResult.rows, 'Session not found');
