@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/useAuth';
 import api from '../../api/api';
+import { io } from 'socket.io-client';
+import { API_BASE_URL } from '../../api/api';
 import SessionAgendaPanel from './SessionAgendaPanel';
 import OrderOfBusinessPanel from './OrderOfBusinessPanel';
 import LiveSessionPanel from './LiveSessionPanel';
@@ -161,6 +163,21 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
     }
   }, [accessToken, sessionId]);
 
+  const fetchParticipantsOnly = useCallback(async () => {
+    if (!accessToken) {
+      return;
+    }
+
+    try {
+      const participantsRes = await api.get(`/sessions/${sessionId}/participants`);
+      setParticipants(participantsRes.data || []);
+    } catch (err) {
+      if (err?.status === 401 || err?.response?.status === 401) {
+        setParticipants([]);
+      }
+    }
+  }, [accessToken, sessionId]);
+
   const fetchSessionData = useCallback(async () => {
     if (!accessToken) {
       setLoading(false);
@@ -234,6 +251,42 @@ export default function SessionDetails({ sessionId, onClose, onEdit, onDelete, i
     const intervalId = setInterval(fetchSessionMinutesOnly, 10000);
     return () => clearInterval(intervalId);
   }, [activeTab, fetchSessionMinutesOnly]);
+
+  useEffect(() => {
+    if (activeTab !== 'participants') {
+      return undefined;
+    }
+
+    fetchParticipantsOnly();
+    const intervalId = setInterval(fetchParticipantsOnly, 5000);
+    return () => clearInterval(intervalId);
+  }, [activeTab, fetchParticipantsOnly]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return undefined;
+    }
+
+    const socketBaseUrl = String(import.meta.env.VITE_SOCKET_URL || API_BASE_URL)
+      .trim()
+      .replace(/\/+$/, '');
+    const socket = io(socketBaseUrl);
+
+    const handleParticipantsUpdated = (payload) => {
+      if (String(payload?.sessionId) !== String(sessionId)) {
+        return;
+      }
+
+      fetchParticipantsOnly();
+    };
+
+    socket.on('sessionParticipantsUpdated', handleParticipantsUpdated);
+
+    return () => {
+      socket.off('sessionParticipantsUpdated', handleParticipantsUpdated);
+      socket.disconnect();
+    };
+  }, [accessToken, fetchParticipantsOnly, sessionId]);
 
   const handleDelete = async () => {
     setDeleting(true);

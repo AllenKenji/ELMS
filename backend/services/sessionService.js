@@ -13,6 +13,15 @@ const { getIO } = require('../socket');
 const ROLES = ['Secretary', 'Admin', 'Councilor', 'Vice Mayor', 'Resident'];
 const SESSION_RECORDING_UPLOAD_PREFIX = '/uploads/session-recordings/';
 
+function emitSessionParticipantsUpdated(sessionId) {
+  try {
+    const io = getIO();
+    io.emit('sessionParticipantsUpdated', { sessionId: Number(sessionId) });
+  } catch {
+    // Non-fatal: live participant refresh events should not block workflow operations.
+  }
+}
+
 function normalizeSessionSchedule(dateValue, timeValue) {
   const rawDate = dateValue == null ? '' : String(dateValue).trim();
   let normalizedDate = rawDate;
@@ -235,6 +244,8 @@ exports.addParticipant = async (sessionId, userId) => {
   const sessionResult = await pool.query('SELECT title FROM sessions WHERE id = $1', [sessionId]);
   await createNotification(userId, `You have been added to session: "${sessionResult.rows[0]?.title}"`);
 
+  emitSessionParticipantsUpdated(sessionId);
+
   return result.rows[0];
 };
 
@@ -259,6 +270,7 @@ exports.joinSession = async (sessionId, userId) => {
       ensureFound(updated.rows, 'Participant not found');
 
       await createNotification(userId, `You have joined session: "${sessionResult.rows[0].title}"`);
+      emitSessionParticipantsUpdated(sessionId);
       return updated.rows[0];
     }
 
@@ -274,6 +286,7 @@ exports.joinSession = async (sessionId, userId) => {
   ensureFound(updated.rows, 'Participant not found');
 
   await createNotification(userId, `You have joined session: "${sessionResult.rows[0].title}"`);
+  emitSessionParticipantsUpdated(sessionId);
 
   return updated.rows[0];
 };
@@ -284,6 +297,7 @@ exports.joinSession = async (sessionId, userId) => {
 exports.updateParticipantAttendance = async (sessionId, userId, attendanceStatus) => {
   const result = await Session.updateParticipantAttendance(sessionId, userId, attendanceStatus);
   ensureFound(result.rows, 'Participant not found');
+  emitSessionParticipantsUpdated(sessionId);
   return result.rows[0];
 };
 
@@ -487,6 +501,8 @@ exports.addParticipantsFromOobDocument = async (sessionId, oobDocumentId, reques
 
   await AuditLog.create(null, requestUserId, 'SESSION_PARTICIPANTS_AUTO',
     `Auto-added ${addedUserIds.size} participants to session "${sessionTitle}" from OOB document "${doc.title}"`);
+
+  emitSessionParticipantsUpdated(sessionId);
 
   return { added_count: addedUserIds.size, user_ids: Array.from(addedUserIds) };
 };
