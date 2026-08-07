@@ -1054,6 +1054,17 @@ exports.conductFirstReading = async (id, sessionId, discussionNotes, presidingOf
     await Resolution.insertWorkflowAction(client, id, 'FIRST_READING', 'FIRST_READING', userId, resolvedDiscussionNotes || '');
     await AuditLog.create(client, userId, 'FIRST_READING', `First reading conducted for "${resolution.title}"`);
     await createNotification(resolution.proposer_id, `First reading conducted for your resolution "${resolution.title}".`);
+    await notifyUrgentActionByRoles(
+      client,
+      ['Vice Mayor'],
+      `Urgent action: First reading conducted for resolution "${resolution.title}". Refer it to committee for the next stage.`,
+      {
+        type: 'warning',
+        title: 'Urgent Action Required',
+        relatedId: Number(id),
+        relatedType: 'resolution',
+      }
+    );
     const io = getIO();
     io.emit('resolutionFirstReading', updated.rows[0]);
 
