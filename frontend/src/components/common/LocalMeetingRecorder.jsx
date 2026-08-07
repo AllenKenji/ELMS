@@ -16,6 +16,7 @@ const RECORDER_MAX_HEIGHT = 720;
 const RECORDER_MAX_FPS = 24;
 const UPLOAD_MAX_ATTEMPTS = 3;
 const UPLOAD_RETRY_BASE_DELAY_MS = 1500;
+const VIDEO_METADATA_WAIT_TIMEOUT_MS = 2500;
 
 function getSupportedMimeType() {
   if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
@@ -177,18 +178,40 @@ function isRetryableUploadError(error) {
   return message.includes('network') || message.includes('timeout') || message.includes('temporarily unavailable');
 }
 
-function waitForVideoMetadata(videoElement) {
+function waitForVideoMetadata(videoElement, timeoutMs = VIDEO_METADATA_WAIT_TIMEOUT_MS) {
   if (!videoElement || videoElement.readyState >= 1) {
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
 
   return new Promise((resolve) => {
-    const handleLoaded = () => {
+    let resolved = false;
+    let timeoutId = null;
+
+    const finalize = (ready) => {
+      if (resolved) {
+        return;
+      }
+
+      resolved = true;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
       videoElement.removeEventListener('loadedmetadata', handleLoaded);
-      resolve();
+      videoElement.removeEventListener('error', handleError);
+      resolve(Boolean(ready));
     };
 
+    const handleLoaded = () => {
+      finalize(true);
+    };
+
+    const handleError = () => {
+      finalize(false);
+    };
+
+    timeoutId = window.setTimeout(() => finalize(false), timeoutMs);
     videoElement.addEventListener('loadedmetadata', handleLoaded, { once: true });
+    videoElement.addEventListener('error', handleError, { once: true });
   });
 }
 
@@ -212,12 +235,18 @@ async function createCompositeRecordingStream(baseStream, overlayStream) {
   overlayVideo.playsInline = true;
   overlayVideo.srcObject = new MediaStream([overlayVideoTrack.clone()]);
 
-  await Promise.all([
+  const [isBaseReady, isOverlayReady] = await Promise.all([
     waitForVideoMetadata(baseVideo),
     waitForVideoMetadata(overlayVideo),
     baseVideo.play?.().catch(() => {}),
     overlayVideo.play?.().catch(() => {}),
   ]);
+
+  if (!isBaseReady || !isOverlayReady) {
+    baseVideo.srcObject = null;
+    overlayVideo.srcObject = null;
+    return { stream: baseStream, cleanup: () => {} };
+  }
 
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
