@@ -440,10 +440,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
           setSubmitting(false);
           return;
         }
-        body = {
-          session_id: form.session_id,
-          discussion_notes: form.discussion_notes,
-        };
+        body = { session_id: form.session_id };
       } else if (activeAction === 'admin-override-session') {
         if (!form.session_id) {
           setError('Please select the corrected session.');
@@ -1286,12 +1283,6 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
                       </p>
                     </div>
                   )}
-                  {(activeAction === "assign-session" || activeAction === "record-second-session") && (
-                    <div className="form-group">
-                      <label>Discussion Notes</label>
-                      <textarea rows={3} value={form.discussion_notes || ""} onChange={e => setField("discussion_notes", e.target.value)} placeholder="Summary of discussion for this recording session..." />
-                    </div>
-                  )}
                   {activeAction === "assign-session" && assignedSession && (
                     <div className="form-group">
                       <p style={{ margin: 0, color: '#555' }}>
@@ -1366,7 +1357,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
                       )}
                     </div>
                   )}
-                  {activeAction !== "assign-session" && activeAction !== "record-second-session" && activeAction !== "first-reading" && activeAction !== "second-reading" && (
+                  {(activeAction === "first-reading" || activeAction === "second-reading") && (
                     <div className="form-group">
                       <label>Discussion Notes</label>
                       <textarea rows={3} value={form.discussion_notes || ""} onChange={e => setField("discussion_notes", e.target.value)} placeholder="Summary of discussion during reading..." />
