@@ -952,8 +952,9 @@ exports.submitToViceMayor = async (id, comment, userId) => {
  * Stage 2A: Secretary records/assigns session details before first reading.
  * Transitions: SUBMITTED -> RECORD_SESSION
  */
-exports.assignSessionForFirstReading = async (id, sessionId, userId) => {
+exports.assignSessionForFirstReading = async (id, sessionId, userId, discussionNotes = '') => {
   const normalizedSessionId = Number(sessionId);
+  const normalizedDiscussionNotes = String(discussionNotes || '').trim();
   if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
     const e = new Error('A valid session is required');
     e.status = 400;
@@ -998,7 +999,11 @@ exports.assignSessionForFirstReading = async (id, sessionId, userId) => {
       [normalizedSessionId, id]
     );
 
-    await Resolution.insertWorkflowAction(client, id, 'ASSIGN_SESSION', 'RECORD_SESSION', userId, `Assigned to session ${normalizedSessionId}`);
+    const workflowComment = normalizedDiscussionNotes
+      ? `Assigned to session ${normalizedSessionId}\n\n${normalizedDiscussionNotes}`
+      : `Assigned to session ${normalizedSessionId}`;
+
+    await Resolution.insertWorkflowAction(client, id, 'ASSIGN_SESSION', 'RECORD_SESSION', userId, workflowComment);
     await AuditLog.create(client, userId, 'ASSIGN_SESSION', `Session assigned for first reading of resolution "${resolution.title}"`);
     await createNotification(resolution.proposer_id, `Your resolution "${resolution.title}" was assigned to a session for first reading.`);
 
@@ -1220,8 +1225,9 @@ exports.submitCommitteeReport = async (id, reportData, userId) => {
  * Stage 5A: Secretary assigns session details before second reading.
  * Transitions: ASSIGN_SECOND_SESSION -> RECORD_SECOND_SESSION
  */
-exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
+exports.assignSessionForSecondReading = async (id, sessionId, userId, discussionNotes = '') => {
   const normalizedSessionId = Number(sessionId);
+  const normalizedDiscussionNotes = String(discussionNotes || '').trim();
   if (!Number.isInteger(normalizedSessionId) || normalizedSessionId <= 0) {
     const e = new Error('A valid session is required');
     e.status = 400;
@@ -1271,7 +1277,11 @@ exports.assignSessionForSecondReading = async (id, sessionId, userId) => {
       [normalizedSessionId, id]
     );
 
-    await Resolution.insertWorkflowAction(client, id, 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION', userId, `Assigned to session ${normalizedSessionId}`);
+    const workflowComment = normalizedDiscussionNotes
+      ? `Assigned to session ${normalizedSessionId}\n\n${normalizedDiscussionNotes}`
+      : `Assigned to session ${normalizedSessionId}`;
+
+    await Resolution.insertWorkflowAction(client, id, 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION', userId, workflowComment);
     await AuditLog.create(client, userId, 'ASSIGN_SECOND_SESSION', `Session assigned for second reading of resolution "${resolution.title}"`);
     await createNotification(resolution.proposer_id, `Your resolution "${resolution.title}" was assigned to a session for second reading.`);
 

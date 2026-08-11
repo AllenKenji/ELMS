@@ -364,11 +364,12 @@ exports.firstReading = async (req, res) => {
 /** POST /ordinances/:id/assign-session */
 exports.assignSession = async (req, res) => {
   try {
-    const { session_id } = req.body;
+    const { session_id, discussion_notes } = req.body;
     const result = await ordinanceService.assignSessionForFirstReading(
       req.params.id,
       session_id,
-      req.user.id
+      req.user.id,
+      discussion_notes
     );
     res.json(result);
   } catch (err) {
@@ -475,11 +476,12 @@ exports.secondReading = async (req, res) => {
 /** POST /ordinances/:id/record-second-session */
 exports.recordSecondSession = async (req, res) => {
   try {
-    const { session_id } = req.body;
+    const { session_id, discussion_notes } = req.body;
     const result = await ordinanceService.assignSessionForSecondReading(
       req.params.id,
       session_id,
-      req.user.id
+      req.user.id,
+      discussion_notes
     );
     res.json(result);
   } catch (err) {

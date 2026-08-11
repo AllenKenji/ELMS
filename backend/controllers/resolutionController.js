@@ -357,11 +357,12 @@ exports.firstReading = async (req, res) => {
 /** POST /resolutions/:id/assign-session */
 exports.assignSession = async (req, res) => {
   try {
-    const { session_id } = req.body;
+    const { session_id, discussion_notes } = req.body;
     const result = await resolutionService.assignSessionForFirstReading(
       req.params.id,
       session_id,
-      req.user.id
+      req.user.id,
+      discussion_notes
     );
     res.json(result);
   } catch (err) {
@@ -464,11 +465,12 @@ exports.secondReading = async (req, res) => {
 /** POST /resolutions/:id/record-second-session */
 exports.recordSecondSession = async (req, res) => {
   try {
-    const { session_id } = req.body;
+    const { session_id, discussion_notes } = req.body;
     const result = await resolutionService.assignSessionForSecondReading(
       req.params.id,
       session_id,
-      req.user.id
+      req.user.id,
+      discussion_notes
     );
     res.json(result);
   } catch (err) {
