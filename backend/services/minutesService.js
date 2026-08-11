@@ -2,6 +2,9 @@
  * Minutes Service - Business logic for AI-powered meeting minutes generation.
  */
 const fs = require('fs');
+const fsp = require('fs/promises');
+const os = require('os');
+const path = require('path');
 const OpenAI = require('openai');
 const SessionMinutes = require('../models/SessionMinutes');
 const SessionRecording = require('../models/SessionRecording');
@@ -38,6 +41,61 @@ function resolveSessionRecordingAbsolutePath(relativePath) {
 
   const relativeFilePath = String(relativePath).replace(/^\/uploads\//, 'uploads/');
   return require('path').join(__dirname, '..', relativeFilePath);
+}
+
+async function resolveRecordingFileForTranscription(recordingUrl) {
+  if (recordingUrl && String(recordingUrl).startsWith(SESSION_RECORDING_UPLOAD_PREFIX)) {
+    const absolutePath = resolveSessionRecordingAbsolutePath(recordingUrl);
+    if (!absolutePath || !fs.existsSync(absolutePath)) {
+      const err = new Error('Recording file was not found on the server');
+      err.status = 404;
+      throw err;
+    }
+
+    return {
+      filePath: absolutePath,
+      cleanup: async () => {},
+    };
+  }
+
+  if (/^https?:\/\//i.test(String(recordingUrl || ''))) {
+    let parsed;
+    try {
+      parsed = new URL(String(recordingUrl));
+    } catch {
+      const err = new Error('Recording URL is invalid.');
+      err.status = 400;
+      throw err;
+    }
+
+    const response = await fetch(parsed.toString());
+    if (!response.ok) {
+      const err = new Error(`Unable to download recording file (HTTP ${response.status}).`);
+      err.status = 502;
+      throw err;
+    }
+
+    const extFromPath = path.extname(parsed.pathname || '').trim();
+    const ext = extFromPath && extFromPath.length <= 10 ? extFromPath : '.mp4';
+    const tempPath = path.join(
+      os.tmpdir(),
+      `elms-transcribe-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`
+    );
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await fsp.writeFile(tempPath, buffer);
+
+    return {
+      filePath: tempPath,
+      cleanup: async () => {
+        await fsp.unlink(tempPath).catch(() => {});
+      },
+    };
+  }
+
+  const err = new Error('Only uploaded files or valid http(s) recording links can be transcribed.');
+  err.status = 400;
+  throw err;
 }
 
 /**
@@ -288,11 +346,12 @@ exports.transcribeRecording = async (minutesId, recordingId, userId) => {
   }
 
   const recording = recordingResult.rows[0];
-  const absolutePath = resolveSessionRecordingAbsolutePath(recording.recording_url);
-  if (!absolutePath || !fs.existsSync(absolutePath)) {
-    await SessionRecording.updateTranscript(recordingId, null, 'failed', 'Recording file was not found on the server.');
-    const err = new Error('Recording file was not found on the server');
-    err.status = 404;
+
+  let transcriptionSource;
+  try {
+    transcriptionSource = await resolveRecordingFileForTranscription(recording.recording_url);
+  } catch (err) {
+    await SessionRecording.updateTranscript(recordingId, null, 'failed', err.message || 'Recording file is unavailable for transcription');
     throw err;
   }
 
@@ -301,7 +360,7 @@ exports.transcribeRecording = async (minutesId, recordingId, userId) => {
   let transcriptText = '';
   try {
     const response = await client.audio.transcriptions.create({
-      file: fs.createReadStream(absolutePath),
+      file: fs.createReadStream(transcriptionSource.filePath),
       model: process.env.OPENAI_TRANSCRIPTION_MODEL || 'gpt-4o-mini-transcribe',
     });
     transcriptText = String(response?.text || '').trim();
@@ -314,6 +373,8 @@ exports.transcribeRecording = async (minutesId, recordingId, userId) => {
     const apiErr = new Error('Failed to transcribe the recording. Please try again later.');
     apiErr.status = 502;
     throw apiErr;
+  } finally {
+    await transcriptionSource.cleanup();
   }
 
   const currentMinutes = minutesResult.rows[0];
