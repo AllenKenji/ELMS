@@ -2,14 +2,12 @@ const Ordinance = require('../models/Ordinance');
 const Resolution = require('../models/Resolution');
 
 /**
- * Get all ordinances with submitted committee reports before second reading.
+ * Get all ordinances with committee reports regardless of workflow stage.
  * Returns an array of { ordinance, committeeReport }
  */
 exports.getOrdinancesWithCommitteeReportsSubmitted = async () => {
-  // Include legacy + new stage names used before second reading.
   const ordinancesRes = await Ordinance.findAll();
-  const allowedStages = new Set(['COMMITTEE_REPORT_SUBMITTED', 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION']);
-  const ordinances = ordinancesRes.rows.filter(o => allowedStages.has(String(o.reading_stage || '').toUpperCase()));
+  const ordinances = ordinancesRes.rows || [];
   const results = [];
 
   for (const ord of ordinances) {
@@ -22,17 +20,23 @@ exports.getOrdinancesWithCommitteeReportsSubmitted = async () => {
       });
     }
   }
+
+  results.sort((a, b) => {
+    const aTime = new Date(a?.committeeReport?.submitted_at || 0).getTime();
+    const bTime = new Date(b?.committeeReport?.submitted_at || 0).getTime();
+    return bTime - aTime;
+  });
+
   return results;
 };
 
 /**
- * Get all resolutions with submitted committee reports before second reading.
+ * Get all resolutions with committee reports regardless of workflow stage.
  * Returns an array of { resolution, committeeReport }
  */
 exports.getResolutionsWithCommitteeReportsSubmitted = async () => {
   const resolutionsRes = await Resolution.findAll();
-  const allowedStages = new Set(['COMMITTEE_REPORT_SUBMITTED', 'ASSIGN_SECOND_SESSION', 'RECORD_SECOND_SESSION']);
-  const resolutions = resolutionsRes.rows.filter(r => allowedStages.has(String(r.reading_stage || '').toUpperCase()));
+  const resolutions = resolutionsRes.rows || [];
   const results = [];
 
   for (const res of resolutions) {
@@ -45,5 +49,12 @@ exports.getResolutionsWithCommitteeReportsSubmitted = async () => {
       });
     }
   }
+
+  results.sort((a, b) => {
+    const aTime = new Date(a?.committeeReport?.submitted_at || 0).getTime();
+    const bTime = new Date(b?.committeeReport?.submitted_at || 0).getTime();
+    return bTime - aTime;
+  });
+
   return results;
 };

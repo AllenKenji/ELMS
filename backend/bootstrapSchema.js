@@ -532,6 +532,32 @@ async function ensureNotificationsSchema() {
   `);
 }
 
+async function ensureReportsSchema() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      report_type VARCHAR(50) NOT NULL,
+      date_range_start DATE,
+      date_range_end DATE,
+      bill_count INTEGER DEFAULT 0,
+      status VARCHAR(50) DEFAULT 'Draft',
+      generated_data JSONB,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_reports_created_by ON reports(created_by);
+    CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
+    CREATE INDEX IF NOT EXISTS idx_reports_type ON reports(report_type);
+    CREATE INDEX IF NOT EXISTS idx_reports_created_at ON reports(created_at);
+  `);
+}
+
 async function ensureVotingSchema() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS voting_sessions (
@@ -818,6 +844,7 @@ async function ensureTemplatePreferencesSchema() {
 async function bootstrapSchema() {
   await ensureCoreSchema();
   await ensureCommitteeSchema();
+  await ensureReportsSchema();
   await ensureNotificationsSchema();
   await ensureVotingSchema();
   await ensureLegislativeWorkflowSchema();
