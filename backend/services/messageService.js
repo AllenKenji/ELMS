@@ -4,6 +4,7 @@
 const Message = require('../models/Message');
 const AuditLog = require('../models/AuditLog');
 const { getIO } = require('../socket');
+const { createNotification } = require('../utils/notifications');
 
 /**
  * Send a message to another user.
@@ -54,6 +55,22 @@ exports.sendMessage = async ({ receiver_id, subject, body }, sender) => {
     subject: message.subject,
     created_at: message.created_at,
   });
+
+  // Keep message delivery successful even if notification creation fails.
+  try {
+    await createNotification(
+      receiver_id,
+      `You received a new message from ${sender.name}: "${message.subject}".`,
+      {
+        type: 'message',
+        title: 'New Message',
+        relatedId: message.id,
+        relatedType: 'message',
+      }
+    );
+  } catch (err) {
+    console.error('Non-fatal: failed to create message notification', err?.message || err);
+  }
 
   await AuditLog.create(null, sender.id, 'MESSAGE_SEND', `Message sent to user ${receiver_id}`);
 
