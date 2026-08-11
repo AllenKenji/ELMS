@@ -543,7 +543,7 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
         selfHandled = true;
         
       } else if (activeAction === 'open-voting') {
-        body = { session_id: form.session_id || null };
+        body = { session_id: null };
       } else if (activeAction === 'executive-approval') {
         body = { approval_remarks: form.approval_remarks };
       } else if (activeAction === 'executive-rejection') {
@@ -1382,13 +1382,6 @@ export default function OrdinanceWorkflow({ ordinanceId, ordinance, committeeMee
 
               {activeAction === "open-voting" && (
                 <div className="form-group">
-                  <label>Session (optional)</label>
-                  <select value={form.session_id || ""} onChange={e => setField("session_id", e.target.value)}>
-                    <option value="">— Select session —</option>
-                    {sessions.map(s => (
-                      <option key={s.id} value={s.id}>{s.title} — {new Date(s.date).toLocaleDateString()}</option>
-                    ))}
-                  </select>
                   <p style={{ marginTop: '0.5rem', color: '#666', fontSize: '0.9em' }}>
                     This will open electronic voting. Councilors will be notified and can cast their votes (Yes / No / Abstain).
                   </p>
