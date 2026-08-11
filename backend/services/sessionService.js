@@ -555,3 +555,61 @@ exports.addParticipantsFromOobDocument = async (sessionId, oobDocumentId, reques
 
   return { added_count: addedUserIds.size, user_ids: Array.from(addedUserIds) };
 };
+
+/**
+ * One-time backfill: ensure all councilor accounts are participants
+ * for all existing sessions.
+ */
+exports.backfillCouncilorsForExistingSessions = async (requestUserId) => {
+  const normalizedRequestUserId = Number(requestUserId);
+  if (!Number.isInteger(normalizedRequestUserId) || normalizedRequestUserId <= 0) {
+    const err = new Error('A valid request user id is required for backfill');
+    err.status = 400;
+    throw err;
+  }
+
+  const sessionsResult = await pool.query(
+    `SELECT id, title
+     FROM sessions
+     ORDER BY id ASC`
+  );
+
+  let totalAdded = 0;
+  const sessionsUpdated = [];
+
+  for (const session of sessionsResult.rows || []) {
+    const sessionId = Number(session.id);
+    if (!Number.isInteger(sessionId) || sessionId <= 0) {
+      continue;
+    }
+
+    const invitedUserIds = await inviteAllCouncilorsToSession(
+      sessionId,
+      session.title || `Session #${sessionId}`
+    );
+
+    if (invitedUserIds.length > 0) {
+      totalAdded += invitedUserIds.length;
+      sessionsUpdated.push({
+        session_id: sessionId,
+        session_title: session.title || null,
+        added_count: invitedUserIds.length,
+      });
+      emitSessionParticipantsUpdated(sessionId);
+    }
+  }
+
+  await AuditLog.create(
+    null,
+    normalizedRequestUserId,
+    'SESSION_COUNCILOR_PARTICIPANTS_BACKFILL',
+    `Backfilled councilor participants for ${sessionsUpdated.length} sessions; total participants added: ${totalAdded}`
+  );
+
+  return {
+    sessions_checked: sessionsResult.rows.length,
+    sessions_updated: sessionsUpdated.length,
+    participants_added: totalAdded,
+    details: sessionsUpdated,
+  };
+};

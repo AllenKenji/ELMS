@@ -17,6 +17,7 @@ const sessionLimiter = rateLimit({
 
 router.post('/', authenticateToken, authorizeRoles('Secretary', 'Admin'), sessionController.create);
 router.get('/', authenticateToken, sessionController.getAll);
+router.post('/participants/backfill-councilors', authenticateToken, authorizeRoles('Admin'), sessionController.backfillCouncilorParticipants);
 router.get('/:id', authenticateToken, sessionController.getById);
 router.put('/:id', authenticateToken, authorizeRoles('Secretary', 'Admin'), sessionController.update);
 router.delete('/:id', authenticateToken, authorizeRoles('Admin', 'Secretary'), sessionController.remove);

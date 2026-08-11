@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
+    "backfill:councilor-session-participants": "node scripts/backfillCouncilorSessionParticipants.js",
     "test": "npm run test:all",
     "test:unit": "node --test tests/*.test.js",
     "test:integration": "node --test tests/integration/*.test.js",

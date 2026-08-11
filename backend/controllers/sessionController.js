@@ -172,6 +172,21 @@ exports.addParticipantsFromOob = async (req, res) => {
 };
 
 /**
+ * One-time backfill: invite all councilors into all existing sessions.
+ * POST /sessions/participants/backfill-councilors
+ */
+exports.backfillCouncilorParticipants = async (req, res) => {
+  try {
+    const result = await sessionService.backfillCouncilorsForExistingSessions(req.user.id);
+    res.json(result);
+  } catch (err) {
+    console.error('Backfill session councilor participants error:', err);
+    if (err.status === 400) return res.status(400).json({ error: err.message });
+    res.status(500).json({ error: 'Error running councilor participant backfill' });
+  }
+};
+
+/**
  * Update a participant's attendance status.
  * PUT /sessions/:id/participants/:userId
  */
