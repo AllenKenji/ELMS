@@ -634,13 +634,12 @@ function generateOrdinancePdf(ordinance, stream, options = {}) {
 
   writeMetaRow(doc, 'Status', ordinance.status);
   writeMetaRow(doc, 'Proposed By', ordinance.proposer_name || 'N/A');
-  const ordinanceMeetingRecordingUrl = resolveCommitteeRecordingForPdf(ordinance, options);
-  if (ordinanceMeetingRecordingUrl) {
-    writeMetaRow(doc, 'Meeting Recording', ordinanceMeetingRecordingUrl);
-  }
   // Co-authors
   if (Array.isArray(ordinance.co_authors) && ordinance.co_authors.length > 0) {
-    const coAuthorNames = ordinance.co_authors.map(c => c.name + (c.email ? ` <${c.email}>` : '')).join(', ');
+    const coAuthorNames = ordinance.co_authors
+      .map((c) => normalizePdfText(c?.name))
+      .filter(Boolean)
+      .join(', ');
     writeMetaRow(doc, 'Co-authors', coAuthorNames);
   }
   writeMetaRow(doc, 'Date Created', formatDate(ordinance.created_at));
@@ -708,12 +707,11 @@ function generateResolutionPdf(resolution, stream, options = {}) {
 
   writeMetaRow(doc, 'Status', resolution.status);
   writeMetaRow(doc, 'Proposed By', resolution.proposer_name || 'N/A');
-  const resolutionMeetingRecordingUrl = resolveCommitteeRecordingForPdf(resolution, options);
-  if (resolutionMeetingRecordingUrl) {
-    writeMetaRow(doc, 'Meeting Recording', resolutionMeetingRecordingUrl);
-  }
   if (Array.isArray(resolution.co_authors) && resolution.co_authors.length > 0) {
-    const coAuthorNames = resolution.co_authors.map(c => c.name + (c.email ? ` <${c.email}>` : '')).join(', ');
+    const coAuthorNames = resolution.co_authors
+      .map((c) => normalizePdfText(c?.name))
+      .filter(Boolean)
+      .join(', ');
     writeMetaRow(doc, 'Co-authors', coAuthorNames);
   }
   writeMetaRow(doc, 'Date Created', formatDate(resolution.created_at));
