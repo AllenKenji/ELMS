@@ -6,7 +6,7 @@ import MessageCompose from './MessageCompose';
 import '../../styles/MessageList.css';
 
 export default function MessageList() {
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
   
   const [messages, setMessages] = useState([]);
   const [filteredMessages, setFilteredMessages] = useState([]);
@@ -18,7 +18,20 @@ export default function MessageList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [showCompose, setShowCompose] = useState(false);
+  const [replyToMessage, setReplyToMessage] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const buildReplyToMessage = useCallback((message) => {
+    if (!message) return null;
+
+    const isCurrentUserSender = Number(message.sender_id) === Number(user?.id);
+    const targetUserId = isCurrentUserSender ? message.receiver_id : message.sender_id;
+
+    return {
+      sender_id: targetUserId,
+      subject: message.subject,
+    };
+  }, [user?.id]);
 
   // Fetch messages
   const fetchMessages = useCallback(async (tab = 'inbox') => {
@@ -117,7 +130,10 @@ export default function MessageList() {
         </div>
         <button
           className="btn-compose"
-          onClick={() => setShowCompose(true)}
+          onClick={() => {
+            setReplyToMessage(null);
+            setShowCompose(true);
+          }}
         >
           ✉️ New Message
         </button>
@@ -181,7 +197,10 @@ export default function MessageList() {
           {activeTab === 'inbox' && (
             <button
               className="btn-empty-action"
-              onClick={() => setShowCompose(true)}
+              onClick={() => {
+                setReplyToMessage(null);
+                setShowCompose(true);
+              }}
             >
               Send First Message
             </button>
@@ -251,6 +270,7 @@ export default function MessageList() {
             handleDelete(selectedMessage.id);
           }}
           onReply={() => {
+            setReplyToMessage(buildReplyToMessage(selectedMessage));
             setShowCompose(true);
             setSelectedMessage(null);
           }}
@@ -262,10 +282,15 @@ export default function MessageList() {
         <MessageCompose
           onSuccess={() => {
             setShowCompose(false);
+            setReplyToMessage(null);
             fetchMessages(activeTab);
             fetchUnreadCount();
           }}
-          onCancel={() => setShowCompose(false)}
+          onCancel={() => {
+            setShowCompose(false);
+            setReplyToMessage(null);
+          }}
+          replyTo={replyToMessage}
         />
       )}
     </div>
