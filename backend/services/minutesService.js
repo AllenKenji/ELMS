@@ -19,6 +19,36 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 const SESSION_RECORDING_UPLOAD_PREFIX = '/uploads/session-recordings/';
 
+function pickFirstNonEmpty(...values) {
+  for (const value of values) {
+    const text = String(value || '').trim();
+    if (text) return text;
+  }
+  return '';
+}
+
+function buildAbsoluteUrl(baseUrl, relativePath) {
+  const base = String(baseUrl || '').trim().replace(/\/+$/, '');
+  const rel = String(relativePath || '').trim();
+  if (!base || !rel) return '';
+  return `${base}${rel.startsWith('/') ? '' : '/'}${rel}`;
+}
+
+function getTranscriptionPublicBaseCandidates() {
+  const candidates = [
+    process.env.TRANSCRIPTION_PUBLIC_BASE_URL,
+    process.env.API_PUBLIC_BASE_URL,
+    process.env.PUBLIC_BASE_URL,
+    process.env.APP_BASE_URL,
+    process.env.RENDER_EXTERNAL_URL,
+    process.env.FRONTEND_URL,
+  ]
+    .map((value) => String(value || '').trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  return [...new Set(candidates)];
+}
+
 /**
  * Build an OpenAI client instance.
  * Throws if the API key is not configured.
@@ -35,7 +65,7 @@ function buildOpenAIClient() {
 }
 
 function resolveSessionRecordingAbsolutePath(relativePath) {
-  if (!relativePath || !String(relativePath).startsWith(SESSION_RECORDING_UPLOAD_PREFIX)) {
+  if (!relativePath || !String(relativePath).startsWith('/uploads/')) {
     return null;
   }
 
@@ -43,19 +73,83 @@ function resolveSessionRecordingAbsolutePath(relativePath) {
   return require('path').join(__dirname, '..', relativeFilePath);
 }
 
+function normalizeUploadPath(recordingUrl) {
+  const value = String(recordingUrl || '').trim();
+  if (!value) return '';
+
+  if (value.startsWith('/uploads/')) {
+    return value;
+  }
+
+  if (value.startsWith('uploads/')) {
+    return `/${value}`;
+  }
+
+  const marker = '/uploads/';
+  const markerIndex = value.toLowerCase().indexOf(marker);
+  if (markerIndex >= 0) {
+    return value.slice(markerIndex);
+  }
+
+  return '';
+}
+
+async function downloadRecordingToTempFile(recordingUrl) {
+  const response = await fetch(recordingUrl);
+  if (!response.ok) {
+    const err = new Error(`Unable to download recording file (HTTP ${response.status}).`);
+    err.status = 502;
+    throw err;
+  }
+
+  const parsed = new URL(recordingUrl);
+  const extFromPath = path.extname(parsed.pathname || '').trim();
+  const ext = extFromPath && extFromPath.length <= 10 ? extFromPath : '.mp4';
+  const tempPath = path.join(
+    os.tmpdir(),
+    `elms-transcribe-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`
+  );
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  await fsp.writeFile(tempPath, buffer);
+
+  return {
+    filePath: tempPath,
+    cleanup: async () => {
+      await fsp.unlink(tempPath).catch(() => {});
+    },
+  };
+}
+
 async function resolveRecordingFileForTranscription(recordingUrl) {
-  if (recordingUrl && String(recordingUrl).startsWith(SESSION_RECORDING_UPLOAD_PREFIX)) {
-    const absolutePath = resolveSessionRecordingAbsolutePath(recordingUrl);
-    if (!absolutePath || !fs.existsSync(absolutePath)) {
-      const err = new Error('Recording file was not found on the server');
-      err.status = 404;
-      throw err;
+  const normalizedUploadPath = normalizeUploadPath(recordingUrl);
+  if (normalizedUploadPath) {
+    const absolutePath = resolveSessionRecordingAbsolutePath(normalizedUploadPath);
+    if (absolutePath && fs.existsSync(absolutePath)) {
+      return {
+        filePath: absolutePath,
+        cleanup: async () => {},
+      };
     }
 
-    return {
-      filePath: absolutePath,
-      cleanup: async () => {},
-    };
+    const bases = getTranscriptionPublicBaseCandidates();
+    for (const baseUrl of bases) {
+      const remoteUrl = buildAbsoluteUrl(baseUrl, normalizedUploadPath);
+      if (!remoteUrl) continue;
+      try {
+        return await downloadRecordingToTempFile(remoteUrl);
+      } catch {
+        // Continue trying other configured base URLs.
+      }
+    }
+
+    const err = new Error(
+      normalizedUploadPath.startsWith(SESSION_RECORDING_UPLOAD_PREFIX)
+        ? 'Recording file was not found on the server. If this recording was uploaded before a redeploy, please re-upload it or save an external recording link and retry transcription.'
+        : 'Recording file was not found on the server.'
+    );
+    err.status = 404;
+    throw err;
   }
 
   if (/^https?:\/\//i.test(String(recordingUrl || ''))) {
@@ -68,29 +162,7 @@ async function resolveRecordingFileForTranscription(recordingUrl) {
       throw err;
     }
 
-    const response = await fetch(parsed.toString());
-    if (!response.ok) {
-      const err = new Error(`Unable to download recording file (HTTP ${response.status}).`);
-      err.status = 502;
-      throw err;
-    }
-
-    const extFromPath = path.extname(parsed.pathname || '').trim();
-    const ext = extFromPath && extFromPath.length <= 10 ? extFromPath : '.mp4';
-    const tempPath = path.join(
-      os.tmpdir(),
-      `elms-transcribe-${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`
-    );
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    await fsp.writeFile(tempPath, buffer);
-
-    return {
-      filePath: tempPath,
-      cleanup: async () => {
-        await fsp.unlink(tempPath).catch(() => {});
-      },
-    };
+    return downloadRecordingToTempFile(parsed.toString());
   }
 
   const err = new Error('Only uploaded files or valid http(s) recording links can be transcribed.');
