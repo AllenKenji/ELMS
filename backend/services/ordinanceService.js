@@ -1807,7 +1807,7 @@ exports.adminOverrideWorkflowStage = async (id, payload, adminUserId) => {
  * Stage 5: Secretary records Second Reading.
  * Transitions: RECORD_SECOND_SESSION → SECOND_READING
  */
-exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingOfficer, userId) => {
+exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingOfficer, userId, selectedRecordingUrl = null) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -1830,13 +1830,20 @@ exports.conductSecondReading = async (id, sessionId, discussionNotes, presidingO
       const e = new Error('Assign a session first before recording second reading'); e.status = 400; throw e;
     }
 
+    const resolvedDiscussionNotes = buildReadingNotesWithRecording(discussionNotes, selectedRecordingUrl);
+
     await client.query(
-      `UPDATE ordinances SET session_id_second_reading=$1, reading_stage='SECOND_READING', updated_at=NOW() WHERE id=$2`,
+      `UPDATE ordinances
+       SET session_id_second_reading=$1,
+           reading_stage='SECOND_READING',
+           status='Under Review',
+           updated_at=NOW()
+       WHERE id=$2`,
       [normalizedSessionId, id]
     );
     const updated = await client.query('SELECT * FROM ordinances WHERE id=$1', [id]);
-    await Ordinance.insertReadingSession(client, id, normalizedSessionId, 2, discussionNotes, presidingOfficer);
-    await Ordinance.insertWorkflowAction(client, id, 'SECOND_READING', 'SECOND_READING', userId, discussionNotes || '');
+    await Ordinance.insertReadingSession(client, id, normalizedSessionId, 2, resolvedDiscussionNotes, presidingOfficer);
+    await Ordinance.insertWorkflowAction(client, id, 'SECOND_READING', 'SECOND_READING', userId, resolvedDiscussionNotes || '');
     await AuditLog.create(client, userId, 'SECOND_READING', `Second reading conducted for "${ordinance.title}"`);
     await createNotification(ordinance.proposer_id, `Second reading conducted for your ordinance "${ordinance.title}".`);
     const io = getIO();

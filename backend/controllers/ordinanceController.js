@@ -459,9 +459,9 @@ exports.getCommitteeReport = async (req, res) => {
 /** POST /ordinances/:id/second-reading */
 exports.secondReading = async (req, res) => {
   try {
-    const { session_id, discussion_notes, presiding_officer } = req.body;
+    const { session_id, discussion_notes, presiding_officer, selected_recording_url } = req.body;
     const result = await ordinanceService.conductSecondReading(
-      req.params.id, session_id, discussion_notes, presiding_officer, req.user.id
+      req.params.id, session_id, discussion_notes, presiding_officer, req.user.id, selected_recording_url
     );
     res.json(result);
   } catch (err) {

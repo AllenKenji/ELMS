@@ -324,13 +324,19 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
 
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
-  const loadLinkedSessionRecordings = useCallback(async () => {
+  const loadLinkedSessionRecordings = useCallback(async (readingPhase = 'first') => {
     const currentResolution = workflowStatus?.resolution || resolution;
-    const linkedSessionId = Number(currentResolution?.session_id_first_reading);
+    const linkedSessionId = readingPhase === 'second'
+      ? Number(currentResolution?.session_id_second_reading)
+      : Number(currentResolution?.session_id_first_reading);
 
     if (!Number.isInteger(linkedSessionId) || linkedSessionId <= 0) {
       setSessionRecordings([]);
-      setError('No linked session found. Use Record Session first.');
+      setError(
+        readingPhase === 'second'
+          ? 'No linked second-reading session found. Use Assign Second Session first.'
+          : 'No linked session found. Use Record Session first.'
+      );
       return false;
     }
 
@@ -371,7 +377,7 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
   const handleActionClick = (action) => {
     setError('');
 
-    if (action !== 'first-reading') {
+    if (action !== 'first-reading' && action !== 'second-reading') {
       setSessionRecordings([]);
     }
 
@@ -396,7 +402,18 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
         discussion_notes: '',
       });
 
-      loadLinkedSessionRecordings();
+      loadLinkedSessionRecordings('first');
+      return;
+    }
+
+    if (action === 'second-reading') {
+      setActiveAction(action);
+      setForm({
+        selected_recording_url: '',
+        discussion_notes: '',
+      });
+
+      loadLinkedSessionRecordings('second');
       return;
     }
 
@@ -445,7 +462,7 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
         });
         selfHandled = true;
       } else if (activeAction === 'first-reading' || activeAction === 'record-second-session' || activeAction === 'second-reading') {
-        if (activeAction === 'first-reading' && sessionRecordings.length > 0 && !form.selected_recording_url) {
+        if ((activeAction === 'first-reading' || activeAction === 'second-reading') && sessionRecordings.length > 0 && !form.selected_recording_url) {
           setError('Please select a recorded video first.');
           setSubmitting(false);
           return;
@@ -461,7 +478,7 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
           session_id: activeAction === 'first-reading'
             ? (resl?.session_id_first_reading || null)
             : (form.session_id || resl?.session_id_second_reading || null),
-          selected_recording_url: activeAction === 'first-reading' ? (form.selected_recording_url || null) : null,
+          selected_recording_url: (activeAction === 'first-reading' || activeAction === 'second-reading') ? (form.selected_recording_url || null) : null,
           discussion_notes: form.discussion_notes,
           presiding_officer: form.presiding_officer || null,
         };
@@ -658,7 +675,11 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
     ? []
     : getAvailableActions(normalizedStage, user?.role, resl, user, workflowStatus, committeeMeetings);
   const currentStageDef = STAGES.find(s => s.key === displayStage);
-  const assignedSessionId = Number(resl?.session_id_first_reading || form.session_id);
+  const assignedSessionId = Number(
+    activeAction === 'second-reading'
+      ? (resl?.session_id_second_reading || form.session_id)
+      : (resl?.session_id_first_reading || form.session_id)
+  );
   const assignedSession = sessions.find((session) => Number(session.id) === assignedSessionId);
   const selectedRecording = sessionRecordings.find((recording) => recording.recording_url === form.selected_recording_url);
 
@@ -1194,7 +1215,7 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                           </a>
                     </div>
                   )}
-                  {activeAction === "first-reading" && (
+                  {(activeAction === "first-reading" || activeAction === "second-reading") && (
                     <div className="form-group">
                       <label>Linked Session</label>
                       {assignedSession ? (
@@ -1212,14 +1233,17 @@ export default function ResolutionWorkflow({ resolutionId, resolution, committee
                       )}
                     </div>
                   )}
-                  {activeAction === "first-reading" && (
+                  {(activeAction === "first-reading" || activeAction === "second-reading") && (
                     <div className="form-group">
                       <label>Recorded Video {sessionRecordings.length > 0 ? <span className="required">*</span> : ''}</label>
                       <div style={{ marginBottom: 8 }}>
                         <button
                           type="button"
                           className="btn btn-secondary"
-                          onClick={() => { setError(''); loadLinkedSessionRecordings(); }}
+                          onClick={() => {
+                            setError('');
+                            loadLinkedSessionRecordings(activeAction === 'second-reading' ? 'second' : 'first');
+                          }}
                           disabled={loadingRecordings}
                         >
                           {loadingRecordings ? 'Refreshing...' : 'Refresh Recording List'}
