@@ -22,6 +22,50 @@ function emitSessionParticipantsUpdated(sessionId) {
   }
 }
 
+async function inviteAllCouncilorsToSession(sessionId, sessionTitle, trackedUserIds = null) {
+  const councilorsResult = await pool.query(
+    `SELECT u.id
+     FROM users u
+     JOIN roles r ON r.id = u.role_id
+     WHERE LOWER(r.role_name) = 'councilor'`
+  );
+
+  const invitedUserIds = [];
+
+  for (const councilor of councilorsResult.rows || []) {
+    const councilorUserId = Number(councilor.id);
+    if (!Number.isInteger(councilorUserId) || councilorUserId <= 0) {
+      continue;
+    }
+    if (trackedUserIds?.has(councilorUserId)) {
+      continue;
+    }
+
+    const addResult = await Session.addParticipant(sessionId, councilorUserId);
+    if (!addResult.rows.length) {
+      continue;
+    }
+
+    invitedUserIds.push(councilorUserId);
+    if (trackedUserIds) {
+      trackedUserIds.add(councilorUserId);
+    }
+
+    await createNotification(
+      councilorUserId,
+      `You have been invited to session: "${sessionTitle}"`,
+      {
+        type: 'session',
+        title: 'Session Invitation',
+        relatedId: Number(sessionId),
+        relatedType: 'session',
+      }
+    );
+  }
+
+  return invitedUserIds;
+}
+
 function normalizeSessionSchedule(dateValue, timeValue) {
   const rawDate = dateValue == null ? '' : String(dateValue).trim();
   let normalizedDate = rawDate;
@@ -133,6 +177,8 @@ exports.createSession = async ({ title, date, time, session_time, location, agen
 
   await AuditLog.create(null, userId, 'SESSION_CREATE', `Session "${title}" created`);
   await createNotification(userId, `Session "${title}" has been created.`);
+  await inviteAllCouncilorsToSession(session.id, session.title);
+  emitSessionParticipantsUpdated(session.id);
 
   broadcast('newSession', session);
   broadcast('sessionCreated', session);
@@ -466,6 +512,9 @@ exports.addParticipantsFromOobDocument = async (sessionId, oobDocumentId, reques
       await addAndNotify(userRes.rows[0].id, 'Secretary');
     }
   }
+
+  // Ensure all councilor accounts are invited participants for the session.
+  await inviteAllCouncilorsToSession(sessionId, sessionTitle, addedUserIds);
 
   // 5. Get committee report items from the document
   const itemsResult = await pool.query(
