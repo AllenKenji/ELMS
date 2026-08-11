@@ -229,21 +229,29 @@ const createMinutesSchema = Joi.object({
  * Schema for POST /messages
  */
 const sendMessageSchema = Joi.object({
-  recipient_id: Joi.number().integer().positive().required().messages({
+  receiver_id: Joi.number().integer().positive().optional().messages({
+    'number.base': 'Receiver ID must be a number.',
+    'number.positive': 'Receiver ID must be a positive integer.',
+  }),
+  recipient_id: Joi.number().integer().positive().optional().messages({
     'number.base': 'Recipient ID must be a number.',
     'number.positive': 'Recipient ID must be a positive integer.',
-    'any.required': 'Recipient ID is required.',
   }),
-  subject: Joi.string().trim().min(1).max(255).required().messages({
-    'string.min': 'Subject cannot be empty.',
+  subject: Joi.string().trim().min(3).max(255).required().messages({
+    'string.min': 'Subject must be at least 3 characters.',
     'string.max': 'Subject must be at most 255 characters.',
     'any.required': 'Subject is required.',
   }),
-  body: Joi.string().trim().min(1).required().messages({
-    'string.min': 'Message body cannot be empty.',
+  body: Joi.string().trim().min(5).required().messages({
+    'string.min': 'Message body must be at least 5 characters.',
     'any.required': 'Message body is required.',
   }),
-}).options({ allowUnknown: false });
+})
+  .or('receiver_id', 'recipient_id')
+  .messages({
+    'object.missing': 'Recipient ID is required.',
+  })
+  .options({ allowUnknown: false });
 
 /**
  * Schema for GET /messages/inbox and /messages/sent query parameters

@@ -9,7 +9,11 @@ const messageService = require('../services/messageService');
  */
 exports.send = async (req, res) => {
   try {
-    const message = await messageService.sendMessage(req.body, req.user);
+    const payload = {
+      ...req.body,
+      receiver_id: req.body.receiver_id ?? req.body.recipient_id,
+    };
+    const message = await messageService.sendMessage(payload, req.user);
     res.status(201).json(message);
   } catch (err) {
     console.error('Send message error:', err);
