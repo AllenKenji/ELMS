@@ -5,6 +5,7 @@ const Login = lazy(() => import('./components/Login'));
 const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
 const Register = lazy(() => import('./components/Register'));
 import DashboardLayout from './components/DashboardLayout';
+const PublicLGUPage = lazy(() => import('./pages/PublicLGUPage'));
 
 const CouncilorDashboard = lazy(() => import('./pages/CouncilorDashboard'));
 const SecretaryDashboard = lazy(() => import('./pages/SecretaryDashboard'));
@@ -54,14 +55,19 @@ function App() {
           {/* Auth Routes */}
           <Route
             path="/"
-            element={canAccessDashboard ? <Navigate to="/dashboard" /> : <Login onLogin={login} />}
+            element={<Navigate to={canAccessDashboard ? '/dashboard' : '/visit'} replace />}
+          />
+          <Route path="/visit" element={<PublicLGUPage />} />
+          <Route
+            path="/login"
+            element={canAccessDashboard ? <Navigate to="/dashboard" replace /> : <Login onLogin={login} />}
           />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register />} />
 
           {/* Protected Dashboard Routes */}
           <Route
-            element={canAccessDashboard ? <DashboardLayout /> : <Navigate to="/" />}
+            element={canAccessDashboard ? <DashboardLayout /> : <Navigate to="/login" replace />}
           >
             {/* Main Dashboard */}
             <Route path="/dashboard" element={React.createElement(dashboardComponent)} />
@@ -88,7 +94,7 @@ function App() {
           </Route>
 
           {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to={canAccessDashboard ? '/dashboard' : '/visit'} replace />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -72,6 +72,7 @@ app.use('/order-of-business', require('./routes/orderOfBusiness'));
 
 app.use('/oob', require('./routes/oob'));
 app.use('/committee-workflow', require('./routes/committeeWorkflow'));
+app.use('/public', require('./routes/public'));
 
 // Global error handler — must be registered after all routes
 app.use(require('./middleware/errorHandler'));
