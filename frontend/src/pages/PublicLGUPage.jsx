@@ -260,11 +260,21 @@ export default function PublicLGUPage() {
                 <article key={member.id} className="info-card">
                   <div className="councilor-card-header">
                     {member.photo_url ? (
-                      <img
-                        src={resolveAssetUrl(member.photo_url)}
-                        alt={`${member.name} profile`}
-                        className="councilor-photo"
-                      />
+                      <>
+                        <img
+                          src={resolveAssetUrl(member.photo_url)}
+                          alt={`${member.name} profile`}
+                          className="councilor-photo"
+                          onError={(event) => {
+                            event.currentTarget.hidden = true;
+                            const fallback = event.currentTarget.nextElementSibling;
+                            if (fallback) {
+                              fallback.hidden = false;
+                            }
+                          }}
+                        />
+                        <div className="councilor-photo-placeholder" hidden>{getInitials(member.name)}</div>
+                      </>
                     ) : (
                       <div className="councilor-photo-placeholder">{getInitials(member.name)}</div>
                     )}

@@ -26,11 +26,26 @@ function formatTime(value) {
   return `${String(hour12).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${suffix}`;
 }
 
+function resolveAssetUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/')) return `${API_BASE_URL}${raw}`;
+  return `${API_BASE_URL}/${raw.replace(/^\/+/, '')}`;
+}
+
+function getInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'LG';
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('');
+}
+
 export default function PublicDetailPage() {
   const { entityType, id } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [detailPhotoFailed, setDetailPhotoFailed] = useState(false);
 
   const endpoint = useMemo(() => {
     if (entityType === 'councilors') return `${API_BASE_URL}/public/councilors/${id}`;
@@ -55,6 +70,7 @@ export default function PublicDetailPage() {
 
       try {
         setLoading(true);
+        setDetailPhotoFailed(false);
         const response = await axios.get(endpoint);
         if (!mounted) return;
         setData(response.data || null);
@@ -75,6 +91,7 @@ export default function PublicDetailPage() {
   }, [endpoint]);
 
   const title = data?.name || data?.title || 'Public Details';
+  const detailPhotoUrl = resolveAssetUrl(data?.photo_url);
 
   return (
     <div className="public-detail-page">
@@ -91,6 +108,20 @@ export default function PublicDetailPage() {
           <main className="detail-grid">
             <section className="detail-primary-card">
               <p className="detail-eyebrow">Public Record</p>
+              {entityType === 'councilors' && (
+                <div className="detail-photo-panel">
+                  {detailPhotoUrl && !detailPhotoFailed ? (
+                    <img
+                      src={detailPhotoUrl}
+                      alt={`${title} profile`}
+                      className="detail-profile-photo"
+                      onError={() => setDetailPhotoFailed(true)}
+                    />
+                  ) : (
+                    <div className="detail-profile-photo-placeholder">{getInitials(title)}</div>
+                  )}
+                </div>
+              )}
               <h1>{title}</h1>
 
               {entityType === 'councilors' && (
