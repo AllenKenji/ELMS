@@ -69,7 +69,7 @@ function App() {
 
           {/* Protected Dashboard Routes */}
           <Route
-            element={canAccessDashboard ? <DashboardLayout /> : <Navigate to="/login" replace />}
+            element={canAccessDashboard ? <DashboardLayout /> : <Navigate to="/visit" replace />}
           >
             {/* Main Dashboard */}
             <Route path="/dashboard" element={React.createElement(dashboardComponent)} />
