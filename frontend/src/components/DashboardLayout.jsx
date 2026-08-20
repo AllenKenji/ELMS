@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import api, { API_BASE_URL } from '../api/api';
 import NotificationBell from './NotificationBell';
@@ -10,9 +10,15 @@ export default function DashboardLayout() {
   const { accessToken, logout, user } = useAuth();
   // console.log('DashboardLayout user:', user);
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [failedPhotoUrl, setFailedPhotoUrl] = useState('');
   const [resolvedPhotoUrl, setResolvedPhotoUrl] = useState(null);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/visit', { replace: true });
+  };
 
   useEffect(() => {
     let isCancelled = false;
@@ -211,7 +217,7 @@ export default function DashboardLayout() {
         <div className="sidebar-footer">
           <button
             className="btn-logout-sidebar"
-            onClick={logout}
+            onClick={handleLogout}
             aria-label="Logout"
             title="Logout"
           >
