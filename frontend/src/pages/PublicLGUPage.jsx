@@ -41,6 +41,8 @@ export default function PublicLGUPage() {
   const [data, setData] = useState(fallbackData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [directoryQuery, setDirectoryQuery] = useState('');
+  const [documentFilter, setDocumentFilter] = useState('All');
 
   useEffect(() => {
     let mounted = true;
@@ -81,6 +83,40 @@ export default function PublicLGUPage() {
     [data]
   );
 
+  const normalizedQuery = directoryQuery.trim().toLowerCase();
+
+  const filteredCouncilors = useMemo(() => {
+    if (!normalizedQuery) return data.councilors;
+
+    return data.councilors.filter((member) => {
+      const haystack = `${member.name || ''} ${member.role || ''}`.toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [data.councilors, normalizedQuery]);
+
+  const filteredCommittees = useMemo(() => {
+    if (!normalizedQuery) return data.committees;
+
+    return data.committees.filter((committee) => {
+      const haystack = `${committee.name || ''} ${committee.description || ''} ${committee.chair_name || ''}`.toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [data.committees, normalizedQuery]);
+
+  const filteredDocuments = useMemo(() => {
+    return data.legislativeDocuments.filter((doc) => {
+      const matchesType = documentFilter === 'All' || doc.document_type === documentFilter;
+      const matchesQuery = !normalizedQuery || `${doc.title || ''} ${doc.reference_no || ''} ${doc.status || ''}`
+        .toLowerCase()
+        .includes(normalizedQuery);
+      return matchesType && matchesQuery;
+    });
+  }, [data.legislativeDocuments, documentFilter, normalizedQuery]);
+
+  const nextSession = data.scheduledSessions[0] || null;
+  const nextMeeting = data.scheduledMeetings[0] || null;
+  const documentTypes = ['All', 'Ordinance', 'Resolution'];
+
   return (
     <div className="public-lgu-page">
       <header className="public-header">
@@ -88,6 +124,10 @@ export default function PublicLGUPage() {
           <p className="eyebrow">Official Public Portal</p>
           <h1>{data.lguName} Legislative Council</h1>
           <p className="lead-text">A public window into your local legislative work and schedules.</p>
+          <div className="hero-actions">
+            <a href="#documents" className="secondary-cta">Browse Documents</a>
+            <a href="#schedules" className="secondary-cta muted">See Schedules</a>
+          </div>
         </div>
 
         <nav className="top-nav" aria-label="Public navigation">
@@ -112,21 +152,68 @@ export default function PublicLGUPage() {
       {loading && <p className="page-note">Loading public information...</p>}
       {!loading && error && <p className="page-note warning">{error}</p>}
 
+      <section className="visitor-tools" aria-label="public directory tools">
+        <div className="tool-block search-tool">
+          <label htmlFor="public-search">Search public directory</label>
+          <input
+            id="public-search"
+            type="search"
+            placeholder="Search councilors, committees, or documents"
+            value={directoryQuery}
+            onChange={(event) => setDirectoryQuery(event.target.value)}
+          />
+        </div>
+
+        <div className="tool-block filter-tool">
+          <label htmlFor="document-filter">Document type</label>
+          <select
+            id="document-filter"
+            value={documentFilter}
+            onChange={(event) => setDocumentFilter(event.target.value)}
+          >
+            {documentTypes.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="tool-block spotlight-tool">
+          <p className="spotlight-label">Next public session</p>
+          <h3>{nextSession?.title || 'No scheduled session yet'}</h3>
+          <p>
+            {nextSession
+              ? `${formatDate(nextSession.date)} at ${formatTime(nextSession.session_time)}`
+              : 'Schedules will appear here once published.'}
+          </p>
+        </div>
+
+        <div className="tool-block spotlight-tool">
+          <p className="spotlight-label">Next committee meeting</p>
+          <h3>{nextMeeting?.title || 'No scheduled committee meeting yet'}</h3>
+          <p>
+            {nextMeeting
+              ? `${formatDate(nextMeeting.meeting_date)} at ${formatTime(nextMeeting.meeting_time)}`
+              : 'Upcoming committee meetings will appear here.'}
+          </p>
+        </div>
+      </section>
+
       <main className="public-content">
         <section id="councilors" className="content-section">
           <div className="section-title-row">
             <h2>Councilors Information</h2>
+            <span className="section-count">{filteredCouncilors.length}</span>
           </div>
           <div className="card-grid">
-            {data.councilors.length > 0 ? (
-              data.councilors.map((member) => (
+            {filteredCouncilors.length > 0 ? (
+              filteredCouncilors.map((member) => (
                 <article key={member.id} className="info-card">
                   <h3>{member.name}</h3>
                   <p>{member.role}</p>
                 </article>
               ))
             ) : (
-              <p className="empty-text">No public councilor records available yet.</p>
+              <p className="empty-text">No councilor records match the current search.</p>
             )}
           </div>
         </section>
@@ -134,21 +221,23 @@ export default function PublicLGUPage() {
         <section id="documents" className="content-section">
           <div className="section-title-row">
             <h2>Legislative Documents</h2>
+            <span className="section-count">{filteredDocuments.length}</span>
           </div>
           <div className="list-cards">
-            {data.legislativeDocuments.length > 0 ? (
-              data.legislativeDocuments.map((doc) => (
+            {filteredDocuments.length > 0 ? (
+              filteredDocuments.map((doc) => (
                 <article key={`${doc.document_type}-${doc.id}`} className="list-card-item">
                   <p className="list-chip">{doc.document_type}</p>
                   <h3>{doc.title || 'Untitled document'}</h3>
                   <p>
                     {doc.reference_no || 'No document number'} | {doc.status || 'No status'}
                   </p>
+                  <p>Stage: {doc.reading_stage || 'Not specified'}</p>
                   <p>Last updated: {formatDate(doc.updated_at)}</p>
                 </article>
               ))
             ) : (
-              <p className="empty-text">No legislative documents are currently available for public viewing.</p>
+              <p className="empty-text">No legislative documents match the current filters.</p>
             )}
           </div>
         </section>
@@ -156,20 +245,22 @@ export default function PublicLGUPage() {
         <section id="committees" className="content-section">
           <div className="section-title-row">
             <h2>Committees</h2>
+            <span className="section-count">{filteredCommittees.length}</span>
           </div>
           <div className="list-cards">
-            {data.committees.length > 0 ? (
-              data.committees.map((committee) => (
+            {filteredCommittees.length > 0 ? (
+              filteredCommittees.map((committee) => (
                 <article key={committee.id} className="list-card-item">
                   <h3>{committee.name}</h3>
                   <p>{committee.description || 'No committee description yet.'}</p>
                   <p>
                     Chair: {committee.chair_name || 'Unassigned'} | Members: {committee.member_count || 0}
                   </p>
+                  <p>Status: {committee.status || 'Not specified'}</p>
                 </article>
               ))
             ) : (
-              <p className="empty-text">No committee information is currently available.</p>
+              <p className="empty-text">No committee information matches the current search.</p>
             )}
           </div>
         </section>
@@ -219,9 +310,26 @@ export default function PublicLGUPage() {
         </section>
 
         <section id="about" className="content-section about-section">
-          <h2>About Us</h2>
-          <p>{data.about}</p>
-          <Link to="/login" className="primary-cta">Proceed to Login</Link>
+          <div className="section-title-row">
+            <h2>About Us</h2>
+          </div>
+          <div className="about-grid">
+            <div>
+              <p>{data.about}</p>
+              <p>
+                This public page is intended for residents, partner agencies, and visitors who need a quick view of
+                legislative activity without accessing internal tools.
+              </p>
+            </div>
+
+            <aside className="contact-card">
+              <p className="contact-label">Public Contact</p>
+              <h3>{data.lguName} Legislative Office</h3>
+              <p>Office hours: Monday to Friday, 8:00 AM to 5:00 PM</p>
+              <p>For official records and staff access, proceed through the secure login page.</p>
+              <Link to="/login" className="primary-cta">Proceed to Login</Link>
+            </aside>
+          </div>
         </section>
       </main>
     </div>
