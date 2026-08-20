@@ -46,16 +46,25 @@ function formatTime(value) {
   return `${String(hour12).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${suffix}`;
 }
 
+function resolveAssetUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/')) return `${API_BASE_URL}${raw}`;
+  return `${API_BASE_URL}/${raw.replace(/^\/+/, '')}`;
+}
+
+function getInitials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'LG';
+  return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() || '').join('');
+}
+
 export default function PublicLGUPage() {
   const [data, setData] = useState(fallbackData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [documentQuery, setDocumentQuery] = useState('');
-  const [documentFilter, setDocumentFilter] = useState('All');
-  const [committeeQuery, setCommitteeQuery] = useState('');
-  const [committeeStatusFilter, setCommitteeStatusFilter] = useState('All');
-  const [scheduleQuery, setScheduleQuery] = useState('');
-  const [scheduleFilter, setScheduleFilter] = useState('All');
+  const [globalQuery, setGlobalQuery] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -96,80 +105,91 @@ export default function PublicLGUPage() {
     [data]
   );
 
-  const filteredCouncilors = data.councilors;
+  const normalizedQuery = globalQuery.trim().toLowerCase();
 
-  const normalizedDocumentQuery = documentQuery.trim().toLowerCase();
-  const normalizedCommitteeQuery = committeeQuery.trim().toLowerCase();
-  const normalizedScheduleQuery = scheduleQuery.trim().toLowerCase();
+  const filteredCouncilors = useMemo(() => {
+    return data.councilors.filter((member) => {
+      if (!normalizedQuery) return true;
+      const haystack = `${member.name || ''} ${member.role || ''}`.toLowerCase();
+      return haystack.includes(normalizedQuery);
+    });
+  }, [data.councilors, normalizedQuery]);
 
   const filteredCommittees = useMemo(() => {
     return data.committees.filter((committee) => {
-      const matchesQuery = !normalizedCommitteeQuery || `${committee.name || ''} ${committee.description || ''} ${committee.chair_name || ''}`
+      return !normalizedQuery || `${committee.name || ''} ${committee.description || ''} ${committee.chair_name || ''} ${committee.status || ''}`
         .toLowerCase()
-        .includes(normalizedCommitteeQuery);
-      const matchesStatus = committeeStatusFilter === 'All' || committee.status === committeeStatusFilter;
-      return matchesQuery && matchesStatus;
+        .includes(normalizedQuery);
     });
-  }, [committeeStatusFilter, data.committees, normalizedCommitteeQuery]);
+  }, [data.committees, normalizedQuery]);
 
   const filteredDocuments = useMemo(() => {
     return data.legislativeDocuments.filter((doc) => {
-      const matchesType = documentFilter === 'All' || doc.document_type === documentFilter;
-      const matchesQuery = !normalizedDocumentQuery || `${doc.title || ''} ${doc.reference_no || ''} ${doc.status || ''} ${doc.description || ''}`
+      return !normalizedQuery || `${doc.title || ''} ${doc.reference_no || ''} ${doc.status || ''} ${doc.description || ''} ${doc.document_type || ''} ${doc.reading_stage || ''}`
         .toLowerCase()
-        .includes(normalizedDocumentQuery);
-      return matchesType && matchesQuery;
+        .includes(normalizedQuery);
     });
-  }, [data.legislativeDocuments, documentFilter, normalizedDocumentQuery]);
+  }, [data.legislativeDocuments, normalizedQuery]);
 
   const filteredSessions = useMemo(() => {
     return data.scheduledSessions.filter((session) => {
-      if (scheduleFilter === 'Committee Meeting') return false;
-      if (!normalizedScheduleQuery) return true;
+      if (!normalizedQuery) return true;
       const haystack = `${session.title || ''} ${session.location || ''} ${session.agenda || ''}`.toLowerCase();
-      return haystack.includes(normalizedScheduleQuery);
+      return haystack.includes(normalizedQuery);
     });
-  }, [data.scheduledSessions, normalizedScheduleQuery, scheduleFilter]);
+  }, [data.scheduledSessions, normalizedQuery]);
 
   const filteredMeetings = useMemo(() => {
     return data.scheduledMeetings.filter((meeting) => {
-      if (scheduleFilter === 'Session') return false;
-      if (!normalizedScheduleQuery) return true;
+      if (!normalizedQuery) return true;
       const haystack = `${meeting.title || ''} ${meeting.committee_name || ''} ${meeting.meeting_location || ''}`.toLowerCase();
-      return haystack.includes(normalizedScheduleQuery);
+      return haystack.includes(normalizedQuery);
     });
-  }, [data.scheduledMeetings, normalizedScheduleQuery, scheduleFilter]);
+  }, [data.scheduledMeetings, normalizedQuery]);
 
   const nextSession = filteredSessions[0] || data.scheduledSessions[0] || null;
   const nextMeeting = filteredMeetings[0] || data.scheduledMeetings[0] || null;
-  const documentTypes = ['All', 'Ordinance', 'Resolution'];
-  const committeeStatuses = ['All', 'Active', 'Inactive'];
-  const scheduleTypes = ['All', 'Session', 'Committee Meeting'];
+  const logoUrl = resolveAssetUrl(data.branding?.logoUrl);
+  const sealUrl = resolveAssetUrl(data.branding?.sealUrl);
 
   return (
     <div className="public-lgu-page">
       <header className="public-header">
-        <div className="hero-brand-rail" aria-hidden="true">
-          {data.branding?.logoUrl ? (
-            <img src={data.branding.logoUrl} alt="LGU logo" className="hero-brand-image" />
+        <div className="hero-brand-slot hero-brand-slot-left" aria-hidden="true">
+          {logoUrl ? (
+            <img src={logoUrl} alt="LGU logo" className="hero-brand-image" />
           ) : (
             <div className="hero-brand-placeholder">Logo</div>
           )}
-          {data.branding?.sealUrl ? (
-            <img src={data.branding.sealUrl} alt="LGU seal" className="hero-brand-image" />
+        </div>
+
+        <div className="hero-content-shell">
+          <div className="brand-block">
+            <p className="eyebrow">Official Public Portal</p>
+            <h1>{data.lguName} Legislative Council</h1>
+            <p className="lead-text">A public window into your local legislative work and schedules.</p>
+            <div className="hero-actions">
+              <a href="#documents" className="secondary-cta">Browse Documents</a>
+              <a href="#schedules" className="secondary-cta muted">See Schedules</a>
+            </div>
+          </div>
+
+          <nav className="top-nav" aria-label="Public navigation">
+            <a href="#councilors">Councilors</a>
+            <a href="#documents">Documents</a>
+            <a href="#committees">Committees</a>
+            <a href="#schedules">Schedules</a>
+            <a href="#about">About Us</a>
+            <Link to="/login" className="nav-login">Login</Link>
+          </nav>
+        </div>
+
+        <div className="hero-brand-slot hero-brand-slot-right" aria-hidden="true">
+          {sealUrl ? (
+            <img src={sealUrl} alt="LGU seal" className="hero-brand-image" />
           ) : (
             <div className="hero-brand-placeholder">Seal</div>
           )}
-        </div>
-
-        <div className="brand-block">
-          <p className="eyebrow">Official Public Portal</p>
-          <h1>{data.lguName} Legislative Council</h1>
-          <p className="lead-text">A public window into your local legislative work and schedules.</p>
-          <div className="hero-actions">
-            <a href="#documents" className="secondary-cta">Browse Documents</a>
-            <a href="#schedules" className="secondary-cta muted">See Schedules</a>
-          </div>
         </div>
 
         <div className="hero-contact-card">
@@ -181,14 +201,6 @@ export default function PublicLGUPage() {
           <p>{data.branding?.officeHours}</p>
         </div>
 
-        <nav className="top-nav" aria-label="Public navigation">
-          <a href="#councilors">Councilors</a>
-          <a href="#documents">Documents</a>
-          <a href="#committees">Committees</a>
-          <a href="#schedules">Schedules</a>
-          <a href="#about">About Us</a>
-          <Link to="/login" className="nav-login">Login</Link>
-        </nav>
       </header>
 
       <section className="stats-grid" aria-label="overview statistics">
@@ -204,76 +216,15 @@ export default function PublicLGUPage() {
       {!loading && error && <p className="page-note warning">{error}</p>}
 
       <section className="visitor-tools" aria-label="public directory tools">
-        <div className="tool-block search-tool">
-          <label htmlFor="public-doc-search">Search documents</label>
+        <div className="tool-block search-tool search-tool-wide">
+          <label htmlFor="public-global-search">Search the whole page</label>
           <input
-            id="public-doc-search"
+            id="public-global-search"
             type="search"
-            placeholder="Search title, number, or status"
-            value={documentQuery}
-            onChange={(event) => setDocumentQuery(event.target.value)}
+            placeholder="Search councilors, documents, committees, sessions, and meetings"
+            value={globalQuery}
+            onChange={(event) => setGlobalQuery(event.target.value)}
           />
-        </div>
-
-        <div className="tool-block filter-tool">
-          <label htmlFor="document-filter">Document type</label>
-          <select
-            id="document-filter"
-            value={documentFilter}
-            onChange={(event) => setDocumentFilter(event.target.value)}
-          >
-            {documentTypes.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="tool-block search-tool">
-          <label htmlFor="committee-search">Search committees</label>
-          <input
-            id="committee-search"
-            type="search"
-            placeholder="Search committee, chair, or description"
-            value={committeeQuery}
-            onChange={(event) => setCommitteeQuery(event.target.value)}
-          />
-        </div>
-
-        <div className="tool-block filter-tool">
-          <label htmlFor="committee-filter">Committee status</label>
-          <select
-            id="committee-filter"
-            value={committeeStatusFilter}
-            onChange={(event) => setCommitteeStatusFilter(event.target.value)}
-          >
-            {committeeStatuses.map((status) => (
-              <option key={status} value={status}>{status}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="tool-block search-tool">
-          <label htmlFor="schedule-search">Search schedules</label>
-          <input
-            id="schedule-search"
-            type="search"
-            placeholder="Search title, venue, or committee"
-            value={scheduleQuery}
-            onChange={(event) => setScheduleQuery(event.target.value)}
-          />
-        </div>
-
-        <div className="tool-block filter-tool">
-          <label htmlFor="schedule-filter">Schedule type</label>
-          <select
-            id="schedule-filter"
-            value={scheduleFilter}
-            onChange={(event) => setScheduleFilter(event.target.value)}
-          >
-            {scheduleTypes.map((type) => (
-              <option key={type} value={type}>{type}</option>
-            ))}
-          </select>
         </div>
 
         <div className="tool-block spotlight-tool">
@@ -307,8 +258,21 @@ export default function PublicLGUPage() {
             {filteredCouncilors.length > 0 ? (
               filteredCouncilors.map((member) => (
                 <article key={member.id} className="info-card">
-                  <h3>{member.name}</h3>
-                  <p>{member.role}</p>
+                  <div className="councilor-card-header">
+                    {member.photo_url ? (
+                      <img
+                        src={resolveAssetUrl(member.photo_url)}
+                        alt={`${member.name} profile`}
+                        className="councilor-photo"
+                      />
+                    ) : (
+                      <div className="councilor-photo-placeholder">{getInitials(member.name)}</div>
+                    )}
+                    <div>
+                      <h3>{member.name}</h3>
+                      <p>{member.role}</p>
+                    </div>
+                  </div>
                   <Link to={`/visit/councilors/${member.id}`} className="detail-link">View full details</Link>
                 </article>
               ))
@@ -343,7 +307,7 @@ export default function PublicLGUPage() {
                 </article>
               ))
             ) : (
-              <p className="empty-text">No legislative documents match the current filters.</p>
+              <p className="empty-text">No legislative documents match the current search.</p>
             )}
           </div>
         </section>
