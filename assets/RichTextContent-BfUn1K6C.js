@@ -1,1 +1,0 @@
-import{j as n}from"./react-vendor-CBlsERBa.js";import{s as o,r as i}from"./richText-M6TGck8N.js";function c({value:e,className:s="",fallback:r=""}){const t=o(e||"");return i(t).length>0?n.jsx("div",{className:s,dangerouslySetInnerHTML:{__html:t}}):n.jsx("span",{children:r})}export{c as R};
