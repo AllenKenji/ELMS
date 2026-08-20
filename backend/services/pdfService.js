@@ -244,8 +244,8 @@ function ensureSpace(doc, neededHeight) {
  */
 function writeHeader(doc, documentType, headerConfig = {}) {
   // Add left and right logos using absolute paths for reliable rendering.
-  const leftLogoPath = path.join(__dirname, '..', 'public', 'logo-left.png');
-  const rightLogoPath = path.join(__dirname, '..', 'public', 'logo-right.png');
+  const leftLogoPath = path.join(__dirname, '..', 'public', 'lgu-logo.png');
+  const rightLogoPath = path.join(__dirname, '..', 'public', 'lgu-seal.png');
   const { logoSize, logoGap, logoYOffset } = PDF_LAYOUT;
   const { width: pageWidth, margins: { left: marginLeft, right: marginRight } } = doc.page;
   const { y } = doc;

@@ -50,6 +50,7 @@ app.get('/socket-health', (_req, res) => {
 
 // Serve uploads folder as static files (must be before any auth middleware)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/public-assets', express.static(path.join(__dirname, 'public')));
 
 // Routes
 app.use('/auth', require('./routes/auth'));

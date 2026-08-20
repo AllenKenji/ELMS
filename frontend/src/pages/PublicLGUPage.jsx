@@ -8,6 +8,15 @@ const fallbackData = {
   lguName: 'Local Government Unit',
   about:
     'This portal provides public visibility into council composition, legislative documents, committee structure, and official schedules.',
+  branding: {
+    logoUrl: '',
+    sealUrl: '',
+    officeName: 'Legislative Office',
+    address: 'Municipal Hall, Main Civic Center',
+    phone: '(000) 000-0000',
+    email: 'legislative.office@lgu.gov.ph',
+    officeHours: 'Monday to Friday, 8:00 AM to 5:00 PM',
+  },
   councilors: [],
   legislativeDocuments: [],
   committees: [],
@@ -41,8 +50,12 @@ export default function PublicLGUPage() {
   const [data, setData] = useState(fallbackData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [directoryQuery, setDirectoryQuery] = useState('');
+  const [documentQuery, setDocumentQuery] = useState('');
   const [documentFilter, setDocumentFilter] = useState('All');
+  const [committeeQuery, setCommitteeQuery] = useState('');
+  const [committeeStatusFilter, setCommitteeStatusFilter] = useState('All');
+  const [scheduleQuery, setScheduleQuery] = useState('');
+  const [scheduleFilter, setScheduleFilter] = useState('All');
 
   useEffect(() => {
     let mounted = true;
@@ -83,43 +96,72 @@ export default function PublicLGUPage() {
     [data]
   );
 
-  const normalizedQuery = directoryQuery.trim().toLowerCase();
+  const filteredCouncilors = data.councilors;
 
-  const filteredCouncilors = useMemo(() => {
-    if (!normalizedQuery) return data.councilors;
-
-    return data.councilors.filter((member) => {
-      const haystack = `${member.name || ''} ${member.role || ''}`.toLowerCase();
-      return haystack.includes(normalizedQuery);
-    });
-  }, [data.councilors, normalizedQuery]);
+  const normalizedDocumentQuery = documentQuery.trim().toLowerCase();
+  const normalizedCommitteeQuery = committeeQuery.trim().toLowerCase();
+  const normalizedScheduleQuery = scheduleQuery.trim().toLowerCase();
 
   const filteredCommittees = useMemo(() => {
-    if (!normalizedQuery) return data.committees;
-
     return data.committees.filter((committee) => {
-      const haystack = `${committee.name || ''} ${committee.description || ''} ${committee.chair_name || ''}`.toLowerCase();
-      return haystack.includes(normalizedQuery);
+      const matchesQuery = !normalizedCommitteeQuery || `${committee.name || ''} ${committee.description || ''} ${committee.chair_name || ''}`
+        .toLowerCase()
+        .includes(normalizedCommitteeQuery);
+      const matchesStatus = committeeStatusFilter === 'All' || committee.status === committeeStatusFilter;
+      return matchesQuery && matchesStatus;
     });
-  }, [data.committees, normalizedQuery]);
+  }, [committeeStatusFilter, data.committees, normalizedCommitteeQuery]);
 
   const filteredDocuments = useMemo(() => {
     return data.legislativeDocuments.filter((doc) => {
       const matchesType = documentFilter === 'All' || doc.document_type === documentFilter;
-      const matchesQuery = !normalizedQuery || `${doc.title || ''} ${doc.reference_no || ''} ${doc.status || ''}`
+      const matchesQuery = !normalizedDocumentQuery || `${doc.title || ''} ${doc.reference_no || ''} ${doc.status || ''} ${doc.description || ''}`
         .toLowerCase()
-        .includes(normalizedQuery);
+        .includes(normalizedDocumentQuery);
       return matchesType && matchesQuery;
     });
-  }, [data.legislativeDocuments, documentFilter, normalizedQuery]);
+  }, [data.legislativeDocuments, documentFilter, normalizedDocumentQuery]);
 
-  const nextSession = data.scheduledSessions[0] || null;
-  const nextMeeting = data.scheduledMeetings[0] || null;
+  const filteredSessions = useMemo(() => {
+    return data.scheduledSessions.filter((session) => {
+      if (scheduleFilter === 'Committee Meeting') return false;
+      if (!normalizedScheduleQuery) return true;
+      const haystack = `${session.title || ''} ${session.location || ''} ${session.agenda || ''}`.toLowerCase();
+      return haystack.includes(normalizedScheduleQuery);
+    });
+  }, [data.scheduledSessions, normalizedScheduleQuery, scheduleFilter]);
+
+  const filteredMeetings = useMemo(() => {
+    return data.scheduledMeetings.filter((meeting) => {
+      if (scheduleFilter === 'Session') return false;
+      if (!normalizedScheduleQuery) return true;
+      const haystack = `${meeting.title || ''} ${meeting.committee_name || ''} ${meeting.meeting_location || ''}`.toLowerCase();
+      return haystack.includes(normalizedScheduleQuery);
+    });
+  }, [data.scheduledMeetings, normalizedScheduleQuery, scheduleFilter]);
+
+  const nextSession = filteredSessions[0] || data.scheduledSessions[0] || null;
+  const nextMeeting = filteredMeetings[0] || data.scheduledMeetings[0] || null;
   const documentTypes = ['All', 'Ordinance', 'Resolution'];
+  const committeeStatuses = ['All', 'Active', 'Inactive'];
+  const scheduleTypes = ['All', 'Session', 'Committee Meeting'];
 
   return (
     <div className="public-lgu-page">
       <header className="public-header">
+        <div className="hero-brand-rail" aria-hidden="true">
+          {data.branding?.logoUrl ? (
+            <img src={data.branding.logoUrl} alt="LGU logo" className="hero-brand-image" />
+          ) : (
+            <div className="hero-brand-placeholder">Logo</div>
+          )}
+          {data.branding?.sealUrl ? (
+            <img src={data.branding.sealUrl} alt="LGU seal" className="hero-brand-image" />
+          ) : (
+            <div className="hero-brand-placeholder">Seal</div>
+          )}
+        </div>
+
         <div className="brand-block">
           <p className="eyebrow">Official Public Portal</p>
           <h1>{data.lguName} Legislative Council</h1>
@@ -128,6 +170,15 @@ export default function PublicLGUPage() {
             <a href="#documents" className="secondary-cta">Browse Documents</a>
             <a href="#schedules" className="secondary-cta muted">See Schedules</a>
           </div>
+        </div>
+
+        <div className="hero-contact-card">
+          <p className="contact-label">Official Contact</p>
+          <h3>{data.branding?.officeName || `${data.lguName} Legislative Office`}</h3>
+          <p>{data.branding?.address}</p>
+          <p>{data.branding?.phone}</p>
+          <p>{data.branding?.email}</p>
+          <p>{data.branding?.officeHours}</p>
         </div>
 
         <nav className="top-nav" aria-label="Public navigation">
@@ -154,13 +205,13 @@ export default function PublicLGUPage() {
 
       <section className="visitor-tools" aria-label="public directory tools">
         <div className="tool-block search-tool">
-          <label htmlFor="public-search">Search public directory</label>
+          <label htmlFor="public-doc-search">Search documents</label>
           <input
-            id="public-search"
+            id="public-doc-search"
             type="search"
-            placeholder="Search councilors, committees, or documents"
-            value={directoryQuery}
-            onChange={(event) => setDirectoryQuery(event.target.value)}
+            placeholder="Search title, number, or status"
+            value={documentQuery}
+            onChange={(event) => setDocumentQuery(event.target.value)}
           />
         </div>
 
@@ -172,6 +223,54 @@ export default function PublicLGUPage() {
             onChange={(event) => setDocumentFilter(event.target.value)}
           >
             {documentTypes.map((type) => (
+              <option key={type} value={type}>{type}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="tool-block search-tool">
+          <label htmlFor="committee-search">Search committees</label>
+          <input
+            id="committee-search"
+            type="search"
+            placeholder="Search committee, chair, or description"
+            value={committeeQuery}
+            onChange={(event) => setCommitteeQuery(event.target.value)}
+          />
+        </div>
+
+        <div className="tool-block filter-tool">
+          <label htmlFor="committee-filter">Committee status</label>
+          <select
+            id="committee-filter"
+            value={committeeStatusFilter}
+            onChange={(event) => setCommitteeStatusFilter(event.target.value)}
+          >
+            {committeeStatuses.map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="tool-block search-tool">
+          <label htmlFor="schedule-search">Search schedules</label>
+          <input
+            id="schedule-search"
+            type="search"
+            placeholder="Search title, venue, or committee"
+            value={scheduleQuery}
+            onChange={(event) => setScheduleQuery(event.target.value)}
+          />
+        </div>
+
+        <div className="tool-block filter-tool">
+          <label htmlFor="schedule-filter">Schedule type</label>
+          <select
+            id="schedule-filter"
+            value={scheduleFilter}
+            onChange={(event) => setScheduleFilter(event.target.value)}
+          >
+            {scheduleTypes.map((type) => (
               <option key={type} value={type}>{type}</option>
             ))}
           </select>
@@ -210,6 +309,7 @@ export default function PublicLGUPage() {
                 <article key={member.id} className="info-card">
                   <h3>{member.name}</h3>
                   <p>{member.role}</p>
+                  <Link to={`/visit/councilors/${member.id}`} className="detail-link">View full details</Link>
                 </article>
               ))
             ) : (
@@ -234,6 +334,12 @@ export default function PublicLGUPage() {
                   </p>
                   <p>Stage: {doc.reading_stage || 'Not specified'}</p>
                   <p>Last updated: {formatDate(doc.updated_at)}</p>
+                  <Link
+                    to={`/visit/documents/${String(doc.document_type || '').toLowerCase()}-${doc.id}`}
+                    className="detail-link"
+                  >
+                    View full details
+                  </Link>
                 </article>
               ))
             ) : (
@@ -257,6 +363,7 @@ export default function PublicLGUPage() {
                     Chair: {committee.chair_name || 'Unassigned'} | Members: {committee.member_count || 0}
                   </p>
                   <p>Status: {committee.status || 'Not specified'}</p>
+                  <Link to={`/visit/committees/${committee.id}`} className="detail-link">View full details</Link>
                 </article>
               ))
             ) : (
@@ -271,8 +378,8 @@ export default function PublicLGUPage() {
               <h2>Scheduled Sessions</h2>
             </div>
             <div className="list-cards compact">
-              {data.scheduledSessions.length > 0 ? (
-                data.scheduledSessions.map((session) => (
+              {filteredSessions.length > 0 ? (
+                filteredSessions.map((session) => (
                   <article key={session.id} className="list-card-item">
                     <h3>{session.title}</h3>
                     <p>
@@ -292,8 +399,8 @@ export default function PublicLGUPage() {
               <h2>Scheduled Committee Meetings</h2>
             </div>
             <div className="list-cards compact">
-              {data.scheduledMeetings.length > 0 ? (
-                data.scheduledMeetings.map((meeting) => (
+              {filteredMeetings.length > 0 ? (
+                filteredMeetings.map((meeting) => (
                   <article key={meeting.id} className="list-card-item">
                     <h3>{meeting.title}</h3>
                     <p>
@@ -324,8 +431,11 @@ export default function PublicLGUPage() {
 
             <aside className="contact-card">
               <p className="contact-label">Public Contact</p>
-              <h3>{data.lguName} Legislative Office</h3>
-              <p>Office hours: Monday to Friday, 8:00 AM to 5:00 PM</p>
+              <h3>{data.branding?.officeName || `${data.lguName} Legislative Office`}</h3>
+              <p>{data.branding?.address}</p>
+              <p>{data.branding?.phone}</p>
+              <p>{data.branding?.email}</p>
+              <p>Office hours: {data.branding?.officeHours}</p>
               <p>For official records and staff access, proceed through the secure login page.</p>
               <Link to="/login" className="primary-cta">Proceed to Login</Link>
             </aside>

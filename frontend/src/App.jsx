@@ -6,6 +6,7 @@ const ForgotPassword = lazy(() => import('./components/ForgotPassword'));
 const Register = lazy(() => import('./components/Register'));
 import DashboardLayout from './components/DashboardLayout';
 const PublicLGUPage = lazy(() => import('./pages/PublicLGUPage'));
+const PublicDetailPage = lazy(() => import('./pages/PublicDetailPage'));
 
 const CouncilorDashboard = lazy(() => import('./pages/CouncilorDashboard'));
 const SecretaryDashboard = lazy(() => import('./pages/SecretaryDashboard'));
@@ -58,6 +59,7 @@ function App() {
             element={<Navigate to={canAccessDashboard ? '/dashboard' : '/visit'} replace />}
           />
           <Route path="/visit" element={<PublicLGUPage />} />
+          <Route path="/visit/:entityType/:id" element={<PublicDetailPage />} />
           <Route
             path="/login"
             element={canAccessDashboard ? <Navigate to="/dashboard" replace /> : <Login onLogin={login} />}
